@@ -42,7 +42,7 @@ const Header = () => {
         <div className="flex items-center justify-between">
           {/* Logo */}
           <div className="flex items-center cursor-pointer" onClick={() => navigate('/')}>
-            <h1 className="text-2xl font-bold text-blue-600">SiletoRx</h1>
+            <h1 className="text-2xl font-bold text-blue-600">SiletoExpress</h1>
             <span className="ml-2 text-sm text-gray-500 hidden md:block">
               Your Trusted Online Pharmacy
             </span>
@@ -186,25 +186,50 @@ const Header = () => {
       <nav className="hidden md:block bg-gray-50 border-t">
         <div className="container mx-auto px-4 py-2">
           <div className="flex items-center gap-8">
-            <Button variant="ghost" size="sm" onClick={() => navigate('/products')}>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => navigate('/products')}
+              className="text-gray-700 hover:text-blue-600"
+            >
               All Products
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/products?category=General Medicine')}>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => navigate('/products?category=General Medicine')}
+              className="text-gray-700 hover:text-blue-600"
+            >
               Prescription Drugs
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/products?category=Pain Relief')}>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => navigate('/products?category=Pain Relief')}
+              className="text-gray-700 hover:text-blue-600"
+            >
               Over-the-Counter
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/products?category=Chronic Care')}>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => navigate('/products?category=Chronic Care')}
+              className="text-gray-700 hover:text-blue-600"
+            >
               Chronic Care
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/products?category=Supplements')}>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => navigate('/products?category=Supplements')}
+              className="text-gray-700 hover:text-blue-600"
+            >
               Supplements
             </Button>
             <Button 
               variant="ghost" 
               size="sm" 
-              className="text-blue-600 font-medium"
+              className="text-blue-600 font-medium hover:text-blue-800"
               onClick={() => navigate('/prescription-upload')}
             >
               Upload Prescription
