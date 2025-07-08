@@ -1,0 +1,138 @@
+
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { useToast } from '@/components/ui/use-toast';
+
+interface CartItem {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+  prescription_required: boolean;
+  image_url?: string;
+  stock: number;
+}
+
+interface CartContextType {
+  items: CartItem[];
+  addToCart: (product: Omit<CartItem, 'quantity'>) => void;
+  removeFromCart: (id: string) => void;
+  updateQuantity: (id: string, quantity: number) => void;
+  clearCart: () => void;
+  getTotalPrice: () => number;
+  getTotalItems: () => number;
+  hasPrescriptionItems: () => boolean;
+}
+
+const CartContext = createContext<CartContextType | undefined>(undefined);
+
+export const useCart = () => {
+  const context = useContext(CartContext);
+  if (context === undefined) {
+    throw new Error('useCart must be used within a CartProvider');
+  }
+  return context;
+};
+
+export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [items, setItems] = useState<CartItem[]>([]);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const savedCart = localStorage.getItem('siletoRx-cart');
+    if (savedCart) {
+      setItems(JSON.parse(savedCart));
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('siletoRx-cart', JSON.stringify(items));
+  }, [items]);
+
+  const addToCart = (product: Omit<CartItem, 'quantity'>) => {
+    setItems(prev => {
+      const existingItem = prev.find(item => item.id === product.id);
+      if (existingItem) {
+        if (existingItem.quantity + 1 > product.stock) {
+          toast({
+            title: "Out of Stock",
+            description: `Only ${product.stock} items available`,
+            variant: "destructive"
+          });
+          return prev;
+        }
+        return prev.map(item =>
+          item.id === product.id 
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        );
+      }
+      return [...prev, { ...product, quantity: 1 }];
+    });
+    
+    toast({
+      title: "Added to Cart",
+      description: `${product.name} has been added to your cart`,
+    });
+  };
+
+  const removeFromCart = (id: string) => {
+    setItems(prev => prev.filter(item => item.id !== id));
+    toast({
+      title: "Removed from Cart",
+      description: "Item has been removed from your cart",
+    });
+  };
+
+  const updateQuantity = (id: string, quantity: number) => {
+    if (quantity <= 0) {
+      removeFromCart(id);
+      return;
+    }
+    
+    setItems(prev => prev.map(item => {
+      if (item.id === id) {
+        if (quantity > item.stock) {
+          toast({
+            title: "Out of Stock",
+            description: `Only ${item.stock} items available`,
+            variant: "destructive"
+          });
+          return item;
+        }
+        return { ...item, quantity };
+      }
+      return item;
+    }));
+  };
+
+  const clearCart = () => {
+    setItems([]);
+  };
+
+  const getTotalPrice = () => {
+    return items.reduce((total, item) => total + (item.price * item.quantity), 0);
+  };
+
+  const getTotalItems = () => {
+    return items.reduce((total, item) => total + item.quantity, 0);
+  };
+
+  const hasPrescriptionItems = () => {
+    return items.some(item => item.prescription_required);
+  };
+
+  return (
+    <CartContext.Provider value={{
+      items,
+      addToCart,
+      removeFromCart,
+      updateQuantity,
+      clearCart,
+      getTotalPrice,
+      getTotalItems,
+      hasPrescriptionItems
+    }}>
+      {children}
+    </CartContext.Provider>
+  );
+};

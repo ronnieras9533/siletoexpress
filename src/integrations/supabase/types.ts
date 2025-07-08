@@ -14,7 +14,185 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      order_items: {
+        Row: {
+          created_at: string
+          id: string
+          order_id: string
+          price: number
+          product_id: string
+          quantity: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          order_id: string
+          price: number
+          product_id: string
+          quantity: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          order_id?: string
+          price?: number
+          product_id?: string
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          created_at: string
+          delivery_address: string | null
+          id: string
+          mpesa_receipt_number: string | null
+          phone_number: string | null
+          status: Database["public"]["Enums"]["order_status"]
+          total_amount: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          delivery_address?: string | null
+          id?: string
+          mpesa_receipt_number?: string | null
+          phone_number?: string | null
+          status?: Database["public"]["Enums"]["order_status"]
+          total_amount: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          delivery_address?: string | null
+          id?: string
+          mpesa_receipt_number?: string | null
+          phone_number?: string | null
+          status?: Database["public"]["Enums"]["order_status"]
+          total_amount?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      prescriptions: {
+        Row: {
+          admin_notes: string | null
+          created_at: string
+          id: string
+          image_url: string
+          order_id: string | null
+          status: Database["public"]["Enums"]["prescription_status"]
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          created_at?: string
+          id?: string
+          image_url: string
+          order_id?: string | null
+          status?: Database["public"]["Enums"]["prescription_status"]
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string
+          order_id?: string | null
+          status?: Database["public"]["Enums"]["prescription_status"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prescriptions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          brand: string | null
+          category: string | null
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          name: string
+          prescription_required: boolean
+          price: number
+          stock: number
+        }
+        Insert: {
+          brand?: string | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          name: string
+          prescription_required?: boolean
+          price: number
+          stock?: number
+        }
+        Update: {
+          brand?: string | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          name?: string
+          prescription_required?: boolean
+          price?: number
+          stock?: number
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          phone: string | null
+          role: Database["public"]["Enums"]["user_role"]
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name: string
+          id: string
+          phone?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          phone?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +201,9 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      order_status: "pending" | "approved" | "delivered" | "cancelled"
+      prescription_status: "pending" | "approved" | "rejected"
+      user_role: "user" | "admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +330,10 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      order_status: ["pending", "approved", "delivered", "cancelled"],
+      prescription_status: ["pending", "approved", "rejected"],
+      user_role: ["user", "admin"],
+    },
   },
 } as const
