@@ -17,23 +17,28 @@ const SellerDashboard = () => {
   const navigate = useNavigate();
   const [showProductForm, setShowProductForm] = useState(false);
 
+  // Simplified products query
   const { data: products, isLoading: productsLoading } = useQuery({
     queryKey: ['sellerProducts', user?.id],
     queryFn: async () => {
       if (!user) return [];
+      
       const { data, error } = await supabase
         .from('products')
-        .select('*')
+        .select('id, name, category, price, stock, created_at')
         .eq('seller_id', user.id)
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
-      return data;
+      if (error) {
+        console.error('Error fetching products:', error);
+        throw error;
+      }
+      return data || [];
     },
     enabled: !!user && isSeller,
   });
 
-  // Separate query for order items to avoid complex type inference
+  // Simple order items query
   const { data: orderItems } = useQuery({
     queryKey: ['sellerOrderItems', user?.id, products?.length],
     queryFn: async () => {
@@ -43,10 +48,13 @@ const SellerDashboard = () => {
       
       const { data, error } = await supabase
         .from('order_items')
-        .select('id, quantity, price, product_id, created_at')
+        .select('quantity, price')
         .in('product_id', productIds);
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching order items:', error);
+        throw error;
+      }
       return data || [];
     },
     enabled: !!user && isSeller && !!products && products.length > 0,
