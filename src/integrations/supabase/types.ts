@@ -138,6 +138,7 @@ export type Database = {
           name: string
           prescription_required: boolean
           price: number
+          seller_id: string | null
           stock: number
         }
         Insert: {
@@ -150,6 +151,7 @@ export type Database = {
           name: string
           prescription_required?: boolean
           price: number
+          seller_id?: string | null
           stock?: number
         }
         Update: {
@@ -162,6 +164,7 @@ export type Database = {
           name?: string
           prescription_required?: boolean
           price?: number
+          seller_id?: string | null
           stock?: number
         }
         Relationships: []

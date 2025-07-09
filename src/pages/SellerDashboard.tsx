@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -31,12 +31,15 @@ const SellerDashboard = () => {
   const navigate = useNavigate();
   const [showProductForm, setShowProductForm] = useState(false);
 
-  // Fetch products with simplified query
-  const productsQuery = useQuery({
-    queryKey: ['sellerProducts', user?.id],
-    queryFn: async (): Promise<ProductData[]> => {
-      if (!user) return [];
-      
+  if (!user || !isSeller) {
+    navigate('/auth');
+    return null;
+  }
+
+  // Fetch products with explicit return type
+  const { data: products = [], isLoading: productsLoading } = useQuery<ProductData[]>({
+    queryKey: ['seller-products', user.id],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('products')
         .select('id, name, category, price, stock, created_at')
@@ -47,22 +50,21 @@ const SellerDashboard = () => {
         console.error('Error fetching products:', error);
         throw error;
       }
-      return data || [];
+      return data as ProductData[];
     },
     enabled: !!user && isSeller,
   });
 
-  // Get products data with explicit typing
-  const products: ProductData[] = productsQuery.data || [];
-  const productsLoading = productsQuery.isLoading;
+  // Extract product IDs using useMemo to prevent unnecessary recalculations
+  const productIds = useMemo(() => {
+    return products?.map(p => p.id) || [];
+  }, [products]);
 
-  // Fetch order items with simplified query key
-  const orderItemsQuery = useQuery({
-    queryKey: ['sellerOrderItems', user?.id],
-    queryFn: async (): Promise<OrderItemData[]> => {
-      if (!user || !products || products.length === 0) return [];
-      
-      const productIds = products.map(p => p.id);
+  // Fetch order items using the memoized product IDs
+  const { data: orderItems = [] } = useQuery<OrderItemData[]>({
+    queryKey: ['seller-order-items', user.id, productIds.length],
+    queryFn: async () => {
+      if (productIds.length === 0) return [];
       
       const { data, error } = await supabase
         .from('order_items')
@@ -73,18 +75,10 @@ const SellerDashboard = () => {
         console.error('Error fetching order items:', error);
         throw error;
       }
-      return data || [];
+      return data as OrderItemData[];
     },
-    enabled: !!user && isSeller && products.length > 0,
+    enabled: !!user && isSeller && productIds.length > 0,
   });
-
-  // Get order items data with explicit typing
-  const orderItems: OrderItemData[] = orderItemsQuery.data || [];
-
-  if (!user || !isSeller) {
-    navigate('/auth');
-    return null;
-  }
 
   const totalProducts = products.length;
   const totalSales = orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
