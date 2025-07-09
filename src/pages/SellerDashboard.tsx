@@ -56,9 +56,9 @@ const SellerDashboard = () => {
   const products: ProductData[] = productsQuery.data || [];
   const productsLoading = productsQuery.isLoading;
 
-  // Fetch order items with simplified query
+  // Fetch order items with simplified query key
   const orderItemsQuery = useQuery({
-    queryKey: ['sellerOrderItems', user?.id, products?.length],
+    queryKey: ['sellerOrderItems', user?.id],
     queryFn: async (): Promise<OrderItemData[]> => {
       if (!user || !products || products.length === 0) return [];
       
@@ -75,7 +75,7 @@ const SellerDashboard = () => {
       }
       return data || [];
     },
-    enabled: !!user && isSeller && !!products && products.length > 0,
+    enabled: !!user && isSeller && products.length > 0,
   });
 
   // Get order items data with explicit typing
