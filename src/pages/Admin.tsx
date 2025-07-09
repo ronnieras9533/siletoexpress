@@ -88,7 +88,17 @@ const Admin = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('orders')
-        .select('*, profiles(full_name, email), order_items(*, products(name))')
+        .select(`
+          *,
+          profiles!orders_user_id_fkey (
+            full_name,
+            email
+          ),
+          order_items (
+            *,
+            products (name)
+          )
+        `)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
@@ -102,7 +112,13 @@ const Admin = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('prescriptions')
-        .select('*, profiles(full_name, email)')
+        .select(`
+          *,
+          profiles!prescriptions_user_id_fkey (
+            full_name,
+            email
+          )
+        `)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
@@ -127,7 +143,7 @@ const Admin = () => {
 
   // Mutations
   const updateOrderStatus = useMutation({
-    mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
+    mutationFn: async ({ orderId, status }: { orderId: string; status: 'pending' | 'approved' | 'delivered' | 'cancelled' }) => {
       const { error } = await supabase
         .from('orders')
         .update({ status })
@@ -145,7 +161,7 @@ const Admin = () => {
   });
 
   const updatePrescriptionStatus = useMutation({
-    mutationFn: async ({ prescriptionId, status, notes }: { prescriptionId: string; status: string; notes?: string }) => {
+    mutationFn: async ({ prescriptionId, status, notes }: { prescriptionId: string; status: 'pending' | 'approved' | 'rejected'; notes?: string }) => {
       const { error } = await supabase
         .from('prescriptions')
         .update({ status, admin_notes: notes })
@@ -495,8 +511,8 @@ const Admin = () => {
                           </TableCell>
                           <TableCell>
                             <div>
-                              <div className="font-medium">{order.profiles?.full_name}</div>
-                              <div className="text-sm text-gray-500">{order.profiles?.email}</div>
+                              <div className="font-medium">{order.profiles?.full_name || 'N/A'}</div>
+                              <div className="text-sm text-gray-500">{order.profiles?.email || 'N/A'}</div>
                             </div>
                           </TableCell>
                           <TableCell>KES {order.total_amount.toLocaleString()}</TableCell>
@@ -511,7 +527,9 @@ const Admin = () => {
                           <TableCell>
                             <Select
                               value={order.status}
-                              onValueChange={(value) => updateOrderStatus.mutate({ orderId: order.id, status: value })}
+                              onValueChange={(value: 'pending' | 'approved' | 'delivered' | 'cancelled') => 
+                                updateOrderStatus.mutate({ orderId: order.id, status: value })
+                              }
                             >
                               <SelectTrigger className="w-32">
                                 <SelectValue />
@@ -554,8 +572,8 @@ const Admin = () => {
                           </TableCell>
                           <TableCell>
                             <div>
-                              <div className="font-medium">{prescription.profiles?.full_name}</div>
-                              <div className="text-sm text-gray-500">{prescription.profiles?.email}</div>
+                              <div className="font-medium">{prescription.profiles?.full_name || 'N/A'}</div>
+                              <div className="text-sm text-gray-500">{prescription.profiles?.email || 'N/A'}</div>
                             </div>
                           </TableCell>
                           <TableCell>
