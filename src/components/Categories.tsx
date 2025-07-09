@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
@@ -5,7 +6,7 @@ import {
   Pill, 
   Heart, 
   Stethoscope, 
-  Capsule, 
+  Pills, 
   FileText, 
   Thermometer 
 } from "lucide-react";
@@ -40,7 +41,7 @@ const Categories = () => {
     },
     {
       name: "Supplements",
-      icon: Capsule,
+      icon: Pills,
       description: "Vitamins, minerals, wellness products",
       color: "text-purple-600",
       bgColor: "bg-purple-50",

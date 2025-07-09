@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -88,21 +87,27 @@ const Admin = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('orders')
-        .select(`
-          *,
-          profiles!orders_user_id_fkey (
-            full_name,
-            email
-          ),
-          order_items (
-            *,
-            products (name)
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data;
+      
+      // Fetch user profiles separately
+      const orderUserIds = data?.map(order => order.user_id) || [];
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', orderUserIds);
+      
+      if (profilesError) throw profilesError;
+      
+      // Combine orders with profiles
+      const ordersWithProfiles = data?.map(order => ({
+        ...order,
+        profile: profiles?.find(p => p.id === order.user_id)
+      }));
+      
+      return ordersWithProfiles;
     },
     enabled: isAdmin,
   });
@@ -112,17 +117,27 @@ const Admin = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('prescriptions')
-        .select(`
-          *,
-          profiles!prescriptions_user_id_fkey (
-            full_name,
-            email
-          )
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data;
+      
+      // Fetch user profiles separately
+      const prescriptionUserIds = data?.map(prescription => prescription.user_id) || [];
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', prescriptionUserIds);
+      
+      if (profilesError) throw profilesError;
+      
+      // Combine prescriptions with profiles
+      const prescriptionsWithProfiles = data?.map(prescription => ({
+        ...prescription,
+        profile: profiles?.find(p => p.id === prescription.user_id)
+      }));
+      
+      return prescriptionsWithProfiles;
     },
     enabled: isAdmin,
   });
@@ -511,8 +526,8 @@ const Admin = () => {
                           </TableCell>
                           <TableCell>
                             <div>
-                              <div className="font-medium">{order.profiles?.full_name || 'N/A'}</div>
-                              <div className="text-sm text-gray-500">{order.profiles?.email || 'N/A'}</div>
+                              <div className="font-medium">{order.profile?.full_name || 'N/A'}</div>
+                              <div className="text-sm text-gray-500">{order.profile?.email || 'N/A'}</div>
                             </div>
                           </TableCell>
                           <TableCell>KES {order.total_amount.toLocaleString()}</TableCell>
@@ -572,8 +587,8 @@ const Admin = () => {
                           </TableCell>
                           <TableCell>
                             <div>
-                              <div className="font-medium">{prescription.profiles?.full_name || 'N/A'}</div>
-                              <div className="text-sm text-gray-500">{prescription.profiles?.email || 'N/A'}</div>
+                              <div className="font-medium">{prescription.profile?.full_name || 'N/A'}</div>
+                              <div className="text-sm text-gray-500">{prescription.profile?.email || 'N/A'}</div>
                             </div>
                           </TableCell>
                           <TableCell>
