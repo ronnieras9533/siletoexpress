@@ -31,11 +31,11 @@ const SellerDashboard = () => {
   const navigate = useNavigate();
   const [showProductForm, setShowProductForm] = useState(false);
 
-  // Fetch products with explicit typing
-  const { data: products = [], isLoading: productsLoading } = useQuery({
+  // Fetch products
+  const productsQuery = useQuery({
     queryKey: ['sellerProducts', user?.id],
     queryFn: async () => {
-      if (!user) return [] as ProductData[];
+      if (!user) return [];
       
       const { data, error } = await supabase
         .from('products')
@@ -47,16 +47,19 @@ const SellerDashboard = () => {
         console.error('Error fetching products:', error);
         throw error;
       }
-      return (data || []) as ProductData[];
+      return data || [];
     },
     enabled: !!user && isSeller,
   });
 
-  // Fetch order items with explicit typing
-  const { data: orderItems = [] } = useQuery({
+  const products = (productsQuery.data || []) as ProductData[];
+  const productsLoading = productsQuery.isLoading;
+
+  // Fetch order items
+  const orderItemsQuery = useQuery({
     queryKey: ['sellerOrderItems', user?.id, products?.length],
     queryFn: async () => {
-      if (!user || !products || products.length === 0) return [] as OrderItemData[];
+      if (!user || !products || products.length === 0) return [];
       
       const productIds = products.map(p => p.id);
       
@@ -69,10 +72,12 @@ const SellerDashboard = () => {
         console.error('Error fetching order items:', error);
         throw error;
       }
-      return (data || []) as OrderItemData[];
+      return data || [];
     },
     enabled: !!user && isSeller && !!products && products.length > 0,
   });
+
+  const orderItems = (orderItemsQuery.data || []) as OrderItemData[];
 
   if (!user || !isSeller) {
     navigate('/auth');
