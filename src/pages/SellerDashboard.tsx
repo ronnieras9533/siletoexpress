@@ -12,15 +12,29 @@ import Footer from '@/components/Footer';
 import { useQuery } from '@tanstack/react-query';
 import ProductForm from '@/components/ProductForm';
 
+type ProductData = {
+  id: string;
+  name: string;
+  category: string | null;
+  price: number;
+  stock: number;
+  created_at: string;
+};
+
+type OrderItemData = {
+  quantity: number;
+  price: number;
+};
+
 const SellerDashboard = () => {
   const { user, isSeller } = useAuth();
   const navigate = useNavigate();
   const [showProductForm, setShowProductForm] = useState(false);
 
-  // Simplified products query
-  const { data: products, isLoading: productsLoading } = useQuery({
+  // Fetch products with explicit typing
+  const { data: products = [], isLoading: productsLoading } = useQuery<ProductData[]>({
     queryKey: ['sellerProducts', user?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<ProductData[]> => {
       if (!user) return [];
       
       const { data, error } = await supabase
@@ -38,10 +52,10 @@ const SellerDashboard = () => {
     enabled: !!user && isSeller,
   });
 
-  // Simple order items query
-  const { data: orderItems } = useQuery({
+  // Fetch order items with explicit typing
+  const { data: orderItems = [] } = useQuery<OrderItemData[]>({
     queryKey: ['sellerOrderItems', user?.id, products?.length],
-    queryFn: async () => {
+    queryFn: async (): Promise<OrderItemData[]> => {
       if (!user || !products || products.length === 0) return [];
       
       const productIds = products.map(p => p.id);
@@ -65,9 +79,9 @@ const SellerDashboard = () => {
     return null;
   }
 
-  const totalProducts = products?.length || 0;
-  const totalSales = orderItems?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0;
-  const totalOrders = orderItems?.length || 0;
+  const totalProducts = products.length;
+  const totalSales = orderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const totalOrders = orderItems.length;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -122,7 +136,7 @@ const SellerDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {products?.filter(p => p.stock > 0).length || 0}
+                  {products.filter(p => p.stock > 0).length}
                 </div>
               </CardContent>
             </Card>
@@ -136,7 +150,7 @@ const SellerDashboard = () => {
             <CardContent>
               {productsLoading ? (
                 <div className="text-center py-4">Loading products...</div>
-              ) : products && products.length > 0 ? (
+              ) : products.length > 0 ? (
                 <div className="space-y-4">
                   {products.map((product) => (
                     <div key={product.id} className="flex items-center justify-between p-4 border rounded-lg">
