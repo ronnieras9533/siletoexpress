@@ -14,6 +14,7 @@ import Checkout from "./pages/Checkout";
 import OrderSuccess from "./pages/OrderSuccess";
 import PrescriptionUpload from "./pages/PrescriptionUpload";
 import Dashboard from "./pages/Dashboard";
+import SellerDashboard from "./pages/SellerDashboard";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
@@ -36,6 +37,7 @@ const App = () => (
               <Route path="/order-success" element={<OrderSuccess />} />
               <Route path="/prescription-upload" element={<PrescriptionUpload />} />
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/seller-dashboard" element={<SellerDashboard />} />
               <Route path="/admin" element={<Admin />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

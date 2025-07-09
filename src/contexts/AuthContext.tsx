@@ -8,10 +8,12 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, fullName: string, role?: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   isAdmin: boolean;
+  isSeller: boolean;
+  userRole: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,6 +31,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSeller, setIsSeller] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -44,6 +48,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }, 0);
         } else {
           setIsAdmin(false);
+          setIsSeller(false);
+          setUserRole(null);
         }
       }
     );
@@ -74,14 +80,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       
-      setIsAdmin(data?.role === 'admin');
+      const role = data?.role;
+      setUserRole(role);
+      setIsAdmin(role === 'admin');
+      setIsSeller(role === 'seller');
     } catch (error) {
       console.error('Error checking user role:', error);
     }
   };
 
-  const signUp = async (email: string, password: string, fullName: string) => {
-    // Use production URL instead of localhost
+  const signUp = async (email: string, password: string, fullName: string, role: string = 'user') => {
     const redirectUrl = `${window.location.origin}/auth`;
     
     const { error } = await supabase.auth.signUp({
@@ -90,7 +98,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       options: {
         emailRedirectTo: redirectUrl,
         data: {
-          full_name: fullName
+          full_name: fullName,
+          role: role
         }
       }
     });
@@ -157,7 +166,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       signUp,
       signIn,
       signOut,
-      isAdmin
+      isAdmin,
+      isSeller,
+      userRole
     }}>
       {children}
     </AuthContext.Provider>

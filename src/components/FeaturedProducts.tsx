@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCart } from "@/contexts/CartContext";
-import { ShoppingCart, Star } from "lucide-react";
+import { ShoppingCart } from "lucide-react";
 
 const FeaturedProducts = () => {
   const navigate = useNavigate();
@@ -17,7 +17,11 @@ const FeaturedProducts = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('products')
-        .select('*')
+        .select(`
+          *,
+          profiles:seller_id(full_name)
+        `)
+        .gt('stock', 0)
         .limit(6)
         .order('created_at', { ascending: false });
       
@@ -84,7 +88,7 @@ const FeaturedProducts = () => {
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold text-gray-900 mb-4">Featured Products</h2>
           <p className="text-gray-600 max-w-2xl mx-auto">
-            Discover our most popular medicines and health products, carefully selected for quality and effectiveness
+            Discover quality medicines and health products from verified sellers
           </p>
         </div>
 
@@ -98,6 +102,11 @@ const FeaturedProducts = () => {
                       {product.name}
                     </CardTitle>
                     <p className="text-sm text-gray-600 mt-1">{product.brand}</p>
+                    {product.profiles && (
+                      <p className="text-xs text-blue-600 mt-1">
+                        By {product.profiles.full_name}
+                      </p>
+                    )}
                   </div>
                   {product.prescription_required && (
                     <Badge variant="secondary" className="bg-red-100 text-red-800">
@@ -115,7 +124,7 @@ const FeaturedProducts = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-2xl font-bold text-blue-600">
-                      KES {product.price.toLocaleString()}
+                      KES {Number(product.price).toLocaleString()}
                     </p>
                     <p className="text-sm text-gray-600">
                       {product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}

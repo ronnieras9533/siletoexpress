@@ -9,9 +9,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, CreditCard, AlertCircle } from 'lucide-react';
+import { ArrowLeft, CreditCard, AlertCircle, Smartphone } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import { mpesaService } from '@/services/mpesaService';
 
 const Checkout = () => {
   const { items, getTotalPrice, hasPrescriptionItems, clearCart } = useCart();
@@ -19,6 +20,7 @@ const Checkout = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
   const [formData, setFormData] = useState({
     phone: '',
     address: '',
@@ -31,6 +33,128 @@ const Checkout = () => {
       ...prev,
       [e.target.name]: e.target.value
     }));
+  };
+
+  const handleMPESAPayment = async (orderId: string, totalAmount: number) => {
+    setPaymentLoading(true);
+    try {
+      if (!mpesaService.validatePhoneNumber(formData.phone)) {
+        throw new Error('Please enter a valid M-PESA phone number (e.g., 0700123456 or 254700123456)');
+      }
+
+      const paymentData = {
+        amount: totalAmount,
+        phoneNumber: mpesaService.formatPhoneNumber(formData.phone),
+        orderId: orderId,
+        accountReference: `Order-${orderId.slice(0, 8)}`,
+        transactionDesc: `Payment for Sileto Express Order ${orderId.slice(0, 8)}`
+      };
+
+      const response = await mpesaService.initiateSTKPush(paymentData);
+
+      if (response.success && response.checkoutRequestID) {
+        // Create payment record
+        const { error: paymentError } = await supabase
+          .from('payments')
+          .insert({
+            order_id: orderId,
+            method: 'M-PESA',
+            amount: totalAmount,
+            status: 'pending'
+          });
+
+        if (paymentError) throw paymentError;
+
+        toast({
+          title: "Payment Initiated",
+          description: "Please check your phone and enter your M-PESA PIN to complete the payment.",
+        });
+
+        // Poll for payment status
+        setTimeout(() => checkPaymentStatus(response.checkoutRequestID!, orderId), 5000);
+      } else {
+        throw new Error(response.error || 'Failed to initiate M-PESA payment');
+      }
+    } catch (error) {
+      console.error('M-PESA payment error:', error);
+      toast({
+        title: "Payment Error",
+        description: error instanceof Error ? error.message : "Failed to process M-PESA payment",
+        variant: "destructive"
+      });
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const checkPaymentStatus = async (checkoutRequestID: string, orderId: string) => {
+    try {
+      const statusResponse = await mpesaService.checkPaymentStatus(checkoutRequestID);
+      
+      if (statusResponse.resultCode === '0') {
+        // Payment successful
+        const { error: updateError } = await supabase
+          .from('payments')
+          .update({
+            status: 'completed',
+            mpesa_code: statusResponse.mpesaReceiptNumber
+          })
+          .eq('order_id', orderId);
+
+        if (updateError) throw updateError;
+
+        // Update order status
+        await supabase
+          .from('orders')
+          .update({
+            status: 'paid',
+            mpesa_receipt_number: statusResponse.mpesaReceiptNumber
+          })
+          .eq('id', orderId);
+
+        // Create delivery record
+        await supabase
+          .from('deliveries')
+          .insert({
+            order_id: orderId,
+            status: 'pending'
+          });
+
+        clearCart();
+        navigate('/order-success', { 
+          state: { 
+            orderId: orderId,
+            hasPrescriptionItems: hasPrescriptionItems(),
+            totalAmount: getTotalPrice() + (getTotalPrice() >= 2000 ? 0 : 200),
+            mpesaReceiptNumber: statusResponse.mpesaReceiptNumber
+          } 
+        });
+
+        toast({
+          title: "Payment Successful!",
+          description: `Payment completed. M-PESA Receipt: ${statusResponse.mpesaReceiptNumber}`,
+        });
+      } else {
+        // Payment failed or cancelled
+        await supabase
+          .from('payments')
+          .update({ status: 'failed' })
+          .eq('order_id', orderId);
+
+        toast({
+          title: "Payment Failed",
+          description: statusResponse.resultDesc || "Payment was not completed",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Payment status check error:', error);
+      toast({
+        title: "Payment Status Error",
+        description: "Could not verify payment status. Please contact support.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -73,22 +197,8 @@ const Checkout = () => {
 
       if (itemsError) throw itemsError;
 
-      // Clear cart
-      clearCart();
-      
-      // Navigate to success page
-      navigate('/order-success', { 
-        state: { 
-          orderId: order.id,
-          hasPrescriptionItems: hasPrescriptionItems(),
-          totalAmount 
-        } 
-      });
-
-      toast({
-        title: "Order Placed Successfully!",
-        description: "Your order has been created and is being processed.",
-      });
+      // Initiate M-PESA payment
+      await handleMPESAPayment(order.id, totalAmount);
 
     } catch (error) {
       console.error('Error creating order:', error);
@@ -137,21 +247,27 @@ const Checkout = () => {
           <div>
             <Card>
               <CardHeader>
-                <CardTitle>Delivery Information</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Smartphone className="h-5 w-5" />
+                  Payment & Delivery Information
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
-                    <Label htmlFor="phone">Phone Number (for M-PESA)</Label>
+                    <Label htmlFor="phone">M-PESA Phone Number</Label>
                     <Input
                       id="phone"
                       name="phone"
                       type="tel"
-                      placeholder="254700123456"
+                      placeholder="0700123456 or 254700123456"
                       value={formData.phone}
                       onChange={handleInputChange}
                       required
                     />
+                    <p className="text-sm text-gray-600 mt-1">
+                      Enter the phone number registered with M-PESA
+                    </p>
                   </div>
                   
                   <div>
@@ -189,13 +305,15 @@ const Checkout = () => {
                     />
                   </div>
 
-                  <Button type="submit" className="w-full" disabled={loading}>
+                  <Button type="submit" className="w-full" disabled={loading || paymentLoading}>
                     {loading ? (
-                      'Processing...'
+                      'Creating Order...'
+                    ) : paymentLoading ? (
+                      'Processing Payment...'
                     ) : (
                       <>
-                        <CreditCard className="mr-2 h-4 w-4" />
-                        Place Order - KES {totalAmount.toLocaleString()}
+                        <Smartphone className="mr-2 h-4 w-4" />
+                        Pay with M-PESA - KES {totalAmount.toLocaleString()}
                       </>
                     )}
                   </Button>
@@ -257,6 +375,16 @@ const Checkout = () => {
                     </p>
                   </div>
                 )}
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-blue-800">
+                    <Smartphone size={16} />
+                    <span className="font-medium">M-PESA Payment</span>
+                  </div>
+                  <p className="text-sm text-blue-700 mt-1">
+                    You will receive an STK push notification on your phone to complete the payment
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </div>

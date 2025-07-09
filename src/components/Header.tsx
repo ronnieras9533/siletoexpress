@@ -1,16 +1,18 @@
-
-import { useState } from "react";
-import { Search, ShoppingCart, User, Menu, X, Heart, Phone } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { LogOut, Package, Pill, Settings, ShoppingCart, User } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/contexts/CartContext";
-import { useNavigate } from "react-router-dom";
 
 const Header = () => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { user, signOut } = useAuth();
+  const { user, signOut, isAdmin, isSeller } = useAuth();
   const { getTotalItems } = useCart();
   const navigate = useNavigate();
 
@@ -20,223 +22,88 @@ const Header = () => {
   };
 
   return (
-    <header className="bg-white shadow-sm border-b">
-      {/* Top bar */}
-      <div className="bg-blue-600 text-white py-2">
-        <div className="container mx-auto px-4 flex justify-between items-center text-sm">
-          <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1">
-              <Phone size={14} />
-              +254 700 123 456
-            </span>
-            <span>Free delivery above KES 2,000</span>
-          </div>
-          <div className="hidden md:flex items-center gap-4">
-            <span>Licensed by Pharmacy & Poisons Board</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Main header */}
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-between">
-          {/* Logo */}
-          <div className="flex items-center cursor-pointer" onClick={() => navigate('/')}>
-            <h1 className="text-2xl font-bold text-blue-600">SiletoExpress</h1>
-            <span className="ml-2 text-sm text-gray-500 hidden md:block">
-              Your Trusted Online Pharmacy
-            </span>
-          </div>
-
-          {/* Search bar */}
-          <div className="hidden md:flex flex-1 max-w-xl mx-8">
-            <div className="relative w-full">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <Input
-                type="text"
-                placeholder="Search medicines, symptoms, or brands..."
-                className="pl-10 pr-4 py-2 w-full border-2 border-blue-100 focus:border-blue-300 rounded-lg"
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter') {
-                    navigate('/products');
-                  }
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Right side buttons */}
-          <div className="flex items-center gap-4">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="hidden md:flex items-center gap-2"
-              onClick={() => navigate('/products')}
-            >
-              <Heart size={20} />
-              Wishlist
-            </Button>
+    <header className="bg-white shadow-md sticky top-0 z-50">
+      <div className="container mx-auto px-4">
+        <div className="flex items-center justify-between h-16">
+          <div className="flex items-center space-x-8">
+            <Link to="/" className="flex items-center space-x-2">
+              <Pill className="h-8 w-8 text-blue-600" />
+              <span className="text-2xl font-bold text-gray-900">SiletoExpress</span>
+            </Link>
             
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="flex items-center gap-2"
-              onClick={() => navigate('/cart')}
-            >
-              <ShoppingCart size={20} />
-              <span className="hidden md:block">Cart</span>
-              {getTotalItems() > 0 && (
-                <Badge className="bg-blue-600 text-white">
-                  {getTotalItems()}
-                </Badge>
-              )}
-            </Button>
-
-            {user ? (
-              <div className="hidden md:flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => navigate('/dashboard')}
-                  className="flex items-center gap-2"
-                >
-                  <User size={20} />
-                  Dashboard
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleSignOut}
-                  className="text-red-600 hover:text-red-800"
-                >
-                  Sign Out
-                </Button>
-              </div>
-            ) : (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="hidden md:flex items-center gap-2"
-                onClick={() => navigate('/auth')}
-              >
-                <User size={20} />
-                Sign In
-              </Button>
-            )}
-
-            {/* Mobile menu button */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="md:hidden"
-              onClick={() => setIsMenuOpen(!isMenuOpen)}
-            >
-              {isMenuOpen ? <X size={20} /> : <Menu size={20} />}
-            </Button>
-          </div>
-        </div>
-
-        {/* Mobile search */}
-        <div className="md:hidden mt-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-            <Input
-              type="text"
-              placeholder="Search medicines..."
-              className="pl-10 pr-4 py-2 w-full border-2 border-blue-100 focus:border-blue-300 rounded-lg"
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  navigate('/products');
-                }
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Mobile menu */}
-        {isMenuOpen && (
-          <div className="md:hidden mt-4 pb-4 border-t">
-            <nav className="flex flex-col gap-2 mt-4">
-              <Button variant="ghost" className="justify-start" onClick={() => navigate('/products')}>
-                All Products
-              </Button>
-              <Button variant="ghost" className="justify-start" onClick={() => navigate('/prescription-upload')}>
-                Upload Prescription
-              </Button>
-              {user ? (
+            <nav className="hidden md:flex items-center space-x-6">
+              <Link to="/" className="text-gray-700 hover:text-blue-600 transition-colors">
+                Home
+              </Link>
+              <Link to="/products" className="text-gray-700 hover:text-blue-600 transition-colors">
+                Products
+              </Link>
+              {user && (
                 <>
-                  <Button variant="ghost" className="justify-start" onClick={() => navigate('/dashboard')}>
-                    Dashboard
-                  </Button>
-                  <Button variant="ghost" className="justify-start text-red-600" onClick={handleSignOut}>
-                    Sign Out
-                  </Button>
+                  <Link to="/dashboard" className="text-gray-700 hover:text-blue-600 transition-colors">
+                    My Orders
+                  </Link>
+                  {isSeller && (
+                    <Link to="/seller-dashboard" className="text-gray-700 hover:text-blue-600 transition-colors">
+                      Seller Dashboard
+                    </Link>
+                  )}
                 </>
-              ) : (
-                <Button variant="ghost" className="justify-start" onClick={() => navigate('/auth')}>
-                  Sign In
-                </Button>
               )}
             </nav>
           </div>
-        )}
-      </div>
 
-      {/* Navigation */}
-      <nav className="hidden md:block bg-gray-50 border-t">
-        <div className="container mx-auto px-4 py-2">
-          <div className="flex items-center gap-8">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => navigate('/products')}
-              className="text-gray-700 hover:text-blue-600"
-            >
-              All Products
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => navigate('/products?category=General Medicine')}
-              className="text-gray-700 hover:text-blue-600"
-            >
-              Prescription Drugs
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => navigate('/products?category=Pain Relief')}
-              className="text-gray-700 hover:text-blue-600"
-            >
-              Over-the-Counter
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => navigate('/products?category=Chronic Care')}
-              className="text-gray-700 hover:text-blue-600"
-            >
-              Chronic Care
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => navigate('/products?category=Supplements')}
-              className="text-gray-700 hover:text-blue-600"
-            >
-              Supplements
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="text-blue-600 font-medium hover:text-blue-800"
-              onClick={() => navigate('/prescription-upload')}
-            >
-              Upload Prescription
-            </Button>
+          <div className="flex items-center space-x-4">
+            {user ? (
+              <>
+                <Link to="/cart" className="relative p-2 text-gray-700 hover:text-blue-600 transition-colors">
+                  <ShoppingCart className="h-6 w-6" />
+                  {getTotalItems() > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                      {getTotalItems()}
+                    </span>
+                  )}
+                </Link>
+                
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="p-2">
+                      <User className="h-6 w-6" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem onClick={() => navigate('/dashboard')}>
+                      <User className="mr-2 h-4 w-4" />
+                      Dashboard
+                    </DropdownMenuItem>
+                    {isSeller && (
+                      <DropdownMenuItem onClick={() => navigate('/seller-dashboard')}>
+                        <Package className="mr-2 h-4 w-4" />
+                        Seller Dashboard
+                      </DropdownMenuItem>
+                    )}
+                    {isAdmin && (
+                      <DropdownMenuItem onClick={() => navigate('/admin')}>
+                        <Settings className="mr-2 h-4 w-4" />
+                        Admin Panel
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleSignOut}>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Sign Out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            ) : (
+              <Button onClick={() => navigate('/auth')}>
+                Sign In
+              </Button>
+            )}
           </div>
         </div>
-      </nav>
+      </div>
     </header>
   );
 };
