@@ -83,7 +83,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const role = data?.role;
       setUserRole(role);
       setIsAdmin(role === 'admin');
-      setIsSeller(role === 'seller');
+      // For now, treat any non-admin as potential seller until we can update the enum
+      setIsSeller(role !== 'admin' && role !== 'user');
     } catch (error) {
       console.error('Error checking user role:', error);
     }

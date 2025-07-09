@@ -17,10 +17,7 @@ const FeaturedProducts = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('products')
-        .select(`
-          *,
-          profiles:seller_id(full_name)
-        `)
+        .select('*')
         .gt('stock', 0)
         .limit(6)
         .order('created_at', { ascending: false });
@@ -102,11 +99,6 @@ const FeaturedProducts = () => {
                       {product.name}
                     </CardTitle>
                     <p className="text-sm text-gray-600 mt-1">{product.brand}</p>
-                    {product.profiles && (
-                      <p className="text-xs text-blue-600 mt-1">
-                        By {product.profiles.full_name}
-                      </p>
-                    )}
                   </div>
                   {product.prescription_required && (
                     <Badge variant="secondary" className="bg-red-100 text-red-800">
