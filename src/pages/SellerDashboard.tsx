@@ -33,24 +33,25 @@ const SellerDashboard = () => {
     enabled: !!user && isSeller,
   });
 
-  const { data: sales, isLoading: salesLoading } = useQuery({
+  // Simplified sales query to avoid type inference issues
+  const { data: orderItems, isLoading: salesLoading } = useQuery({
     queryKey: ['sellerSales', user?.id],
     queryFn: async () => {
-      if (!user) return [];
+      if (!user || !products) return [];
+      
+      const productIds = products.map(p => p.id);
+      if (productIds.length === 0) return [];
+      
       const { data, error } = await supabase
         .from('order_items')
-        .select(`
-          *,
-          orders!inner(user_id, status, created_at),
-          products!inner(seller_id, name)
-        `)
-        .eq('products.seller_id', user.id)
+        .select('*')
+        .in('product_id', productIds)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data;
+      return data || [];
     },
-    enabled: !!user && isSeller,
+    enabled: !!user && isSeller && !!products,
   });
 
   if (!user || !isSeller) {
@@ -59,10 +60,8 @@ const SellerDashboard = () => {
   }
 
   const totalProducts = products?.length || 0;
-  const totalSales = sales?.reduce((sum, sale) => sum + (sale.price * sale.quantity), 0) || 0;
-  const totalOrders = sales?.filter((sale, index, arr) => 
-    arr.findIndex(s => s.order_id === sale.order_id) === index
-  ).length || 0;
+  const totalSales = orderItems?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0;
+  const totalOrders = orderItems?.length || 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
