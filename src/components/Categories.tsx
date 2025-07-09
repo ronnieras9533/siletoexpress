@@ -6,7 +6,7 @@ import {
   Pill, 
   Heart, 
   Stethoscope, 
-  Pills, 
+  Pill as PillIcon, 
   FileText, 
   Thermometer 
 } from "lucide-react";
@@ -41,7 +41,7 @@ const Categories = () => {
     },
     {
       name: "Supplements",
-      icon: Pills,
+      icon: PillIcon,
       description: "Vitamins, minerals, wellness products",
       color: "text-purple-600",
       bgColor: "bg-purple-50",
