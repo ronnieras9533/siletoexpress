@@ -31,10 +31,10 @@ const SellerDashboard = () => {
   const navigate = useNavigate();
   const [showProductForm, setShowProductForm] = useState(false);
 
-  // Fetch products
+  // Fetch products with simplified query
   const productsQuery = useQuery({
     queryKey: ['sellerProducts', user?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<ProductData[]> => {
       if (!user) return [];
       
       const { data, error } = await supabase
@@ -52,13 +52,14 @@ const SellerDashboard = () => {
     enabled: !!user && isSeller,
   });
 
-  const products = (productsQuery.data || []) as ProductData[];
+  // Get products data with explicit typing
+  const products: ProductData[] = productsQuery.data || [];
   const productsLoading = productsQuery.isLoading;
 
-  // Fetch order items
+  // Fetch order items with simplified query
   const orderItemsQuery = useQuery({
     queryKey: ['sellerOrderItems', user?.id, products?.length],
-    queryFn: async () => {
+    queryFn: async (): Promise<OrderItemData[]> => {
       if (!user || !products || products.length === 0) return [];
       
       const productIds = products.map(p => p.id);
@@ -77,7 +78,8 @@ const SellerDashboard = () => {
     enabled: !!user && isSeller && !!products && products.length > 0,
   });
 
-  const orderItems = (orderItemsQuery.data || []) as OrderItemData[];
+  // Get order items data with explicit typing
+  const orderItems: OrderItemData[] = orderItemsQuery.data || [];
 
   if (!user || !isSeller) {
     navigate('/auth');
