@@ -33,25 +33,23 @@ const SellerDashboard = () => {
     enabled: !!user && isSeller,
   });
 
-  // Simplified sales query to avoid type inference issues
-  const { data: orderItems, isLoading: salesLoading } = useQuery({
-    queryKey: ['sellerSales', user?.id],
+  // Separate query for order items to avoid complex type inference
+  const { data: orderItems } = useQuery({
+    queryKey: ['sellerOrderItems', user?.id, products?.length],
     queryFn: async () => {
-      if (!user || !products) return [];
+      if (!user || !products || products.length === 0) return [];
       
       const productIds = products.map(p => p.id);
-      if (productIds.length === 0) return [];
       
       const { data, error } = await supabase
         .from('order_items')
-        .select('*')
-        .in('product_id', productIds)
-        .order('created_at', { ascending: false });
+        .select('id, quantity, price, product_id, created_at')
+        .in('product_id', productIds);
       
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user && isSeller && !!products,
+    enabled: !!user && isSeller && !!products && products.length > 0,
   });
 
   if (!user || !isSeller) {
