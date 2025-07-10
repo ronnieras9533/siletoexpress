@@ -2,15 +2,16 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useCart } from '@/contexts/CartContext';
-import { Search, ShoppingCart, AlertCircle } from 'lucide-react';
+import { ShoppingCart, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import ProductSearch from '@/components/ProductSearch';
+import LoginModal from '@/components/LoginModal';
 
 interface Product {
   id: string;
@@ -25,9 +26,8 @@ interface Product {
 }
 
 const Products = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const { addToCart } = useCart();
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+  const { addToCart, showLoginModal, setShowLoginModal } = useCart();
   const navigate = useNavigate();
 
   const { data: products, isLoading, error } = useQuery({
@@ -43,18 +43,11 @@ const Products = () => {
     }
   });
 
-  const categories = ['All', 'Pain Relief', 'Chronic Care', 'General Medicine', 'Supplements'];
-
-  const filteredProducts = products?.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.category.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesCategory = categoryFilter === '' || categoryFilter === 'All' || 
-                           product.category === categoryFilter;
-    
-    return matchesSearch && matchesCategory;
-  });
+  useEffect(() => {
+    if (products) {
+      setFilteredProducts(products);
+    }
+  }, [products]);
 
   const handleAddToCart = (product: Product) => {
     addToCart({
@@ -97,34 +90,15 @@ const Products = () => {
       
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">All Products</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-6">All Products</h1>
           
-          {/* Search and Filter */}
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <Input
-                type="text"
-                placeholder="Search medicines, symptoms, or brands..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            
-            <div className="flex gap-2 flex-wrap">
-              {categories.map(category => (
-                <Button
-                  key={category}
-                  variant={categoryFilter === category || (category === 'All' && categoryFilter === '') ? 'default' : 'outline'}
-                  onClick={() => setCategoryFilter(category === 'All' ? '' : category)}
-                  size="sm"
-                >
-                  {category}
-                </Button>
-              ))}
-            </div>
-          </div>
+          {/* Search and Filter Component */}
+          {products && (
+            <ProductSearch
+              products={products}
+              onFilteredProducts={setFilteredProducts}
+            />
+          )}
         </div>
 
         {/* Products Grid */}
@@ -146,6 +120,14 @@ const Products = () => {
               </CardHeader>
               
               <CardContent className="space-y-4">
+                {product.image_url && (
+                  <img 
+                    src={product.image_url} 
+                    alt={product.name}
+                    className="w-full h-32 object-cover rounded"
+                  />
+                )}
+                
                 <div>
                   <p className="text-sm text-gray-600 line-clamp-3">{product.description}</p>
                   <div className="flex justify-between items-center mt-2">
@@ -193,6 +175,11 @@ const Products = () => {
           </div>
         )}
       </div>
+
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+      />
       
       <Footer />
     </div>

@@ -1,6 +1,6 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface CartItem {
   id: string;
@@ -35,20 +35,35 @@ export const useCart = () => {
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [items, setItems] = useState<CartItem[]>([]);
+  const [showLoginModal, setShowLoginModal] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
-    const savedCart = localStorage.getItem('siletoRx-cart');
-    if (savedCart) {
-      setItems(JSON.parse(savedCart));
+    if (user) {
+      // Load cart for authenticated user
+      const savedCart = localStorage.getItem(`siletoRx-cart-${user.id}`);
+      if (savedCart) {
+        setItems(JSON.parse(savedCart));
+      }
+    } else {
+      // Clear cart when user logs out
+      setItems([]);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
-    localStorage.setItem('siletoRx-cart', JSON.stringify(items));
-  }, [items]);
+    if (user && items.length > 0) {
+      localStorage.setItem(`siletoRx-cart-${user.id}`, JSON.stringify(items));
+    }
+  }, [items, user]);
 
   const addToCart = (product: Omit<CartItem, 'quantity'>) => {
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+
     setItems(prev => {
       const existingItem = prev.find(item => item.id === product.id);
       if (existingItem) {
@@ -130,7 +145,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearCart,
       getTotalPrice,
       getTotalItems,
-      hasPrescriptionItems
+      hasPrescriptionItems,
+      showLoginModal,
+      setShowLoginModal
     }}>
       {children}
     </CartContext.Provider>
