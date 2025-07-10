@@ -43,7 +43,7 @@ const AdminOrdersTable = () => {
         .from('orders')
         .select(`
           *,
-          profiles!inner(full_name, email),
+          profiles!orders_user_id_profiles_id_fkey(full_name, email),
           order_items(
             quantity,
             price,

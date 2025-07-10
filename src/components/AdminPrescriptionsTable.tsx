@@ -37,7 +37,7 @@ const AdminPrescriptionsTable = () => {
         .from('prescriptions')
         .select(`
           *,
-          profiles!inner(full_name, email)
+          profiles!prescriptions_user_id_profiles_id_fkey(full_name, email)
         `)
         .order('created_at', { ascending: false });
       
