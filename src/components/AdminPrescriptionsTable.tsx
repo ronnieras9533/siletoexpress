@@ -35,14 +35,27 @@ const AdminPrescriptionsTable = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('prescriptions')
-        .select(`
-          *,
-          profiles!prescriptions_user_id_profiles_id_fkey(full_name, email)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data as PrescriptionWithProfile[];
+
+      // Fetch profiles separately
+      const userIds = data.map(prescription => prescription.user_id);
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', userIds);
+
+      if (profilesError) throw profilesError;
+
+      // Combine prescriptions with profiles
+      const prescriptionsWithProfiles = data.map(prescription => ({
+        ...prescription,
+        profiles: profiles?.find(profile => profile.id === prescription.user_id) || null
+      }));
+
+      return prescriptionsWithProfiles as PrescriptionWithProfile[];
     }
   });
 

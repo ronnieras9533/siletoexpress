@@ -43,7 +43,6 @@ const AdminOrdersTable = () => {
         .from('orders')
         .select(`
           *,
-          profiles!orders_user_id_profiles_id_fkey(full_name, email),
           order_items(
             quantity,
             price,
@@ -53,7 +52,23 @@ const AdminOrdersTable = () => {
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data as OrderWithProfile[];
+
+      // Fetch profiles separately
+      const userIds = data.map(order => order.user_id);
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', userIds);
+
+      if (profilesError) throw profilesError;
+
+      // Combine orders with profiles
+      const ordersWithProfiles = data.map(order => ({
+        ...order,
+        profiles: profiles?.find(profile => profile.id === order.user_id) || null
+      }));
+
+      return ordersWithProfiles as OrderWithProfile[];
     }
   });
 
