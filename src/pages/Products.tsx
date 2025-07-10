@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,8 +28,12 @@ interface Product {
 
 const Products = () => {
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+  const [searchParams] = useSearchParams();
   const { addToCart, showLoginModal, setShowLoginModal } = useCart();
   const navigate = useNavigate();
+
+  // Get category from URL parameters
+  const categoryFilter = searchParams.get('category');
 
   const { data: products, isLoading, error } = useQuery({
     queryKey: ['products'],
@@ -45,9 +50,18 @@ const Products = () => {
 
   useEffect(() => {
     if (products) {
-      setFilteredProducts(products);
+      let filtered = products;
+      
+      // Apply category filter if present in URL
+      if (categoryFilter) {
+        filtered = products.filter(product => 
+          product.category?.toLowerCase() === categoryFilter.toLowerCase()
+        );
+      }
+      
+      setFilteredProducts(filtered);
     }
-  }, [products]);
+  }, [products, categoryFilter]);
 
   const handleAddToCart = (product: Product) => {
     addToCart({
@@ -90,13 +104,21 @@ const Products = () => {
       
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-6">All Products</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            {categoryFilter ? `${categoryFilter} Products` : 'All Products'}
+          </h1>
+          {categoryFilter && (
+            <p className="text-gray-600 mb-4">
+              Showing products in the {categoryFilter} category
+            </p>
+          )}
           
           {/* Search and Filter Component */}
           {products && (
             <ProductSearch
               products={products}
               onFilteredProducts={setFilteredProducts}
+              initialCategory={categoryFilter}
             />
           )}
         </div>
@@ -171,7 +193,20 @@ const Products = () => {
 
         {filteredProducts?.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">No products found matching your search.</p>
+            <p className="text-gray-500 text-lg">
+              {categoryFilter 
+                ? `No products found in the ${categoryFilter} category.`
+                : 'No products found matching your search.'
+              }
+            </p>
+            {categoryFilter && (
+              <Button 
+                onClick={() => navigate('/products')} 
+                className="mt-4"
+              >
+                View All Products
+              </Button>
+            )}
           </div>
         )}
       </div>

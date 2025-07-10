@@ -20,11 +20,16 @@ interface Product {
 interface ProductSearchProps {
   products: Product[];
   onFilteredProducts: (products: Product[]) => void;
+  initialCategory?: string | null;
 }
 
-const ProductSearch: React.FC<ProductSearchProps> = ({ products, onFilteredProducts }) => {
+const ProductSearch: React.FC<ProductSearchProps> = ({ 
+  products, 
+  onFilteredProducts, 
+  initialCategory 
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState(initialCategory || '');
   const [selectedBrand, setSelectedBrand] = useState('');
   const [priceRange, setPriceRange] = useState<{ min: string; max: string }>({ min: '', max: '' });
   const [showPrescriptionOnly, setShowPrescriptionOnly] = useState(false);

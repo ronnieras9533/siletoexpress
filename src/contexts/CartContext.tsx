@@ -1,7 +1,7 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 interface CartItem {
   id: string;
@@ -41,6 +41,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [showLoginModal, setShowLoginModal] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (user) {
@@ -62,8 +63,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [items, user]);
 
   const addToCart = (product: Omit<CartItem, 'quantity'>) => {
+    // Immediately redirect to auth page if user is not logged in
     if (!user) {
-      setShowLoginModal(true);
+      navigate('/auth');
+      toast({
+        title: "Sign In Required",
+        description: "Please sign in to add items to your cart",
+        variant: "destructive"
+      });
       return;
     }
 

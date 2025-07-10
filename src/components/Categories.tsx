@@ -50,6 +50,7 @@ const Categories = () => {
   ];
 
   const handleCategoryClick = (categoryName: string) => {
+    // Navigate to products page with category filter
     navigate(`/products?category=${encodeURIComponent(categoryName)}`);
   };
 
@@ -118,9 +119,9 @@ const Categories = () => {
               <Button 
                 variant="secondary" 
                 className="bg-white text-green-600 hover:bg-green-50"
-                onClick={() => navigate('/products')}
+                onClick={() => navigate('/why-choose-us')}
               >
-                Learn More
+                Why Choose Us
               </Button>
             </CardContent>
           </Card>

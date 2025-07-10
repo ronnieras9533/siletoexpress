@@ -17,6 +17,7 @@ import Dashboard from "./pages/Dashboard";
 import SellerDashboard from "./pages/SellerDashboard";
 import Admin from "./pages/Admin";
 import AdminDashboard from "./pages/AdminDashboard";
+import WhyChooseUs from "./pages/WhyChooseUs";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -41,6 +42,7 @@ const App = () => (
               <Route path="/seller-dashboard" element={<SellerDashboard />} />
               <Route path="/admin" element={<Admin />} />
               <Route path="/admin-dashboard" element={<AdminDashboard />} />
+              <Route path="/why-choose-us" element={<WhyChooseUs />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
