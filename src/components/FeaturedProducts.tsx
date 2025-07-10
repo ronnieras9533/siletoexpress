@@ -6,32 +6,57 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCart } from "@/contexts/CartContext";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingCart, AlertCircle } from "lucide-react";
 
 const FeaturedProducts = () => {
   const navigate = useNavigate();
   const { addToCart } = useCart();
 
+  console.log('FeaturedProducts: Component rendering');
+
   const { data: products, isLoading, error } = useQuery({
     queryKey: ['featuredProducts'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .gt('stock', 0)
-        .limit(6)
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      return data;
+      console.log('FeaturedProducts: Starting products query');
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .gt('stock', 0)
+          .limit(6)
+          .order('created_at', { ascending: false });
+        
+        console.log('FeaturedProducts: Query result:', { data, error });
+        
+        if (error) {
+          console.error('FeaturedProducts: Supabase error:', error);
+          throw error;
+        }
+        
+        console.log('FeaturedProducts: Successfully fetched products:', data?.length || 0);
+        return data || [];
+      } catch (err) {
+        console.error('FeaturedProducts: Query failed:', err);
+        throw err;
+      }
     },
+    retry: 3,
+    retryDelay: 1000,
   });
 
   const handleAddToCart = (product: any) => {
-    addToCart(product);
+    console.log('FeaturedProducts: Adding product to cart:', product.id);
+    try {
+      addToCart(product);
+    } catch (err) {
+      console.error('FeaturedProducts: Error adding to cart:', err);
+    }
   };
 
+  console.log('FeaturedProducts: Render state:', { isLoading, error: !!error, productsCount: products?.length });
+
   if (isLoading) {
+    console.log('FeaturedProducts: Rendering loading state');
     return (
       <section className="py-16 bg-white">
         <div className="container mx-auto px-4">
@@ -64,12 +89,50 @@ const FeaturedProducts = () => {
   }
 
   if (error) {
+    console.log('FeaturedProducts: Rendering error state:', error);
+    return (
+      <section className="py-16 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="text-center">
+            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">Featured Products</h2>
+            <p className="text-gray-600 mb-8">
+              Unable to load products at the moment. Please try again later.
+            </p>
+            <div className="space-x-4">
+              <Button onClick={() => window.location.reload()}>
+                Refresh Page
+              </Button>
+              <Button variant="outline" onClick={() => navigate('/products')}>
+                Browse All Products
+              </Button>
+            </div>
+            {process.env.NODE_ENV === 'development' && (
+              <details className="mt-4 max-w-md mx-auto">
+                <summary className="cursor-pointer text-sm text-gray-500">
+                  Error Details (Development)
+                </summary>
+                <pre className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded text-left">
+                  {error instanceof Error ? error.message : String(error)}
+                </pre>
+              </details>
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (!products || products.length === 0) {
+    console.log('FeaturedProducts: No products found');
     return (
       <section className="py-16 bg-white">
         <div className="container mx-auto px-4">
           <div className="text-center">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Featured Products</h2>
-            <p className="text-gray-600 mb-8">Unable to load products at the moment. Please try again later.</p>
+            <p className="text-gray-600 mb-8">
+              No products available at the moment. Check back soon!
+            </p>
             <Button onClick={() => navigate('/products')}>
               Browse All Products
             </Button>
@@ -78,6 +141,8 @@ const FeaturedProducts = () => {
       </section>
     );
   }
+
+  console.log('FeaturedProducts: Rendering products grid with', products.length, 'products');
 
   return (
     <section className="py-16 bg-white">
@@ -90,15 +155,15 @@ const FeaturedProducts = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {products?.map((product) => (
+          {products.map((product) => (
             <Card key={product.id} className="group hover:shadow-lg transition-shadow duration-300">
               <CardHeader>
                 <div className="flex justify-between items-start">
                   <div>
                     <CardTitle className="text-lg group-hover:text-blue-600 transition-colors">
-                      {product.name}
+                      {product.name || 'Unnamed Product'}
                     </CardTitle>
-                    <p className="text-sm text-gray-600 mt-1">{product.brand}</p>
+                    <p className="text-sm text-gray-600 mt-1">{product.brand || 'No Brand'}</p>
                   </div>
                   {product.prescription_required && (
                     <Badge variant="secondary" className="bg-red-100 text-red-800">
@@ -110,20 +175,20 @@ const FeaturedProducts = () => {
               
               <CardContent>
                 <p className="text-gray-700 text-sm mb-4 line-clamp-3">
-                  {product.description}
+                  {product.description || 'No description available'}
                 </p>
                 
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-2xl font-bold text-blue-600">
-                      KES {Number(product.price).toLocaleString()}
+                      KES {Number(product.price || 0).toLocaleString()}
                     </p>
                     <p className="text-sm text-gray-600">
                       {product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}
                     </p>
                   </div>
                   <Badge variant="outline" className="text-xs">
-                    {product.category}
+                    {product.category || 'Uncategorized'}
                   </Badge>
                 </div>
               </CardContent>
