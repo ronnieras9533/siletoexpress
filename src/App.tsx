@@ -39,11 +39,11 @@ const App = () => {
       <TooltipProvider>
         <ErrorBoundary>
           <AuthProvider>
-            <ErrorBoundary>
-              <CartProvider>
-                <Toaster />
-                <Sonner />
-                <BrowserRouter>
+            <BrowserRouter>
+              <ErrorBoundary>
+                <CartProvider>
+                  <Toaster />
+                  <Sonner />
                   <ErrorBoundary>
                     <Routes>
                       <Route path="/" element={<Index />} />
@@ -61,9 +61,9 @@ const App = () => {
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </ErrorBoundary>
-                </BrowserRouter>
-              </CartProvider>
-            </ErrorBoundary>
+                </CartProvider>
+              </ErrorBoundary>
+            </BrowserRouter>
           </AuthProvider>
         </ErrorBoundary>
       </TooltipProvider>
