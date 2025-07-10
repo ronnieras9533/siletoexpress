@@ -23,7 +23,7 @@ interface OrderWithProfile {
   profiles: {
     full_name: string;
     email: string;
-  };
+  } | null;
   order_items: {
     quantity: number;
     price: number;
@@ -43,7 +43,7 @@ const AdminOrdersTable = () => {
         .from('orders')
         .select(`
           *,
-          profiles!orders_user_id_fkey(full_name, email),
+          profiles!inner(full_name, email),
           order_items(
             quantity,
             price,
@@ -112,7 +112,7 @@ const AdminOrdersTable = () => {
                   <div>
                     <h3 className="font-medium">Order #{order.id.slice(0, 8)}</h3>
                     <p className="text-sm text-gray-600">
-                      {order.profiles?.full_name} ({order.profiles?.email})
+                      {order.profiles?.full_name || 'Unknown User'} ({order.profiles?.email || 'No email'})
                     </p>
                     <p className="text-sm text-gray-500">
                       {format(new Date(order.created_at), 'MMM dd, yyyy HH:mm')}
