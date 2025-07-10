@@ -4,10 +4,34 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { format } from 'date-fns';
+import type { Database } from '@/integrations/supabase/types';
+
+type OrderStatus = Database['public']['Enums']['order_status'];
+
+interface OrderWithProfile {
+  id: string;
+  created_at: string;
+  total_amount: number;
+  status: OrderStatus;
+  phone_number: string | null;
+  delivery_address: string | null;
+  mpesa_receipt_number: string | null;
+  user_id: string;
+  profiles: {
+    full_name: string;
+    email: string;
+  };
+  order_items: {
+    quantity: number;
+    price: number;
+    products: {
+      name: string;
+    } | null;
+  }[];
+}
 
 const AdminOrdersTable = () => {
   const { toast } = useToast();
@@ -19,7 +43,7 @@ const AdminOrdersTable = () => {
         .from('orders')
         .select(`
           *,
-          profiles!inner(full_name, email),
+          profiles!orders_user_id_fkey(full_name, email),
           order_items(
             quantity,
             price,
@@ -29,11 +53,11 @@ const AdminOrdersTable = () => {
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data;
+      return data as OrderWithProfile[];
     }
   });
 
-  const updateOrderStatus = async (orderId: string, status: string) => {
+  const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
     const { error } = await supabase
       .from('orders')
       .update({ status })
@@ -54,7 +78,7 @@ const AdminOrdersTable = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: OrderStatus) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
       case 'approved': return 'bg-blue-100 text-blue-800';
@@ -88,7 +112,7 @@ const AdminOrdersTable = () => {
                   <div>
                     <h3 className="font-medium">Order #{order.id.slice(0, 8)}</h3>
                     <p className="text-sm text-gray-600">
-                      {order.profiles.full_name} ({order.profiles.email})
+                      {order.profiles?.full_name} ({order.profiles?.email})
                     </p>
                     <p className="text-sm text-gray-500">
                       {format(new Date(order.created_at), 'MMM dd, yyyy HH:mm')}
@@ -107,7 +131,7 @@ const AdminOrdersTable = () => {
                   <div className="space-y-1">
                     {order.order_items?.map((item, index) => (
                       <div key={index} className="text-sm text-gray-600">
-                        {item.products?.name} - Qty: {item.quantity} - KES {Number(item.price).toLocaleString()}
+                        {item.products?.name || 'Unknown Product'} - Qty: {item.quantity} - KES {Number(item.price).toLocaleString()}
                       </div>
                     ))}
                   </div>
@@ -115,14 +139,14 @@ const AdminOrdersTable = () => {
 
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-gray-600">
-                    <p>Phone: {order.phone_number}</p>
-                    <p>Address: {order.delivery_address}</p>
+                    <p>Phone: {order.phone_number || 'N/A'}</p>
+                    <p>Address: {order.delivery_address || 'N/A'}</p>
                     {order.mpesa_receipt_number && (
                       <p>M-PESA Receipt: {order.mpesa_receipt_number}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <Select value={order.status} onValueChange={(value) => updateOrderStatus(order.id, value)}>
+                    <Select value={order.status} onValueChange={(value: OrderStatus) => updateOrderStatus(order.id, value)}>
                       <SelectTrigger className="w-32">
                         <SelectValue />
                       </SelectTrigger>

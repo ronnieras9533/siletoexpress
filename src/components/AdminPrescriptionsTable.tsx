@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +8,22 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { format } from 'date-fns';
-import { useState } from 'react';
+import type { Database } from '@/integrations/supabase/types';
+
+type PrescriptionStatus = Database['public']['Enums']['prescription_status'];
+
+interface PrescriptionWithProfile {
+  id: string;
+  created_at: string;
+  image_url: string;
+  status: PrescriptionStatus;
+  admin_notes: string | null;
+  user_id: string;
+  profiles: {
+    full_name: string;
+    email: string;
+  };
+}
 
 const AdminPrescriptionsTable = () => {
   const { toast } = useToast();
@@ -22,16 +37,16 @@ const AdminPrescriptionsTable = () => {
         .from('prescriptions')
         .select(`
           *,
-          profiles!inner(full_name, email)
+          profiles!prescriptions_user_id_fkey(full_name, email)
         `)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data;
+      return data as PrescriptionWithProfile[];
     }
   });
 
-  const updatePrescriptionStatus = async (prescriptionId: string, status: string, notes?: string) => {
+  const updatePrescriptionStatus = async (prescriptionId: string, status: PrescriptionStatus, notes?: string) => {
     const { error } = await supabase
       .from('prescriptions')
       .update({ 
@@ -57,7 +72,7 @@ const AdminPrescriptionsTable = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: PrescriptionStatus) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
       case 'approved': return 'bg-green-100 text-green-800';
@@ -90,7 +105,7 @@ const AdminPrescriptionsTable = () => {
                   <div>
                     <h3 className="font-medium">Prescription #{prescription.id.slice(0, 8)}</h3>
                     <p className="text-sm text-gray-600">
-                      {prescription.profiles.full_name} ({prescription.profiles.email})
+                      {prescription.profiles?.full_name} ({prescription.profiles?.email})
                     </p>
                     <p className="text-sm text-gray-500">
                       {format(new Date(prescription.created_at), 'MMM dd, yyyy HH:mm')}

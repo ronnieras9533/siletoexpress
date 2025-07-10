@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -21,6 +22,8 @@ interface CartContextType {
   getTotalPrice: () => number;
   getTotalItems: () => number;
   hasPrescriptionItems: () => boolean;
+  showLoginModal: boolean;
+  setShowLoginModal: (show: boolean) => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
