@@ -56,36 +56,29 @@ const Hero = () => {
             </div>
           </div>
 
-          {/* Right content - Feature highlights */}
+          {/* Right content - Simple call to action */}
           <div className="space-y-6">
             <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6">
-              <h3 className="text-xl font-semibold mb-4">Why Choose SiletoExpress?</h3>
-              <ul className="space-y-3">
-                <li className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-blue-300 rounded-full mt-2"></div>
-                  <span>Licensed pharmacy with certified pharmacists</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-blue-300 rounded-full mt-2"></div>
-                  <span>Prescription verification by qualified professionals</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-blue-300 rounded-full mt-2"></div>
-                  <span>Secure M-PESA payments and fast delivery</span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-blue-300 rounded-full mt-2"></div>
-                  <span>Comprehensive chronic care management</span>
-                </li>
-              </ul>
-            </div>
-
-            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6">
-              <h3 className="text-xl font-semibold mb-2">Emergency Services</h3>
-              <p className="text-blue-100 mb-3">
-                Need urgent medication? Contact our emergency line for immediate assistance.
+              <h3 className="text-xl font-semibold mb-4">Get Started Today</h3>
+              <p className="text-blue-100 mb-4">
+                Experience the convenience of online pharmacy services with professional care and reliable delivery.
               </p>
-              <p className="text-lg font-semibold">+254 700 123 456</p>
+              <div className="flex flex-col gap-3">
+                <Button 
+                  variant="secondary" 
+                  className="bg-white text-blue-600 hover:bg-blue-50"
+                  onClick={() => navigate('/why-choose-us')}
+                >
+                  Why Choose Us?
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="border-white text-white hover:bg-white hover:text-blue-600"
+                  onClick={() => navigate('/auth')}
+                >
+                  Create Account
+                </Button>
+              </div>
             </div>
           </div>
         </div>
