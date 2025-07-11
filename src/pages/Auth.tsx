@@ -56,7 +56,7 @@ const Auth = () => {
         </div>
         
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-blue-600">SiletoRx</h1>
+          <h1 className="text-3xl font-bold text-blue-600">SiletoExpress</h1>
           <p className="mt-2 text-sm text-gray-600">Your Trusted Online Pharmacy</p>
         </div>
 

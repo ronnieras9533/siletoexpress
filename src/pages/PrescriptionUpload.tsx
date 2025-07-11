@@ -6,15 +6,17 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Upload, FileText, ArrowLeft } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import LoginModal from '@/components/LoginModal';
 
 const PrescriptionUpload = () => {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -33,10 +35,10 @@ const PrescriptionUpload = () => {
         return;
       }
       
-      if (!selectedFile.type.startsWith('image/')) {
+      if (!selectedFile.type.startsWith('image/') && selectedFile.type !== 'application/pdf') {
         toast({
           title: "Invalid file type",
-          description: "Please select an image file",
+          description: "Please select an image file or PDF",
           variant: "destructive"
         });
         return;
@@ -47,7 +49,19 @@ const PrescriptionUpload = () => {
   };
 
   const handleUpload = async () => {
-    if (!file || !user) return;
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    if (!file) {
+      toast({
+        title: "No file selected",
+        description: "Please select a file to upload",
+        variant: "destructive"
+      });
+      return;
+    }
 
     setUploading(true);
     try {
@@ -81,7 +95,7 @@ const PrescriptionUpload = () => {
         description: "Our pharmacist will review your prescription shortly.",
       });
 
-      navigate('/');
+      navigate('/dashboard');
     } catch (error) {
       console.error('Error uploading prescription:', error);
       toast({
@@ -93,11 +107,6 @@ const PrescriptionUpload = () => {
       setUploading(false);
     }
   };
-
-  if (!user) {
-    navigate('/auth');
-    return null;
-  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -191,6 +200,12 @@ const PrescriptionUpload = () => {
       </div>
       
       <Footer />
+      
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onSuccess={() => setShowLoginModal(false)}
+      />
     </div>
   );
 };

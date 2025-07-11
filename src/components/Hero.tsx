@@ -33,14 +33,6 @@ const Hero = () => {
               >
                 Browse Products
               </Button>
-              <Button 
-                size="lg" 
-                variant="outline" 
-                className="border-white text-white hover:bg-white hover:text-blue-600"
-                onClick={() => navigate('/prescription-upload')}
-              >
-                Upload Prescription
-              </Button>
             </div>
 
             {/* Trust indicators */}
