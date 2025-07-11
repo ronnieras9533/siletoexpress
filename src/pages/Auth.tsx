@@ -1,27 +1,49 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2, ArrowLeft, CheckCircle } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 const Auth = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [emailConfirmed, setEmailConfirmed] = useState(false);
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (user) {
       navigate('/');
     }
   }, [user, navigate]);
+
+  // Handle email confirmation
+  useEffect(() => {
+    const type = searchParams.get('type');
+    const accessToken = searchParams.get('access_token');
+    const refreshToken = searchParams.get('refresh_token');
+
+    if (type === 'signup' && accessToken && refreshToken) {
+      setEmailConfirmed(true);
+      toast({
+        title: "Email Confirmed!",
+        description: "Your email has been successfully verified. You can now sign in.",
+      });
+      
+      // Clear the URL parameters
+      navigate('/auth', { replace: true });
+    }
+  }, [searchParams, navigate, toast]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,6 +82,17 @@ const Auth = () => {
           <p className="mt-2 text-sm text-gray-600">Your Trusted Online Pharmacy</p>
         </div>
 
+        {emailConfirmed && (
+          <Card className="mb-4 border-green-200 bg-green-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center space-x-2 text-green-700">
+                <CheckCircle className="h-5 w-5" />
+                <p className="text-sm font-medium">Email verified successfully! You can now sign in.</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle className="text-center">Welcome</CardTitle>
@@ -68,7 +101,7 @@ const Auth = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="signin" className="w-full">
+            <Tabs defaultValue={emailConfirmed ? "signin" : "signin"} className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="signin">Sign In</TabsTrigger>
                 <TabsTrigger value="signup">Sign Up</TabsTrigger>
