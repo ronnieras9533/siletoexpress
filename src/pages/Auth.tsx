@@ -1,405 +1,303 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, ArrowLeft, CheckCircle, Mail } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useToast } from '@/components/ui/use-toast';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 
 const Auth = () => {
+  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [resetLoading, setResetLoading] = useState(false);
-  const [emailConfirmed, setEmailConfirmed] = useState(false);
-  const [resetEmailSent, setResetEmailSent] = useState(false);
-  const [showResetForm, setShowResetForm] = useState(false);
-  const [activeTab, setActiveTab] = useState('signin');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [resetMode, setResetMode] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const location = useLocation();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
+    // Check for email confirmation success
+    const confirmed = searchParams.get('confirmed');
+    if (confirmed === 'true') {
+      toast({
+        title: "Account Confirmed",
+        description: "Your account has been successfully confirmed! You can now sign in.",
+      });
+    }
+
+    // Redirect authenticated users
     if (user) {
-      const redirectTo = location.state?.redirectTo || '/';
-      navigate(redirectTo);
+      navigate('/');
     }
-  }, [user, navigate, location.state]);
+  }, [user, navigate, searchParams, toast]);
 
-  // Handle email confirmation and password reset
-  useEffect(() => {
-    const type = searchParams.get('type');
-    const accessToken = searchParams.get('access_token');
-    const refreshToken = searchParams.get('refresh_token');
-
-    if (type === 'signup' && accessToken && refreshToken) {
-      setEmailConfirmed(true);
-      toast({
-        title: "Account Created Successfully!",
-        description: "Your email has been verified. You can now sign in to your account.",
-      });
-      
-      // Clear the URL parameters and set to sign in tab
-      navigate('/auth', { replace: true });
-      setActiveTab('signin');
-    } else if (type === 'recovery' && accessToken && refreshToken) {
-      // User clicked on password reset link
-      toast({
-        title: "Password Reset Link Verified!",
-        description: "You can now set your new password below.",
-      });
-      setShowResetForm(true);
-      // Clear the URL parameters
-      navigate('/auth', { replace: true });
-    }
-  }, [searchParams, navigate, toast]);
-
-  // Show redirect message if coming from another page
-  useEffect(() => {
-    if (location.state?.message) {
-      toast({
-        title: "Sign In Required",
-        description: location.state.message,
-        variant: "destructive"
-      });
-    }
-  }, [location.state, toast]);
-
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    const { error } = await signIn(email, password);
-    setLoading(false);
-    
-    if (!error) {
-      const redirectTo = location.state?.redirectTo || '/';
-      navigate(redirectTo);
-    }
-  };
+    setIsLoading(true);
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    const { error } = await signUp(email, password, fullName);
-    setLoading(false);
-  };
-
-  const handlePasswordReset = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setResetLoading(true);
-    
     try {
-      const redirectUrl = `${window.location.origin}/auth`;
-      const { error } = await import('@/integrations/supabase/client').then(({ supabase }) =>
-        supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: redirectUrl,
-        })
-      );
+      if (resetMode) {
+        // Handle password reset
+        const { supabase } = await import('@/integrations/supabase/client');
+        const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+          redirectTo: `${window.location.origin}/auth?mode=reset`,
+        });
 
-      if (error) {
-        toast({
-          title: "Password Reset Error",
-          description: error.message,
-          variant: "destructive"
-        });
+        if (error) {
+          toast({
+            title: "Error",
+            description: error.message,
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "Password Reset Email Sent",
+            description: "Please check your email for password reset instructions.",
+          });
+          setResetMode(false);
+        }
+        return;
+      }
+
+      if (isLogin) {
+        const result = await signIn(email, password);
+        if (!result.error) {
+          navigate('/');
+        }
       } else {
-        setResetEmailSent(true);
-        toast({
-          title: "Password Reset Email Sent!",
-          description: "Check your email for the password reset link.",
-        });
+        if (password !== confirmPassword) {
+          toast({
+            title: "Error",
+            description: "Passwords do not match",
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        if (password.length < 6) {
+          toast({
+            title: "Error",
+            description: "Password must be at least 6 characters long",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        const result = await signUp(email, password, fullName);
+        if (!result.error) {
+          // Clear form and show success message
+          setEmail('');
+          setPassword('');
+          setConfirmPassword('');
+          setFullName('');
+          setIsLogin(true);
+        }
       }
     } catch (error) {
+      console.error('Auth error:', error);
       toast({
-        title: "Password Reset Error",
-        description: "An error occurred while sending the reset email.",
+        title: "Error",
+        description: "An unexpected error occurred",
         variant: "destructive"
       });
+    } finally {
+      setIsLoading(false);
     }
-    
-    setResetLoading(false);
   };
 
-  const handleNewPasswordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    
-    try {
-      const { error } = await import('@/integrations/supabase/client').then(({ supabase }) =>
-        supabase.auth.updateUser({ password })
-      );
-
-      if (error) {
-        toast({
-          title: "Password Update Error",
-          description: error.message,
-          variant: "destructive"
-        });
-      } else {
-        toast({
-          title: "Password Updated Successfully!",
-          description: "Your password has been updated. You can now sign in with your new password.",
-        });
-        setShowResetForm(false);
-        setPassword('');
-      }
-    } catch (error) {
-      toast({
-        title: "Password Update Error",
-        description: "An error occurred while updating your password.",
-        variant: "destructive"
-      });
-    }
-    
-    setLoading(false);
-  };
+  if (resetMode) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="flex items-center justify-center px-4 py-12">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Reset Password</CardTitle>
+              <CardDescription>
+                Enter your email address and we'll send you a link to reset your password.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="reset-email">Email</Label>
+                  <Input
+                    id="reset-email"
+                    type="email"
+                    placeholder="Enter your email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                
+                <div className="flex space-x-2">
+                  <Button type="submit" disabled={isLoading} className="flex-1">
+                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Send Reset Link
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setResetMode(false)}
+                    className="flex-1"
+                  >
+                    Back to Sign In
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="flex items-center justify-center mb-8">
-          <Button
-            variant="ghost"
-            onClick={() => navigate('/')}
-            className="mr-4"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Home
-          </Button>
-        </div>
-        
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-blue-600">SiletoExpress</h1>
-          <p className="mt-2 text-sm text-gray-600">Your Trusted Online Pharmacy</p>
-        </div>
-
-        {emailConfirmed && (
-          <Card className="mb-4 border-green-200 bg-green-50">
-            <CardContent className="pt-6">
-              <div className="flex items-center space-x-2 text-green-700">
-                <CheckCircle className="h-5 w-5" />
-                <p className="text-sm font-medium">Email verified successfully! You can now sign in.</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {resetEmailSent && (
-          <Card className="mb-4 border-blue-200 bg-blue-50">
-            <CardContent className="pt-6">
-              <div className="flex items-center space-x-2 text-blue-700">
-                <Mail className="h-5 w-5" />
-                <p className="text-sm font-medium">Password reset email sent! Check your inbox and click the link to reset your password.</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        <Card>
+    <div className="min-h-screen bg-gray-50">
+      <Header />
+      <div className="flex items-center justify-center px-4 py-12">
+        <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle className="text-center">
-              {showResetForm ? "Set New Password" : "Welcome"}
-            </CardTitle>
-            <CardDescription className="text-center">
-              {showResetForm 
-                ? "Enter your new password below" 
-                : "Sign in to your account or create a new one"
+            <CardTitle>{isLogin ? 'Sign In' : 'Create Account'}</CardTitle>
+            <CardDescription>
+              {isLogin 
+                ? 'Enter your credentials to access your account' 
+                : 'Create a new account to start shopping'
               }
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {showResetForm ? (
-              <form onSubmit={handleNewPasswordSubmit} className="space-y-4">
-                <div>
-                  <Label htmlFor="newPassword">New Password</Label>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {!isLogin && (
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Full Name</Label>
                   <Input
-                    id="newPassword"
-                    type="password"
+                    id="fullName"
+                    placeholder="Enter your full name"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
+              
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    placeholder="Enter your new password"
-                    minLength={6}
                   />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Updating Password...
-                    </>
-                  ) : (
-                    'Update Password'
-                  )}
-                </Button>
-                <Button 
-                  type="button" 
-                  variant="ghost" 
-                  className="w-full" 
-                  onClick={() => setShowResetForm(false)}
+              </div>
+
+              {!isLogin && (
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="confirmPassword"
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="Confirm your password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    >
+                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isLogin ? 'Sign In' : 'Create Account'}
+              </Button>
+            </form>
+            
+            {isLogin && (
+              <div className="mt-4 text-center">
+                <Button
+                  variant="link"
+                  onClick={() => setResetMode(true)}
+                  className="text-sm text-blue-600 hover:text-blue-800"
                 >
-                  Back to Sign In
+                  Forgot your password?
                 </Button>
-              </form>
-            ) : (
-              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-6">
-                  <TabsTrigger value="signin" className="text-sm font-medium">Sign In</TabsTrigger>
-                  <TabsTrigger value="signup" className="text-sm font-medium bg-blue-600 text-white data-[state=active]:bg-blue-700">Create Account</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="signin">
-                  <form onSubmit={handleSignIn} className="space-y-4">
-                    <div>
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                        placeholder="Enter your email"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="password">Password</Label>
-                      <Input
-                        id="password"
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        placeholder="Enter your password"
-                      />
-                    </div>
-                    <Button type="submit" className="w-full" disabled={loading}>
-                      {loading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Signing In...
-                        </>
-                      ) : (
-                        'Sign In'
-                      )}
-                    </Button>
-                    <div className="text-center">
-                      <Button
-                        type="button"
-                        variant="link"
-                        className="text-sm"
-                        onClick={() => setShowResetForm(true)}
-                      >
-                        Forgot your password?
-                      </Button>
-                    </div>
-                  </form>
-                </TabsContent>
-                
-                <TabsContent value="signup">
-                  <form onSubmit={handleSignUp} className="space-y-4">
-                    <div>
-                      <Label htmlFor="fullName">Full Name</Label>
-                      <Input
-                        id="fullName"
-                        type="text"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        required
-                        placeholder="Enter your full name"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                        placeholder="Enter your email"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="password">Password</Label>
-                      <Input
-                        id="password"
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        placeholder="Enter your password"
-                        minLength={6}
-                      />
-                    </div>
-                    <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={loading}>
-                      {loading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Creating Account...
-                        </>
-                      ) : (
-                        'Create Account'
-                      )}
-                    </Button>
-                  </form>
-                </TabsContent>
-              </Tabs>
+              </div>
             )}
+            
+            <div className="mt-6 text-center">
+              <p className="text-sm text-gray-600">
+                {isLogin ? "Don't have an account?" : "Already have an account?"}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsLogin(!isLogin);
+                  setEmail('');
+                  setPassword('');
+                  setConfirmPassword('');
+                  setFullName('');
+                }}
+                className="mt-2 w-full bg-white border-blue-300 text-blue-600 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-400"
+              >
+                {isLogin ? 'Create Account' : 'Sign In Instead'}
+              </Button>
+            </div>
           </CardContent>
         </Card>
-
-        {/* Password Reset Form (when accessed via "Forgot Password" link) */}
-        {showResetForm && !searchParams.get('access_token') && (
-          <Card className="mt-4">
-            <CardHeader>
-              <CardTitle className="text-center">Reset Password</CardTitle>
-              <CardDescription className="text-center">
-                Enter your email to receive a password reset link
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handlePasswordReset} className="space-y-4">
-                <div>
-                  <Label htmlFor="resetEmail">Email</Label>
-                  <Input
-                    id="resetEmail"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    placeholder="Enter your email"
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={resetLoading}>
-                  {resetLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Sending Reset Email...
-                    </>
-                  ) : (
-                    'Send Reset Email'
-                  )}
-                </Button>
-                <Button 
-                  type="button" 
-                  variant="ghost" 
-                  className="w-full" 
-                  onClick={() => setShowResetForm(false)}
-                >
-                  Back to Sign In
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        )}
       </div>
+      <Footer />
     </div>
   );
 };

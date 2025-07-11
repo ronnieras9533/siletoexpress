@@ -12,7 +12,8 @@ import {
   Shield,
   Truck,
   Clock,
-  Award
+  Award,
+  ExternalLink
 } from "lucide-react";
 
 const Footer = () => {
@@ -89,17 +90,33 @@ const Footer = () => {
           <div>
             <h4 className="text-lg font-semibold mb-4">Contact Us</h4>
             <div className="space-y-3">
-              <div className="flex items-center">
-                <Phone className="h-4 w-4 mr-2 text-blue-400" />
-                <span className="text-gray-300">+254 700 123 456</span>
+              <div className="flex items-start">
+                <Phone className="h-4 w-4 mr-2 text-blue-400 mt-1 flex-shrink-0" />
+                <div className="text-gray-300">
+                  <div>0791 161 828</div>
+                  <div>0729 061 644</div>
+                  <div>0718 925 368</div>
+                </div>
               </div>
               <div className="flex items-center">
                 <Mail className="h-4 w-4 mr-2 text-blue-400" />
                 <span className="text-gray-300">info@siletoexpress.com</span>
               </div>
-              <div className="flex items-center">
-                <MapPin className="h-4 w-4 mr-2 text-blue-400" />
-                <span className="text-gray-300">Nairobi, Kenya</span>
+              <div className="flex items-start">
+                <MapPin className="h-4 w-4 mr-2 text-blue-400 mt-1 flex-shrink-0" />
+                <div className="text-gray-300">
+                  <div>Tom Mboya St, Nairobi</div>
+                  <div>P.O Box 260-00100</div>
+                  <div>Nairobi, Kenya</div>
+                  <a 
+                    href="https://www.google.com/maps/dir//Tom+Mboya+St,+Nairobi/@-1.2880513,36.7455143,12z/data=!4m8!4m7!1m0!1m5!1m1!1s0x182f1126347bc893:0x8853a59fda25bfef!2m2!1d36.8279163!2d-1.2880526?entry=ttu&g_ep=EgoyMDI1MDcwOC4wIKXMDSoASAFQAw%3D%3D"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:text-blue-300 inline-flex items-center mt-1"
+                  >
+                    Get Directions <ExternalLink className="h-3 w-3 ml-1" />
+                  </a>
+                </div>
               </div>
               <div className="flex items-center">
                 <Clock className="h-4 w-4 mr-2 text-blue-400" />

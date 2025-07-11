@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -51,8 +52,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setItems(JSON.parse(savedCart));
       }
     } else {
-      // Clear cart when user logs out
+      // Clear cart when user logs out and remove from localStorage
       setItems([]);
+      // Clear all cart data from localStorage
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('siletoRx-cart-')) {
+          localStorage.removeItem(key);
+        }
+      });
     }
   }, [user]);
 
@@ -132,6 +139,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const clearCart = () => {
     setItems([]);
+    if (user) {
+      localStorage.removeItem(`siletoRx-cart-${user.id}`);
+    }
   };
 
   const getTotalPrice = () => {
