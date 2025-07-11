@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -11,17 +11,27 @@ import { supabase } from '@/integrations/supabase/client';
 import { Upload, FileText, ArrowLeft } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import LoginModal from '@/components/LoginModal';
 
 const PrescriptionUpload = () => {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [showLoginModal, setShowLoginModal] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
   const { orderId } = location.state || {};
+
+  // Redirect to auth page if not signed in
+  useEffect(() => {
+    if (!user) {
+      navigate('/auth', { 
+        state: { 
+          redirectTo: '/prescription-upload',
+          message: 'Please sign in to upload your prescription' 
+        }
+      });
+    }
+  }, [user, navigate]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -50,7 +60,7 @@ const PrescriptionUpload = () => {
 
   const handleUpload = async () => {
     if (!user) {
-      setShowLoginModal(true);
+      navigate('/auth');
       return;
     }
 
@@ -107,6 +117,11 @@ const PrescriptionUpload = () => {
       setUploading(false);
     }
   };
+
+  // Don't render content if user is not signed in
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -200,12 +215,6 @@ const PrescriptionUpload = () => {
       </div>
       
       <Footer />
-      
-      <LoginModal
-        isOpen={showLoginModal}
-        onClose={() => setShowLoginModal(false)}
-        onSuccess={() => setShowLoginModal(false)}
-      />
     </div>
   );
 };

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,16 +19,19 @@ const Auth = () => {
   const [emailConfirmed, setEmailConfirmed] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
   const [showResetForm, setShowResetForm] = useState(false);
+  const [activeTab, setActiveTab] = useState('signin');
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const { toast } = useToast();
 
   useEffect(() => {
     if (user) {
-      navigate('/');
+      const redirectTo = location.state?.redirectTo || '/';
+      navigate(redirectTo);
     }
-  }, [user, navigate]);
+  }, [user, navigate, location.state]);
 
   // Handle email confirmation and password reset
   useEffect(() => {
@@ -39,12 +42,13 @@ const Auth = () => {
     if (type === 'signup' && accessToken && refreshToken) {
       setEmailConfirmed(true);
       toast({
-        title: "Email Confirmed!",
-        description: "Your email has been successfully verified. You can now sign in.",
+        title: "Account Created Successfully!",
+        description: "Your email has been verified. You can now sign in to your account.",
       });
       
-      // Clear the URL parameters
+      // Clear the URL parameters and set to sign in tab
       navigate('/auth', { replace: true });
+      setActiveTab('signin');
     } else if (type === 'recovery' && accessToken && refreshToken) {
       // User clicked on password reset link
       toast({
@@ -57,6 +61,17 @@ const Auth = () => {
     }
   }, [searchParams, navigate, toast]);
 
+  // Show redirect message if coming from another page
+  useEffect(() => {
+    if (location.state?.message) {
+      toast({
+        title: "Sign In Required",
+        description: location.state.message,
+        variant: "destructive"
+      });
+    }
+  }, [location.state, toast]);
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -64,7 +79,8 @@ const Auth = () => {
     setLoading(false);
     
     if (!error) {
-      navigate('/');
+      const redirectTo = location.state?.redirectTo || '/';
+      navigate(redirectTo);
     }
   };
 
@@ -233,10 +249,10 @@ const Auth = () => {
                 </Button>
               </form>
             ) : (
-              <Tabs defaultValue={emailConfirmed ? "signin" : "signin"} className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="signin">Sign In</TabsTrigger>
-                  <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="grid w-full grid-cols-2 mb-6">
+                  <TabsTrigger value="signin" className="text-sm font-medium">Sign In</TabsTrigger>
+                  <TabsTrigger value="signup" className="text-sm font-medium bg-blue-600 text-white data-[state=active]:bg-blue-700">Create Account</TabsTrigger>
                 </TabsList>
                 
                 <TabsContent value="signin">
@@ -322,7 +338,7 @@ const Auth = () => {
                         minLength={6}
                       />
                     </div>
-                    <Button type="submit" className="w-full" disabled={loading}>
+                    <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={loading}>
                       {loading ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />

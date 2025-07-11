@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, CreditCard, AlertCircle, Smartphone } from 'lucide-react';
+import { ArrowLeft, CreditCard, AlertCircle, Smartphone, Upload } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
@@ -45,10 +45,26 @@ const Checkout = () => {
     });
   };
 
+  const handleUploadPrescription = () => {
+    navigate('/prescription-upload', {
+      state: { fromCheckout: true }
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
       navigate('/auth');
+      return;
+    }
+
+    // Check if prescription items require prescription upload
+    if (hasPrescriptionItems()) {
+      toast({
+        title: "Prescription Required",
+        description: "Please upload your prescription before proceeding with the order.",
+        variant: "destructive"
+      });
       return;
     }
 
@@ -226,7 +242,32 @@ const Checkout = () => {
                     />
                   </div>
 
-                  <Button type="submit" className="w-full" disabled={loading}>
+                  {hasPrescriptionItems() && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 text-red-800 mb-2">
+                        <AlertCircle size={16} />
+                        <span className="font-medium">Prescription Required</span>
+                      </div>
+                      <p className="text-sm text-red-700 mb-3">
+                        Your cart contains prescription items. Please upload your prescription before proceeding.
+                      </p>
+                      <Button
+                        type="button"
+                        onClick={handleUploadPrescription}
+                        variant="outline"
+                        className="border-red-300 text-red-700 hover:bg-red-50"
+                      >
+                        <Upload className="mr-2 h-4 w-4" />
+                        Upload Prescription
+                      </Button>
+                    </div>
+                  )}
+
+                  <Button 
+                    type="submit" 
+                    className="w-full" 
+                    disabled={loading || hasPrescriptionItems()}
+                  >
                     {loading ? (
                       'Processing Payment...'
                     ) : (
@@ -290,7 +331,7 @@ const Checkout = () => {
                       <span className="font-medium">Prescription Required</span>
                     </div>
                     <p className="text-sm text-yellow-700 mt-1">
-                      Items requiring prescription will be verified before delivery
+                      Items requiring prescription must be verified before checkout
                     </p>
                   </div>
                 )}
