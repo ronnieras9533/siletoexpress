@@ -29,6 +29,11 @@ const Auth = () => {
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
 
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   useEffect(() => {
     // Check for email confirmation success
     const confirmed = searchParams.get('confirmed');
@@ -289,7 +294,7 @@ const Auth = () => {
                   setConfirmPassword('');
                   setFullName('');
                 }}
-                className="mt-2 w-full bg-white border-blue-300 text-blue-600 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-400"
+                className="mt-2 w-full bg-white border-gray-300 text-gray-900 hover:bg-gray-50 hover:text-gray-900 hover:border-gray-400"
               >
                 {isLogin ? 'Create Account' : 'Sign In Instead'}
               </Button>

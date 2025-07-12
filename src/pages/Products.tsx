@@ -32,6 +32,11 @@ const Products = () => {
   const { addToCart, showLoginModal, setShowLoginModal } = useCart();
   const navigate = useNavigate();
 
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   // Get category from URL parameters
   const categoryFilter = searchParams.get('category');
 

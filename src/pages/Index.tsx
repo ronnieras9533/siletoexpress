@@ -12,9 +12,10 @@ const Index = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // Set page title
+  // Set page title and scroll to top
   useEffect(() => {
     document.title = "SiletoExpress - Your Trusted Online Pharmacy";
+    window.scrollTo(0, 0);
   }, []);
 
   return (

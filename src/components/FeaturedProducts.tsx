@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCart } from "@/contexts/CartContext";
-import { ShoppingCart, AlertCircle } from "lucide-react";
+import { ShoppingCart, AlertCircle, MessageCircle, Package } from "lucide-react";
 
 const FeaturedProducts = () => {
   const navigate = useNavigate();
@@ -51,6 +51,23 @@ const FeaturedProducts = () => {
     } catch (err) {
       console.error('FeaturedProducts: Error adding to cart:', err);
     }
+  };
+
+  const handleOrderViaWhatsApp = (product: any) => {
+    const phoneNumber = '+254718925368';
+    const message = `Hi! I would like to order:
+
+Product: ${product.name}
+Brand: ${product.brand || 'N/A'}
+Price: KES ${Number(product.price || 0).toLocaleString()}
+Category: ${product.category || 'N/A'}
+
+${product.description ? `Description: ${product.description}` : ''}
+
+Please let me know about availability and delivery details.`;
+
+    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
   };
 
   console.log('FeaturedProducts: Render state:', { isLoading, error: !!error, productsCount: products?.length });
@@ -174,6 +191,23 @@ const FeaturedProducts = () => {
               </CardHeader>
               
               <CardContent>
+                {product.image_url ? (
+                  <img 
+                    src={product.image_url} 
+                    alt={product.name}
+                    className="w-full h-32 object-cover rounded mb-4"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                    }}
+                  />
+                ) : null}
+                
+                <div className={`w-full h-32 bg-gray-100 rounded flex flex-col items-center justify-center mb-4 ${product.image_url ? 'hidden' : ''}`}>
+                  <Package className="h-12 w-12 text-gray-400 mb-2" />
+                  <p className="text-gray-500 text-xs">No image</p>
+                </div>
+                
                 <p className="text-gray-700 text-sm mb-4 line-clamp-3">
                   {product.description || 'No description available'}
                 </p>
@@ -193,14 +227,34 @@ const FeaturedProducts = () => {
                 </div>
               </CardContent>
               
-              <CardFooter className="pt-4">
+              <CardFooter className="pt-4 space-y-2">
+                <div className="flex gap-2 w-full">
+                  <Button 
+                    onClick={() => handleAddToCart(product)}
+                    disabled={product.stock === 0}
+                    size="sm"
+                    className="flex-1"
+                  >
+                    <ShoppingCart className="mr-2 h-4 w-4" />
+                    {product.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
+                  </Button>
+                  <Button 
+                    onClick={() => navigate(`/product/${product.id}`)}
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                  >
+                    View Details
+                  </Button>
+                </div>
                 <Button 
-                  onClick={() => handleAddToCart(product)}
-                  disabled={product.stock === 0}
-                  className="w-full"
+                  onClick={() => handleOrderViaWhatsApp(product)}
+                  variant="outline"
+                  size="sm"
+                  className="w-full bg-green-50 border-green-200 text-green-700 hover:bg-green-100 hover:text-green-800 hover:border-green-300"
                 >
-                  <ShoppingCart className="mr-2 h-4 w-4" />
-                  {product.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
+                  <MessageCircle className="mr-2 h-4 w-4" />
+                  Order via WhatsApp
                 </Button>
               </CardFooter>
             </Card>
