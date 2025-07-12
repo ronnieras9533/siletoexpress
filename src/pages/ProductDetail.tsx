@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useCart } from '@/contexts/CartContext';
-import { ShoppingCart, AlertCircle, ArrowLeft, Package, Shield, Clock } from 'lucide-react';
+import { ShoppingCart, AlertCircle, ArrowLeft, Package, Shield, MessageCircle } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
@@ -55,6 +55,25 @@ const ProductDetail = () => {
         image_url: product.image_url,
         stock: product.stock
       });
+    }
+  };
+
+  const handleWhatsAppOrder = () => {
+    if (product) {
+      const message = `Hello! I would like to order this product:
+
+*${product.name}*
+Brand: ${product.brand}
+Category: ${product.category}
+Price: KES ${product.price.toLocaleString()}
+${product.prescription_required ? '⚠️ Prescription Required' : ''}
+
+${product.description ? `Description: ${product.description}` : ''}
+
+Please let me know about availability and delivery details.`;
+
+      const whatsappUrl = `https://wa.me/254718925368?text=${encodeURIComponent(message)}`;
+      window.open(whatsappUrl, '_blank');
     }
   };
 
@@ -114,10 +133,14 @@ const ProductDetail = () => {
                     src={product.image_url} 
                     alt={product.name}
                     className="w-full h-96 object-cover rounded-lg"
+                    onError={(e) => {
+                      e.currentTarget.src = 'https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?w=400&h=400&fit=crop';
+                    }}
                   />
                 ) : (
-                  <div className="w-full h-96 bg-gray-200 rounded-lg flex items-center justify-center">
-                    <Package className="h-24 w-24 text-gray-400" />
+                  <div className="w-full h-96 bg-gray-100 rounded-lg flex flex-col items-center justify-center">
+                    <Package className="h-24 w-24 text-gray-400 mb-4" />
+                    <p className="text-gray-500 text-sm">No image available</p>
                   </div>
                 )}
               </CardContent>
@@ -176,15 +199,27 @@ const ProductDetail = () => {
             </Card>
 
             <div className="space-y-4">
-              <Button
-                onClick={handleAddToCart}
-                disabled={product.stock === 0}
-                className="w-full"
-                size="lg"
-              >
-                <ShoppingCart size={20} className="mr-2" />
-                {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleAddToCart}
+                  disabled={product.stock === 0}
+                  className="flex-1"
+                  size="lg"
+                >
+                  <ShoppingCart size={20} className="mr-2" />
+                  {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
+                </Button>
+                
+                <Button
+                  onClick={handleWhatsAppOrder}
+                  variant="outline"
+                  className="flex-1 bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
+                  size="lg"
+                >
+                  <MessageCircle size={20} className="mr-2" />
+                  Order via WhatsApp
+                </Button>
+              </div>
               
               {product.prescription_required && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -193,7 +228,7 @@ const ProductDetail = () => {
                     <span className="font-medium">Prescription Required</span>
                   </div>
                   <p className="text-sm text-yellow-700 mt-1">
-                    This medication requires a valid prescription. You'll need to upload your prescription during checkout.
+                    This medication requires a valid prescription. You'll need to upload your prescription during checkout or when ordering via WhatsApp.
                   </p>
                 </div>
               )}

@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { CartProvider } from "@/contexts/CartContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -60,7 +60,9 @@ const App = () => {
                       <Route path="/admin" element={<Admin />} />
                       <Route path="/admin-dashboard" element={<AdminDashboard />} />
                       <Route path="/why-choose-us" element={<WhyChooseUs />} />
-                      <Route path="*" element={<NotFound />} />
+                      {/* Catch all route for 404 */}
+                      <Route path="/404" element={<NotFound />} />
+                      <Route path="*" element={<Navigate to="/404" replace />} />
                     </Routes>
                   </ErrorBoundary>
                 </CartProvider>

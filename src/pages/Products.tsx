@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useCart } from '@/contexts/CartContext';
-import { ShoppingCart, AlertCircle } from 'lucide-react';
+import { ShoppingCart, AlertCircle, Package } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -142,13 +142,22 @@ const Products = () => {
               </CardHeader>
               
               <CardContent className="space-y-4">
-                {product.image_url && (
+                {product.image_url ? (
                   <img 
                     src={product.image_url} 
                     alt={product.name}
                     className="w-full h-32 object-cover rounded"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                    }}
                   />
-                )}
+                ) : null}
+                
+                <div className={`w-full h-32 bg-gray-100 rounded flex flex-col items-center justify-center ${product.image_url ? 'hidden' : ''}`}>
+                  <Package className="h-12 w-12 text-gray-400 mb-2" />
+                  <p className="text-gray-500 text-xs">No image</p>
+                </div>
                 
                 <div>
                   <p className="text-sm text-gray-600 line-clamp-3">{product.description}</p>
