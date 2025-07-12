@@ -109,7 +109,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signUp = async (email: string, password: string, fullName: string, role: string = 'user') => {
     console.log('AuthProvider: Attempting sign up for:', email);
-    const redirectUrl = `${window.location.origin}/auth`;
+    
+    // Use the actual domain instead of localhost for email confirmations
+    const baseUrl = window.location.hostname === 'localhost' 
+      ? 'https://hevbjzdahldvijwqtqcx.supabase.co' 
+      : window.location.origin;
+    
+    const redirectUrl = `${baseUrl}/auth?confirmed=true`;
     
     const { error } = await supabase.auth.signUp({
       email,
