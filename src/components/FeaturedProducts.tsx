@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -44,7 +43,8 @@ const FeaturedProducts = () => {
     retryDelay: 1000,
   });
 
-  const handleAddToCart = (product: any) => {
+  const handleAddToCart = (e: React.MouseEvent, product: any) => {
+    e.stopPropagation(); // Prevent card click when clicking button
     console.log('FeaturedProducts: Adding product to cart:', product.id);
     try {
       addToCart(product);
@@ -53,7 +53,8 @@ const FeaturedProducts = () => {
     }
   };
 
-  const handleOrderViaWhatsApp = (product: any) => {
+  const handleOrderViaWhatsApp = (e: React.MouseEvent, product: any) => {
+    e.stopPropagation(); // Prevent card click when clicking button
     const phoneNumber = '+254718925368';
     const message = `Hi! I would like to order:
 
@@ -68,6 +69,10 @@ Please let me know about availability and delivery details.`;
 
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
+  };
+
+  const handleCardClick = (productId: string) => {
+    navigate(`/product/${productId}`);
   };
 
   console.log('FeaturedProducts: Render state:', { isLoading, error: !!error, productsCount: products?.length });
@@ -173,7 +178,11 @@ Please let me know about availability and delivery details.`;
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           {products.map((product) => (
-            <Card key={product.id} className="group hover:shadow-lg transition-shadow duration-300 flex flex-col">
+            <Card 
+              key={product.id} 
+              className="group hover:shadow-lg transition-shadow duration-300 flex flex-col cursor-pointer"
+              onClick={() => handleCardClick(product.id)}
+            >
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start gap-2">
                   <div className="flex-1 min-w-0">
@@ -228,34 +237,26 @@ Please let me know about availability and delivery details.`;
               </CardContent>
               
               <CardFooter className="pt-4 space-y-2">
-                <div className="flex flex-col sm:flex-row gap-2 w-full">
+                <div className="flex flex-col gap-2 w-full">
                   <Button 
-                    onClick={() => handleAddToCart(product)}
+                    onClick={(e) => handleAddToCart(e, product)}
                     disabled={product.stock === 0}
                     size="sm"
-                    className="flex-1 text-xs md:text-sm"
+                    className="w-full text-xs md:text-sm"
                   >
                     <ShoppingCart className="mr-1 md:mr-2 h-3 md:h-4 w-3 md:w-4" />
                     {product.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
                   </Button>
                   <Button 
-                    onClick={() => navigate(`/product/${product.id}`)}
+                    onClick={(e) => handleOrderViaWhatsApp(e, product)}
                     variant="outline"
                     size="sm"
-                    className="flex-1 text-xs md:text-sm"
+                    className="w-full bg-green-50 border-green-200 text-green-700 hover:bg-green-100 hover:text-green-800 hover:border-green-300 text-xs md:text-sm"
                   >
-                    View Details
+                    <MessageCircle className="mr-1 md:mr-2 h-3 md:h-4 w-3 md:w-4" />
+                    Order via WhatsApp
                   </Button>
                 </div>
-                <Button 
-                  onClick={() => handleOrderViaWhatsApp(product)}
-                  variant="outline"
-                  size="sm"
-                  className="w-full bg-green-50 border-green-200 text-green-700 hover:bg-green-100 hover:text-green-800 hover:border-green-300 text-xs md:text-sm"
-                >
-                  <MessageCircle className="mr-1 md:mr-2 h-3 md:h-4 w-3 md:w-4" />
-                  Order via WhatsApp
-                </Button>
               </CardFooter>
             </Card>
           ))}
