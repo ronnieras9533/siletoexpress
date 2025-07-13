@@ -59,9 +59,11 @@ export type Database = {
       orders: {
         Row: {
           created_at: string
+          currency: string | null
           delivery_address: string | null
           id: string
           mpesa_receipt_number: string | null
+          payment_method: string | null
           phone_number: string | null
           status: Database["public"]["Enums"]["order_status"]
           total_amount: number
@@ -69,9 +71,11 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          currency?: string | null
           delivery_address?: string | null
           id?: string
           mpesa_receipt_number?: string | null
+          payment_method?: string | null
           phone_number?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           total_amount: number
@@ -79,15 +83,70 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          currency?: string | null
           delivery_address?: string | null
           id?: string
           mpesa_receipt_number?: string | null
+          payment_method?: string | null
           phone_number?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           total_amount?: number
           user_id?: string
         }
         Relationships: []
+      }
+      payments: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string | null
+          gateway: string | null
+          id: string
+          metadata: Json | null
+          method: string
+          order_id: string | null
+          status: string
+          transaction_id: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string | null
+          gateway?: string | null
+          id?: string
+          metadata?: Json | null
+          method: string
+          order_id?: string | null
+          status?: string
+          transaction_id?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string | null
+          gateway?: string | null
+          id?: string
+          metadata?: Json | null
+          method?: string
+          order_id?: string | null
+          status?: string
+          transaction_id?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       prescriptions: {
         Row: {

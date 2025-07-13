@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -16,6 +15,7 @@ import ProductDetail from "./pages/ProductDetail";
 import Cart from "./pages/Cart";
 import Checkout from "./pages/Checkout";
 import OrderSuccess from "./pages/OrderSuccess";
+import PaymentSuccess from "./pages/PaymentSuccess";
 import PrescriptionUpload from "./pages/PrescriptionUpload";
 import Dashboard from "./pages/Dashboard";
 import SellerDashboard from "./pages/SellerDashboard";
@@ -69,6 +69,7 @@ const App = () => {
                       <Route path="/cart" element={<Cart />} />
                       <Route path="/checkout" element={<Checkout />} />
                       <Route path="/order-success" element={<OrderSuccess />} />
+                      <Route path="/payment-success" element={<PaymentSuccess />} />
                       <Route path="/prescription-upload" element={<PrescriptionUpload />} />
                       <Route path="/dashboard" element={<Dashboard />} />
                       <Route path="/seller-dashboard" element={<SellerDashboard />} />
