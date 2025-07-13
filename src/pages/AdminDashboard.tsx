@@ -23,6 +23,7 @@ import Footer from '@/components/Footer';
 import AdminProductForm from '@/components/AdminProductForm';
 import AdminOrdersTable from '@/components/AdminOrdersTable';
 import AdminPrescriptionsTable from '@/components/AdminPrescriptionsTable';
+import AdminPrescriptionOrdersTable from '@/components/AdminPrescriptionOrdersTable';
 
 const AdminDashboard = () => {
   const { user, isAdmin } = useAuth();
@@ -153,6 +154,7 @@ const AdminDashboard = () => {
             <TabsList>
               <TabsTrigger value="products">Products</TabsTrigger>
               <TabsTrigger value="orders">Orders</TabsTrigger>
+              <TabsTrigger value="prescription-orders">Orders with Prescriptions</TabsTrigger>
               <TabsTrigger value="prescriptions">Prescriptions</TabsTrigger>
               <TabsTrigger value="analytics">Analytics</TabsTrigger>
             </TabsList>
@@ -233,6 +235,10 @@ const AdminDashboard = () => {
 
             <TabsContent value="orders">
               <AdminOrdersTable />
+            </TabsContent>
+
+            <TabsContent value="prescription-orders">
+              <AdminPrescriptionOrdersTable />
             </TabsContent>
 
             <TabsContent value="prescriptions">
