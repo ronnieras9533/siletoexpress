@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useCart } from '@/contexts/CartContext';
-import { ShoppingCart, AlertCircle, ArrowLeft, Package, Shield, MessageCircle } from 'lucide-react';
+import { ShoppingCart, AlertCircle, ArrowLeft, Package, Shield, MessageCircle, RefreshCw } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
@@ -28,10 +28,19 @@ const ProductDetail = () => {
   const navigate = useNavigate();
   const { addToCart } = useCart();
 
-  const { data: product, isLoading, error } = useQuery({
+  // Redirect to 404 if no ID is provided
+  useEffect(() => {
+    if (!id) {
+      navigate('/404', { replace: true });
+    }
+  }, [id, navigate]);
+
+  const { data: product, isLoading, error, refetch } = useQuery({
     queryKey: ['product', id],
     queryFn: async () => {
       if (!id) throw new Error('Product ID is required');
+      
+      console.log('Fetching product with ID:', id);
       
       const { data, error } = await supabase
         .from('products')
@@ -39,10 +48,17 @@ const ProductDetail = () => {
         .eq('id', id)
         .single();
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching product:', error);
+        throw error;
+      }
+      
+      console.log('Product fetched successfully:', data);
       return data as Product;
     },
-    enabled: !!id
+    enabled: !!id,
+    retry: 3,
+    retryDelay: 1000
   });
 
   const handleAddToCart = () => {
@@ -77,12 +93,23 @@ Please let me know about availability and delivery details.`;
     }
   };
 
+  const handleRetry = () => {
+    refetch();
+  };
+
+  if (!id) {
+    return null; // Will redirect to 404
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
         <Header />
         <div className="container mx-auto px-4 py-8">
-          <div className="text-center">Loading product...</div>
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-lg text-gray-600">Loading product details...</p>
+          </div>
         </div>
         <Footer />
       </div>
@@ -94,12 +121,45 @@ Please let me know about availability and delivery details.`;
       <div className="min-h-screen bg-gray-50">
         <Header />
         <div className="container mx-auto px-4 py-8">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Product Not Found</h2>
-            <p className="text-gray-600 mb-6">The product you're looking for doesn't exist.</p>
-            <Button onClick={() => navigate('/products')}>
-              Back to Products
-            </Button>
+          <div className="text-center max-w-md mx-auto">
+            <div className="mb-8">
+              <Package className="h-24 w-24 text-gray-400 mx-auto mb-4" />
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Product Not Found</h2>
+              <p className="text-gray-600 mb-2">
+                {error?.message?.includes('No rows') || error?.message?.includes('not found') 
+                  ? "This product doesn't exist or may have been removed."
+                  : "There was an error loading this product. This might be a temporary issue."
+                }
+              </p>
+              <p className="text-sm text-gray-500 mb-6">
+                Product ID: {id}
+              </p>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button onClick={() => navigate(-1)} variant="outline">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Go Back
+              </Button>
+              
+              <Button onClick={handleRetry} variant="outline">
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Try Again
+              </Button>
+              
+              <Button onClick={() => navigate('/products')}>
+                View All Products
+              </Button>
+            </div>
+            
+            <div className="mt-8 text-sm text-gray-500">
+              <p>Having trouble? Try:</p>
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>Checking your internet connection</li>
+                <li>Going back to the products page</li>
+                <li>Refreshing the page</li>
+              </ul>
+            </div>
           </div>
         </div>
         <Footer />
