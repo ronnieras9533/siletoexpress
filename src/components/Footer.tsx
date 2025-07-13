@@ -13,11 +13,18 @@ import {
   Truck,
   Clock,
   Award,
-  ExternalLink
+  ExternalLink,
+  MessageCircle
 } from "lucide-react";
 
 const Footer = () => {
   const navigate = useNavigate();
+
+  const handleWhatsAppClick = () => {
+    const message = encodeURIComponent("Hi SiletoExpress, I'd like to order medicine or talk to a pharmacist.");
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=254718925368&text=${message}`;
+    window.open(whatsappUrl, '_blank');
+  };
 
   return (
     <footer className="bg-gray-900 text-white">
@@ -81,6 +88,16 @@ const Footer = () => {
                   onClick={() => navigate('/auth')}
                 >
                   Sign In
+                </Button>
+              </li>
+              <li>
+                <Button 
+                  variant="ghost" 
+                  className="text-green-400 hover:text-green-300 p-0 h-auto font-normal flex items-center"
+                  onClick={handleWhatsAppClick}
+                >
+                  <MessageCircle size={16} className="mr-1" />
+                  WhatsApp Chat
                 </Button>
               </li>
             </ul>

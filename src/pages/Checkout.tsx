@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, CreditCard, AlertCircle, Smartphone } from 'lucide-react';
+import { ArrowLeft, CreditCard, AlertCircle, Smartphone, MessageCircle } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import OrderPrescriptionUpload from '@/components/OrderPrescriptionUpload';
@@ -55,6 +55,28 @@ const Checkout = () => {
       title: "Prescription uploaded!",
       description: "You can now proceed with your order.",
     });
+  };
+
+  const handleWhatsAppHelp = () => {
+    const orderSummary = items.map(item => 
+      `• ${item.name} (Qty: ${item.quantity}) - KES ${(item.price * item.quantity).toLocaleString()}`
+    ).join('\n');
+    
+    const message = `Hi SiletoExpress, I need help with my checkout:
+
+ORDER SUMMARY:
+${orderSummary}
+
+Subtotal: KES ${getTotalPrice().toLocaleString()}
+Delivery: ${deliveryFee === 0 ? 'Free' : `KES ${deliveryFee}`}
+Total: KES ${totalAmount.toLocaleString()}
+
+${hasPrescriptionItems() ? '⚠️ This order includes prescription items' : ''}
+
+Please assist me with completing this order.`;
+
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=254718925368&text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -381,6 +403,19 @@ const Checkout = () => {
                   <p className="text-sm text-blue-700 mt-1">
                     You will receive an STK push notification on your phone to complete the payment
                   </p>
+                </div>
+
+                {/* WhatsApp Help Button */}
+                <div className="mt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleWhatsAppHelp}
+                    className="w-full bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
+                  >
+                    <MessageCircle size={16} className="mr-2" />
+                    Need Help? Chat with us on WhatsApp
+                  </Button>
                 </div>
               </CardContent>
             </Card>

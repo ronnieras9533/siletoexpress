@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { AuthProvider } from "@/contexts/AuthContext";
 import { CartProvider } from "@/contexts/CartContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import WhatsAppFloat from "@/components/WhatsAppFloat";
 import { useEffect } from "react";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -58,6 +59,7 @@ const App = () => {
                 <CartProvider>
                   <Toaster />
                   <Sonner />
+                  <WhatsAppFloat />
                   <ErrorBoundary>
                     <Routes>
                       <Route path="/" element={<Index />} />

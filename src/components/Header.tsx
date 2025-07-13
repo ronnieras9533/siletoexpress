@@ -7,7 +7,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button";
-import { LogOut, Package, Pill, Settings, ShoppingCart, User } from "lucide-react";
+import { LogOut, Package, Pill, Settings, ShoppingCart, User, MessageCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCart } from "@/contexts/CartContext";
@@ -20,6 +20,12 @@ const Header = () => {
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
+  };
+
+  const handleWhatsAppClick = () => {
+    const message = encodeURIComponent("Hi SiletoExpress, I'd like to order medicine or talk to a pharmacist.");
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=254718925368&text=${message}`;
+    window.open(whatsappUrl, '_blank');
   };
 
   return (
@@ -42,6 +48,15 @@ const Header = () => {
               <Link to="/why-choose-us" className="text-gray-700 hover:text-blue-600 transition-colors">
                 Why Choose Us
               </Link>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleWhatsAppClick}
+                className="text-green-600 hover:text-green-700 hover:bg-green-50"
+              >
+                <MessageCircle size={16} className="mr-1" />
+                Chat
+              </Button>
               {user && (
                 <>
                   <Link to="/dashboard" className="text-gray-700 hover:text-blue-600 transition-colors">
