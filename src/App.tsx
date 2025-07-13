@@ -23,6 +23,7 @@ import Admin from "./pages/Admin";
 import AdminDashboard from "./pages/AdminDashboard";
 import WhyChooseUs from "./pages/WhyChooseUs";
 import NotFound from "./pages/NotFound";
+import PesapalCallback from "./pages/PesapalCallback";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -70,6 +71,7 @@ const App = () => {
                       <Route path="/checkout" element={<Checkout />} />
                       <Route path="/order-success" element={<OrderSuccess />} />
                       <Route path="/payment-success" element={<PaymentSuccess />} />
+                      <Route path="/pesapal-callback" element={<PesapalCallback />} />
                       <Route path="/prescription-upload" element={<PrescriptionUpload />} />
                       <Route path="/dashboard" element={<Dashboard />} />
                       <Route path="/seller-dashboard" element={<SellerDashboard />} />

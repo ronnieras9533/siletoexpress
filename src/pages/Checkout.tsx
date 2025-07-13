@@ -13,7 +13,7 @@ import { ArrowLeft, CreditCard, AlertCircle, Smartphone, MessageCircle } from 'l
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import OrderPrescriptionUpload from '@/components/OrderPrescriptionUpload';
-import CardPaymentButton from '@/components/CardPaymentButton';
+import PesapalPaymentButton from '@/components/PesapalPaymentButton';
 
 const Checkout = () => {
   const { items, getTotalPrice, hasPrescriptionItems, clearCart } = useCart();
@@ -23,7 +23,7 @@ const Checkout = () => {
   const [loading, setLoading] = useState(false);
   const [showPrescriptionUpload, setShowPrescriptionUpload] = useState(false);
   const [prescriptionId, setPrescriptionId] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'card'>('mpesa');
+  const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'card' | 'mobile'>('mpesa');
   const [formData, setFormData] = useState({
     phone: '',
     address: '',
@@ -369,7 +369,7 @@ Please assist me with completing this order.`;
                   {/* Payment Method Selection */}
                   <div className="space-y-3">
                     <Label>Select Payment Method</Label>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3">
                       <Button
                         type="button"
                         variant={paymentMethod === 'mpesa' ? 'default' : 'outline'}
@@ -377,7 +377,7 @@ Please assist me with completing this order.`;
                         className="flex items-center gap-2"
                       >
                         <Smartphone size={16} />
-                        M-PESA
+                        M-PESA (Direct)
                       </Button>
                       <Button
                         type="button"
@@ -386,7 +386,16 @@ Please assist me with completing this order.`;
                         className="flex items-center gap-2"
                       >
                         <CreditCard size={16} />
-                        Card
+                        Visa / Mastercard
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={paymentMethod === 'mobile' ? 'default' : 'outline'}
+                        onClick={() => setPaymentMethod('mobile')}
+                        className="flex items-center gap-2"
+                      >
+                        <Smartphone size={16} />
+                        Mobile Money (M-PESA, Airtel)
                       </Button>
                     </div>
                   </div>
@@ -420,7 +429,7 @@ Please assist me with completing this order.`;
                           Upload Prescription First
                         </Button>
                       ) : (
-                        <CardPaymentButton
+                        <PesapalPaymentButton
                           amount={totalAmount}
                           currency="KES"
                           customerInfo={{
@@ -432,6 +441,7 @@ Please assist me with completing this order.`;
                           prescriptionId={prescriptionId}
                           onSuccess={handleCardPaymentSuccess}
                           onError={handleCardPaymentError}
+                          paymentType={paymentMethod === 'card' ? 'card' : 'mobile'}
                         />
                       )}
                     </div>

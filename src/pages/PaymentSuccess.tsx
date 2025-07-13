@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, Loader2, XCircle, Home, ShoppingBag } from 'lucide-react';
-import { flutterwaveService } from '@/services/flutterwaveService';
+// Flutterwave service removed - replaced with Pesapal
 import { useToast } from '@/components/ui/use-toast';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -31,23 +31,9 @@ const PaymentSuccess = () => {
     const verifyPayment = async () => {
       try {
         if (status === 'successful') {
-          const response = await flutterwaveService.verifyPayment(txRef);
-          
-          if (response.status === 'success') {
-            setPaymentStatus('success');
-            setTransactionData(response.data);
-            toast({
-              title: "Payment Successful!",
-              description: "Your order has been confirmed and is being processed.",
-            });
-          } else {
-            setPaymentStatus('failed');
-            toast({
-              title: "Payment Verification Failed",
-              description: "There was an issue verifying your payment. Please contact support.",
-              variant: "destructive"
-            });
-          }
+          // Legacy flutterwave verification - redirecting to Pesapal flow
+          navigate('/pesapal-callback');
+          return;
         } else {
           setPaymentStatus('failed');
         }

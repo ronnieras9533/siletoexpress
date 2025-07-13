@@ -1,14 +1,13 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { CreditCard, Loader2 } from 'lucide-react';
-import { flutterwaveService } from '@/services/flutterwaveService';
-import { useToast } from '@/components/ui/use-toast';
+import { CreditCard, Loader2, Smartphone } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
-interface CardPaymentButtonProps {
+interface PesapalPaymentButtonProps {
   amount: number;
   currency: string;
   customerInfo: {
@@ -25,21 +24,24 @@ interface CardPaymentButtonProps {
   prescriptionId?: string | null;
   onSuccess: (transactionData: any) => void;
   onError: (error: string) => void;
+  paymentType: 'card' | 'mobile';
 }
 
-const CardPaymentButton: React.FC<CardPaymentButtonProps> = ({
+const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
   amount,
   currency,
   customerInfo,
   formData,
   prescriptionId,
   onSuccess,
-  onError
+  onError,
+  paymentType
 }) => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const { items, clearCart } = useCart();
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const createOrder = async () => {
     if (!user) throw new Error('User not authenticated');
@@ -53,7 +55,7 @@ const CardPaymentButton: React.FC<CardPaymentButtonProps> = ({
         phone_number: formData.phone,
         delivery_address: `${formData.address}, ${formData.city}`,
         status: 'pending',
-        payment_method: 'card',
+        payment_method: 'pesapal',
         currency: currency
       })
       .select()
@@ -86,47 +88,60 @@ const CardPaymentButton: React.FC<CardPaymentButtonProps> = ({
     return order;
   };
 
-  const handleCardPayment = async () => {
+  const handlePesapalPayment = async () => {
     setLoading(true);
     
     try {
       // Create order first
       const order = await createOrder();
       
-      const txRef = flutterwaveService.generateTransactionRef();
-      const redirectUrl = `${window.location.origin}/payment-success?tx_ref=${txRef}&order_id=${order.id}`;
-
+      // Prepare payment data for Pesapal
       const paymentData = {
         amount,
         currency,
-        email: customerInfo.email,
-        phone_number: customerInfo.phone,
-        name: customerInfo.name,
-        tx_ref: txRef,
-        redirect_url: redirectUrl,
-        order_id: order.id,
-        customer: {
+        orderId: order.id,
+        customerInfo: {
           email: customerInfo.email,
-          phone_number: customerInfo.phone,
+          phone: customerInfo.phone.replace(/^\+?254/, '254'), // Ensure proper format
           name: customerInfo.name
         },
-        customizations: {
-          title: "SiletoExpress Payment",
-          description: "Secure payment for your pharmacy order",
-          logo: ""
-        }
+        formData
       };
 
-      const response = await flutterwaveService.initiatePayment(paymentData);
+      console.log('Initiating Pesapal payment:', paymentData);
 
-      if (response.status === 'success' && response.data?.link) {
-        // Redirect to Flutterwave payment page
-        window.location.href = response.data.link;
-      } else {
-        throw new Error(response.message || 'Payment initiation failed');
+      // Call Pesapal edge function
+      const { data: pesapalResponse, error: pesapalError } = await supabase.functions
+        .invoke('pesapal-payment', {
+          body: paymentData
+        });
+
+      if (pesapalError) {
+        console.error('Pesapal function error:', pesapalError);
+        throw new Error(pesapalError.message || 'Failed to initiate payment');
       }
+
+      if (!pesapalResponse?.success || !pesapalResponse?.redirect_url) {
+        console.error('Invalid Pesapal response:', pesapalResponse);
+        throw new Error(pesapalResponse?.error || 'Failed to get payment URL');
+      }
+
+      console.log('Pesapal payment initiated successfully:', pesapalResponse);
+
+      // Store payment tracking info in localStorage for later retrieval
+      localStorage.setItem('pesapal_payment', JSON.stringify({
+        orderId: order.id,
+        trackingId: pesapalResponse.order_tracking_id,
+        merchantReference: pesapalResponse.merchant_reference,
+        amount: amount,
+        currency: currency
+      }));
+
+      // Redirect to Pesapal payment page
+      window.location.href = pesapalResponse.redirect_url;
+
     } catch (error) {
-      console.error('Card payment error:', error);
+      console.error('Pesapal payment error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Payment failed';
       onError(errorMessage);
       toast({
@@ -139,9 +154,15 @@ const CardPaymentButton: React.FC<CardPaymentButtonProps> = ({
     }
   };
 
+  const buttonText = paymentType === 'card' 
+    ? `Pay with Card - ${currency} ${amount.toLocaleString()}`
+    : `Pay with Mobile Money - ${currency} ${amount.toLocaleString()}`;
+
+  const ButtonIcon = paymentType === 'card' ? CreditCard : Smartphone;
+
   return (
     <Button
-      onClick={handleCardPayment}
+      onClick={handlePesapalPayment}
       disabled={loading}
       className="w-full bg-blue-600 hover:bg-blue-700 text-white"
       size="lg"
@@ -153,12 +174,12 @@ const CardPaymentButton: React.FC<CardPaymentButtonProps> = ({
         </>
       ) : (
         <>
-          <CreditCard className="mr-2 h-4 w-4" />
-          Pay with Card - {currency} {amount.toLocaleString()}
+          <ButtonIcon className="mr-2 h-4 w-4" />
+          {buttonText}
         </>
       )}
     </Button>
   );
 };
 
-export default CardPaymentButton;
+export default PesapalPaymentButton;
