@@ -177,6 +177,7 @@ export type Database = {
           id: string
           phone: string | null
           role: Database["public"]["Enums"]["user_role"]
+          whatsapp_number: string | null
         }
         Insert: {
           created_at?: string
@@ -185,6 +186,7 @@ export type Database = {
           id: string
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
+          whatsapp_number?: string | null
         }
         Update: {
           created_at?: string
@@ -193,6 +195,7 @@ export type Database = {
           id?: string
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
+          whatsapp_number?: string | null
         }
         Relationships: []
       }
