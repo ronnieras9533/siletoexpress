@@ -201,10 +201,10 @@ const AdminOrdersTable = () => {
 
                 {/* Prescription Section */}
                 {order.prescriptions && order.prescriptions.length > 0 && (
-                  <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <h4 className="font-medium mb-2 text-blue-800">Order Prescription</h4>
+                  <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h4 className="font-medium mb-3 text-blue-800">Order Prescription</h4>
                     {order.prescriptions.map((prescription) => (
-                      <div key={prescription.id} className="space-y-3">
+                      <div key={prescription.id} className="space-y-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Badge className={getStatusColor(prescription.status)}>
@@ -214,27 +214,29 @@ const AdminOrdersTable = () => {
                               Uploaded: {format(new Date(prescription.created_at), 'MMM dd, yyyy HH:mm')}
                             </span>
                           </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
+                        </div>
+
+                        <div className="mb-4">
+                          <img 
+                            src={prescription.image_url} 
+                            alt="Order Prescription"
+                            className="max-w-xs max-h-48 object-contain border rounded cursor-pointer"
                             onClick={() => window.open(prescription.image_url, '_blank')}
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            View Prescription
-                          </Button>
+                          />
+                          <p className="text-xs text-gray-500 mt-1">Click to view full size prescription</p>
                         </div>
 
                         {prescription.admin_notes && (
-                          <div className="p-2 bg-gray-50 rounded">
+                          <div className="p-3 bg-gray-50 rounded">
                             <p className="text-sm font-medium">Admin Notes:</p>
                             <p className="text-sm text-gray-600">{prescription.admin_notes}</p>
                           </div>
                         )}
 
                         {prescription.status === 'pending' && (
-                          <div className="space-y-2">
+                          <div className="space-y-3">
                             <Textarea
-                              placeholder="Add notes (optional)"
+                              placeholder="Add notes for prescription review (optional)"
                               value={selectedPrescription === prescription.id ? adminNotes : ''}
                               onChange={(e) => {
                                 setSelectedPrescription(prescription.id);
