@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { format } from 'date-fns';
-import { Eye, Check, X } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
 
 type OrderStatus = Database['public']['Enums']['order_status'];
@@ -52,6 +52,8 @@ const AdminOrdersTable = () => {
   const { data: orders, isLoading, refetch } = useQuery({
     queryKey: ['adminOrders'],
     queryFn: async () => {
+      console.log('Fetching orders with prescriptions...');
+      
       const { data, error } = await supabase
         .from('orders')
         .select(`
@@ -61,7 +63,7 @@ const AdminOrdersTable = () => {
             price,
             products(name)
           ),
-          prescriptions(
+          prescriptions!prescriptions_order_id_fkey(
             id,
             image_url,
             status,
@@ -71,7 +73,12 @@ const AdminOrdersTable = () => {
         `)
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching orders:', error);
+        throw error;
+      }
+
+      console.log('Raw orders data:', data);
 
       // Fetch profiles separately
       const userIds = data.map(order => order.user_id);
@@ -80,7 +87,10 @@ const AdminOrdersTable = () => {
         .select('id, full_name, email')
         .in('id', userIds);
 
-      if (profilesError) throw profilesError;
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+        throw profilesError;
+      }
 
       // Combine orders with profiles
       const ordersWithProfiles = data.map(order => ({
@@ -88,6 +98,7 @@ const AdminOrdersTable = () => {
         profiles: profiles?.find(profile => profile.id === order.user_id) || null
       }));
 
+      console.log('Orders with profiles and prescriptions:', ordersWithProfiles);
       return ordersWithProfiles as OrderWithProfile[];
     }
   });
@@ -199,7 +210,7 @@ const AdminOrdersTable = () => {
                   </div>
                 </div>
 
-                {/* Prescription Section */}
+                {/* Prescription Section - Only show if prescriptions exist for this order */}
                 {order.prescriptions && order.prescriptions.length > 0 && (
                   <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
                     <h4 className="font-medium mb-3 text-blue-800">Order Prescription</h4>

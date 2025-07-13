@@ -34,6 +34,8 @@ const AdminPrescriptionsTable = () => {
   const { data: prescriptions, isLoading, refetch } = useQuery({
     queryKey: ['adminGeneralPrescriptions'],
     queryFn: async () => {
+      console.log('Fetching general prescriptions (not associated with orders)...');
+      
       // Only fetch prescriptions that are NOT associated with orders (general prescriptions)
       const { data, error } = await supabase
         .from('prescriptions')
@@ -41,7 +43,12 @@ const AdminPrescriptionsTable = () => {
         .is('order_id', null)
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching general prescriptions:', error);
+        throw error;
+      }
+
+      console.log('General prescriptions data:', data);
 
       // Fetch profiles separately
       const userIds = data.map(prescription => prescription.user_id);
@@ -50,7 +57,10 @@ const AdminPrescriptionsTable = () => {
         .select('id, full_name, email')
         .in('id', userIds);
 
-      if (profilesError) throw profilesError;
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+        throw profilesError;
+      }
 
       // Combine prescriptions with profiles
       const prescriptionsWithProfiles = data.map(prescription => ({
@@ -58,6 +68,7 @@ const AdminPrescriptionsTable = () => {
         profiles: profiles?.find(profile => profile.id === prescription.user_id) || null
       }));
 
+      console.log('General prescriptions with profiles:', prescriptionsWithProfiles);
       return prescriptionsWithProfiles as PrescriptionWithProfile[];
     }
   });
