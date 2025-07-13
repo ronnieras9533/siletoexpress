@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { MessageCircle, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -45,19 +46,19 @@ const WhatsAppFloat: React.FC<WhatsAppFloatProps> = ({
           </div>
         )}
 
+        {/* Pulse animation ring - positioned behind the button */}
+        <div className="absolute inset-0 rounded-full bg-green-500 opacity-30 animate-ping -z-10"></div>
+
         {/* Main WhatsApp Button */}
         <Button
           onClick={handleWhatsAppClick}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
-          className="w-14 h-14 rounded-full bg-green-500 hover:bg-green-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110"
+          className="relative w-14 h-14 rounded-full bg-green-500 hover:bg-green-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 z-10"
           aria-label="Chat with us on WhatsApp"
         >
           <MessageCircle size={24} />
         </Button>
-
-        {/* Pulse animation ring */}
-        <div className="absolute inset-0 rounded-full bg-green-500 opacity-30 animate-ping"></div>
       </div>
     </div>
   );
