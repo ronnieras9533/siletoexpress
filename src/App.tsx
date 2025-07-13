@@ -24,6 +24,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import WhyChooseUs from "./pages/WhyChooseUs";
 import NotFound from "./pages/NotFound";
 import PesapalCallback from "./pages/PesapalCallback";
+import MpesaCallback from "./pages/MpesaCallback";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -69,9 +70,10 @@ const App = () => {
                       <Route path="/product/:id" element={<ProductDetail />} />
                       <Route path="/cart" element={<Cart />} />
                       <Route path="/checkout" element={<Checkout />} />
-                      <Route path="/order-success" element={<OrderSuccess />} />
-                      <Route path="/payment-success" element={<PaymentSuccess />} />
-                      <Route path="/pesapal-callback" element={<PesapalCallback />} />
+            <Route path="/order-success" element={<OrderSuccess />} />
+            <Route path="/payment-success" element={<PaymentSuccess />} />
+            <Route path="/pesapal-callback" element={<PesapalCallback />} />
+            <Route path="/mpesa-callback" element={<MpesaCallback />} />
                       <Route path="/prescription-upload" element={<PrescriptionUpload />} />
                       <Route path="/dashboard" element={<Dashboard />} />
                       <Route path="/seller-dashboard" element={<SellerDashboard />} />

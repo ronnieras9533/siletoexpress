@@ -38,16 +38,18 @@ const Checkout = () => {
     }));
   };
 
-  const simulatePayment = async (orderId: string, totalAmount: number) => {
-    // Simulate M-PESA payment process
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          success: true,
-          mpesaReceiptNumber: `MP${Date.now()}${Math.floor(Math.random() * 1000)}`
-        });
-      }, 2000);
-    });
+  const initiateSTKPush = async (orderId: string, totalAmount: number) => {
+    const { mpesaService } = await import('@/services/mpesaService');
+    
+    const paymentData = {
+      phoneNumber: formData.phone,
+      amount: totalAmount,
+      orderId: orderId,
+      accountReference: orderId,
+      transactionDesc: `SiletoExpress Order ${orderId}`
+    };
+
+    return await mpesaService.initiateSTKPush(paymentData);
   };
 
   const handlePrescriptionUploaded = (uploadedPrescriptionId: string) => {
@@ -132,47 +134,31 @@ Please assist me with completing this order.`;
       const order = await createOrder();
       const totalAmount = getTotalPrice() + (getTotalPrice() >= 2000 ? 0 : 200);
 
-      // Simulate payment processing
       toast({
-        title: "Processing Payment",
-        description: "Please wait while we process your M-PESA payment...",
+        title: "Initiating M-PESA Payment",
+        description: "Please check your phone for the M-PESA prompt and enter your PIN...",
       });
 
-      const paymentResult: any = await simulatePayment(order.id, totalAmount);
+      const paymentResult = await initiateSTKPush(order.id, totalAmount);
 
-      if (paymentResult.success) {
-        // Update order status
-        await supabase
-          .from('orders')
-          .update({
-            status: 'approved',
-            mpesa_receipt_number: paymentResult.mpesaReceiptNumber
-          })
-          .eq('id', order.id);
-
-        clearCart();
-        navigate('/order-success', { 
-          state: { 
-            orderId: order.id,
-            hasPrescriptionItems: hasPrescriptionItems(),
-            totalAmount: totalAmount,
-            mpesaReceiptNumber: paymentResult.mpesaReceiptNumber
-          } 
-        });
-
+      if (paymentResult.success && paymentResult.checkoutRequestID) {
+        // Payment STK push sent successfully
         toast({
-          title: "Payment Successful!",
-          description: `Payment completed. M-PESA Receipt: ${paymentResult.mpesaReceiptNumber}`,
+          title: "M-PESA Prompt Sent!",
+          description: "Please check your phone and enter your M-PESA PIN to complete the payment.",
         });
+
+        // Redirect to callback page for status monitoring
+        navigate(`/mpesa-callback?checkout_request_id=${paymentResult.checkoutRequestID}&order_id=${order.id}`);
       } else {
-        throw new Error('Payment failed');
+        throw new Error(paymentResult.error || 'Failed to initiate M-PESA payment');
       }
 
     } catch (error) {
-      console.error('Error creating order:', error);
+      console.error('Error processing M-PESA payment:', error);
       toast({
-        title: "Error",
-        description: "Failed to process order. Please try again.",
+        title: "Payment Error",
+        description: error instanceof Error ? error.message : "Failed to process M-PESA payment. Please try again.",
         variant: "destructive"
       });
     } finally {

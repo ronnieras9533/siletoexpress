@@ -5,16 +5,17 @@ export interface MPESAPaymentData {
   amount: number;
   phoneNumber: string;
   orderId: string;
-  accountReference: string;
-  transactionDesc: string;
+  accountReference?: string;
+  transactionDesc?: string;
 }
 
 export interface MPESAResponse {
   success: boolean;
   checkoutRequestID?: string;
+  merchantRequestID?: string;
   responseCode?: string;
   responseDescription?: string;
-  customerMessage?: string;
+  message?: string;
   error?: string;
 }
 
@@ -23,17 +24,24 @@ class MPESAService {
 
   async initiateSTKPush(paymentData: MPESAPaymentData): Promise<MPESAResponse> {
     try {
+      const { data: session } = await supabase.auth.getSession();
+      
       const response = await fetch(`${this.baseUrl}/mpesa-stk-push`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+          'Authorization': `Bearer ${session.session?.access_token}`
         },
-        body: JSON.stringify(paymentData)
+        body: JSON.stringify({
+          ...paymentData,
+          accountReference: paymentData.accountReference || paymentData.orderId,
+          transactionDesc: paymentData.transactionDesc || `Payment for order ${paymentData.orderId}`
+        })
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
       }
 
       const result = await response.json();
@@ -49,20 +57,21 @@ class MPESAService {
 
   async checkPaymentStatus(checkoutRequestID: string): Promise<any> {
     try {
-      const response = await fetch(`${this.baseUrl}/mpesa-status-check`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-        },
-        body: JSON.stringify({ checkoutRequestID })
-      });
+      // Check payment status from database
+      const { data: payment, error } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('transaction_id', checkoutRequestID)
+        .single();
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (error) {
+        throw error;
       }
 
-      return await response.json();
+      return {
+        success: true,
+        payment
+      };
     } catch (error) {
       console.error('M-PESA status check error:', error);
       throw error;
