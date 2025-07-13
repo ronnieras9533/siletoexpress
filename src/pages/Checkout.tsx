@@ -9,9 +9,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, CreditCard, AlertCircle, Smartphone, Upload } from 'lucide-react';
+import { ArrowLeft, CreditCard, AlertCircle, Smartphone } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import OrderPrescriptionUpload from '@/components/OrderPrescriptionUpload';
 
 const Checkout = () => {
   const { items, getTotalPrice, hasPrescriptionItems, clearCart } = useCart();
@@ -19,6 +20,8 @@ const Checkout = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [showPrescriptionUpload, setShowPrescriptionUpload] = useState(false);
+  const [prescriptionId, setPrescriptionId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     phone: '',
     address: '',
@@ -45,9 +48,12 @@ const Checkout = () => {
     });
   };
 
-  const handleUploadPrescription = () => {
-    navigate('/prescription-upload', {
-      state: { fromCheckout: true }
+  const handlePrescriptionUploaded = (uploadedPrescriptionId: string) => {
+    setPrescriptionId(uploadedPrescriptionId);
+    setShowPrescriptionUpload(false);
+    toast({
+      title: "Prescription uploaded!",
+      description: "You can now proceed with your order.",
     });
   };
 
@@ -59,12 +65,8 @@ const Checkout = () => {
     }
 
     // Check if prescription items require prescription upload
-    if (hasPrescriptionItems()) {
-      toast({
-        title: "Prescription Required",
-        description: "Please upload your prescription before proceeding with the order.",
-        variant: "destructive"
-      });
+    if (hasPrescriptionItems() && !prescriptionId) {
+      setShowPrescriptionUpload(true);
       return;
     }
 
@@ -100,6 +102,14 @@ const Checkout = () => {
         .insert(orderItems);
 
       if (itemsError) throw itemsError;
+
+      // If there's a prescription, link it to the order
+      if (prescriptionId) {
+        await supabase
+          .from('prescriptions')
+          .update({ order_id: order.id })
+          .eq('id', prescriptionId);
+      }
 
       // Simulate payment processing
       toast({
@@ -161,6 +171,40 @@ const Checkout = () => {
 
   const deliveryFee = getTotalPrice() >= 2000 ? 0 : 200;
   const totalAmount = getTotalPrice() + deliveryFee;
+  const prescriptionItems = items.filter(item => item.prescription_required);
+
+  // Show prescription upload if needed
+  if (showPrescriptionUpload) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        
+        <div className="container mx-auto px-4 py-8">
+          <div className="flex items-center gap-4 mb-8">
+            <Button
+              variant="ghost"
+              onClick={() => setShowPrescriptionUpload(false)}
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft size={16} />
+              Back to Checkout
+            </Button>
+            <h1 className="text-3xl font-bold text-gray-900">Upload Prescription</h1>
+          </div>
+
+          <div className="max-w-2xl mx-auto">
+            <OrderPrescriptionUpload
+              onPrescriptionUploaded={handlePrescriptionUploaded}
+              onCancel={() => setShowPrescriptionUpload(false)}
+              prescriptionItems={prescriptionItems}
+            />
+          </div>
+        </div>
+        
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -242,34 +286,39 @@ const Checkout = () => {
                     />
                   </div>
 
-                  {hasPrescriptionItems() && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                      <div className="flex items-center gap-2 text-red-800 mb-2">
+                  {hasPrescriptionItems() && !prescriptionId && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 text-blue-800 mb-2">
                         <AlertCircle size={16} />
                         <span className="font-medium">Prescription Required</span>
                       </div>
-                      <p className="text-sm text-red-700 mb-3">
-                        Your cart contains prescription items. Please upload your prescription before proceeding.
+                      <p className="text-sm text-blue-700 mb-3">
+                        Your cart contains prescription items. Click "Continue" to upload your prescription.
                       </p>
-                      <Button
-                        type="button"
-                        onClick={handleUploadPrescription}
-                        variant="outline"
-                        className="border-red-300 text-red-700 hover:bg-red-50"
-                      >
-                        <Upload className="mr-2 h-4 w-4" />
-                        Upload Prescription
-                      </Button>
+                    </div>
+                  )}
+
+                  {hasPrescriptionItems() && prescriptionId && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 text-green-800 mb-2">
+                        <AlertCircle size={16} />
+                        <span className="font-medium">Prescription Uploaded</span>
+                      </div>
+                      <p className="text-sm text-green-700">
+                        Your prescription has been uploaded successfully. You can now proceed with payment.
+                      </p>
                     </div>
                   )}
 
                   <Button 
                     type="submit" 
                     className="w-full" 
-                    disabled={loading || hasPrescriptionItems()}
+                    disabled={loading}
                   >
                     {loading ? (
                       'Processing Payment...'
+                    ) : hasPrescriptionItems() && !prescriptionId ? (
+                      'Continue & Upload Prescription'
                     ) : (
                       <>
                         <Smartphone className="mr-2 h-4 w-4" />
@@ -297,7 +346,7 @@ const Checkout = () => {
                         Qty: {item.quantity} × KES {item.price}
                       </p>
                       {item.prescription_required && (
-                        <div className="flex items-center gap-1 text-red-600 text-sm mt-1">
+                        <div className="flex items-center gap-1 text-orange-600 text-sm mt-1">
                           <AlertCircle size={14} />
                           <span>Prescription Required</span>
                         </div>
@@ -323,18 +372,6 @@ const Checkout = () => {
                     <span className="text-blue-600">KES {totalAmount.toLocaleString()}</span>
                   </div>
                 </div>
-
-                {hasPrescriptionItems() && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                    <div className="flex items-center gap-2 text-yellow-800">
-                      <AlertCircle size={16} />
-                      <span className="font-medium">Prescription Required</span>
-                    </div>
-                    <p className="text-sm text-yellow-700 mt-1">
-                      Items requiring prescription must be verified before checkout
-                    </p>
-                  </div>
-                )}
 
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <div className="flex items-center gap-2 text-blue-800">
