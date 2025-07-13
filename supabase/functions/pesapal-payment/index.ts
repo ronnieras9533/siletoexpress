@@ -48,10 +48,26 @@ interface PesapalPaymentResponse {
 
 // Authentication with Pesapal
 async function authenticateWithPesapal(): Promise<string> {
-  console.log('Starting Pesapal authentication...')
+  console.log('=== Starting Pesapal authentication ===')
+  
+  // Log all environment variables for debugging (without showing values)
+  console.log('Environment variables available:', Object.keys(Deno.env.toObject()))
   
   const consumerKey = Deno.env.get('PESAPAL_CONSUMER_KEY')
   const consumerSecret = Deno.env.get('PESAPAL_CONSUMER_SECRET')
+
+  console.log('PESAPAL_CONSUMER_KEY exists:', !!consumerKey)
+  console.log('PESAPAL_CONSUMER_SECRET exists:', !!consumerSecret)
+  
+  if (consumerKey) {
+    console.log('Consumer key length:', consumerKey.length)
+    console.log('Consumer key first 10 chars:', consumerKey.substring(0, 10))
+  }
+  
+  if (consumerSecret) {
+    console.log('Consumer secret length:', consumerSecret.length)
+    console.log('Consumer secret first 10 chars:', consumerSecret.substring(0, 10))
+  }
 
   if (!consumerKey || !consumerSecret) {
     console.error('Missing Pesapal credentials - consumerKey:', !!consumerKey, 'consumerSecret:', !!consumerSecret)
@@ -64,7 +80,7 @@ async function authenticateWithPesapal(): Promise<string> {
       consumer_secret: consumerSecret
     }
     
-    console.log('Sending auth request to Pesapal with payload keys:', Object.keys(authPayload))
+    console.log('Sending auth request to Pesapal...')
 
     const authResponse = await fetch('https://pay.pesapal.com/v3/api/Auth/RequestToken', {
       method: 'POST',
@@ -84,7 +100,7 @@ async function authenticateWithPesapal(): Promise<string> {
     }
 
     const authData: PesapalAuthResponse = await authResponse.json()
-    console.log('Pesapal auth successful, token length:', authData.token?.length || 0)
+    console.log('Pesapal auth successful, token received:', !!authData.token)
 
     if (!authData.token) {
       console.error('No token in auth response:', authData)
@@ -103,7 +119,7 @@ async function createPesapalPaymentOrder(
   token: string,
   requestData: PaymentRequest
 ): Promise<{ paymentData: PesapalPaymentResponse; merchantReference: string }> {
-  console.log('Creating Pesapal payment order...')
+  console.log('=== Creating Pesapal payment order ===')
   
   try {
     const { amount, currency, userId, customerInfo, formData } = requestData
@@ -119,7 +135,7 @@ async function createPesapalPaymentOrder(
 
     // Ensure phone number is properly formatted
     const formattedPhone = customerInfo.phone.replace(/^\+?254/, '254')
-    console.log('Original phone:', customerInfo.phone, 'Formatted phone:', formattedPhone)
+    console.log('Phone formatting - Original:', customerInfo.phone, 'Formatted:', formattedPhone)
 
     const paymentOrderData = {
       id: merchantReference,
@@ -145,7 +161,7 @@ async function createPesapalPaymentOrder(
       }
     }
 
-    console.log('Payment order data prepared:', {
+    console.log('Payment order data:', {
       id: paymentOrderData.id,
       amount: paymentOrderData.amount,
       currency: paymentOrderData.currency,
@@ -197,7 +213,7 @@ async function storePaymentIntent(
   paymentData: PesapalPaymentResponse,
   merchantReference: string
 ): Promise<void> {
-  console.log('Storing payment intent in database...')
+  console.log('=== Storing payment intent in database ===')
   
   try {
     const { userId, amount, currency, cartItems, prescriptionId, formData, customerInfo } = requestData
@@ -260,6 +276,7 @@ serve(async (req) => {
   console.log('=== Pesapal Payment Function Called ===')
   console.log('Method:', req.method)
   console.log('URL:', req.url)
+  console.log('Timestamp:', new Date().toISOString())
   
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -268,9 +285,12 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Initializing Supabase client...')
+    console.log('=== Initializing Supabase client ===')
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    
+    console.log('SUPABASE_URL exists:', !!supabaseUrl)
+    console.log('SUPABASE_SERVICE_ROLE_KEY exists:', !!serviceKey)
     
     if (!supabaseUrl || !serviceKey) {
       console.error('Missing Supabase environment variables')
@@ -278,15 +298,17 @@ serve(async (req) => {
     }
     
     const supabaseClient = createClient(supabaseUrl, serviceKey)
-    console.log('Supabase client initialized')
+    console.log('Supabase client initialized successfully')
 
     if (req.method === 'POST') {
-      console.log('Processing POST request...')
+      console.log('=== Processing POST request ===')
       
       let requestData: PaymentRequest
       try {
-        requestData = await req.json()
-        console.log('Request data parsed:', {
+        const rawBody = await req.text()
+        console.log('Raw request body length:', rawBody.length)
+        requestData = JSON.parse(rawBody)
+        console.log('Request data parsed successfully:', {
           userId: requestData.userId,
           amount: requestData.amount,
           currency: requestData.currency,
@@ -311,18 +333,18 @@ serve(async (req) => {
       }
 
       // Step 1: Authenticate with Pesapal
-      console.log('Step 1: Authenticating with Pesapal...')
+      console.log('=== Step 1: Authenticating with Pesapal ===')
       const token = await authenticateWithPesapal()
 
       // Step 2: Create payment order
-      console.log('Step 2: Creating payment order...')
+      console.log('=== Step 2: Creating payment order ===')
       const { paymentData, merchantReference } = await createPesapalPaymentOrder(token, requestData)
 
       // Step 3: Store payment intent in database
-      console.log('Step 3: Storing payment intent...')
+      console.log('=== Step 3: Storing payment intent ===')
       await storePaymentIntent(supabaseClient, requestData, paymentData, merchantReference)
 
-      console.log('Payment process completed successfully')
+      console.log('=== Payment process completed successfully ===')
       
       return new Response(
         JSON.stringify({
@@ -351,6 +373,7 @@ serve(async (req) => {
     console.error('=== Pesapal Payment Error ===')
     console.error('Error message:', error.message)
     console.error('Error stack:', error.stack)
+    console.error('Error type:', error.constructor.name)
     
     return new Response(
       JSON.stringify({
