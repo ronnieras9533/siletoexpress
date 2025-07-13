@@ -97,7 +97,7 @@ serve(async (req) => {
       const merchantReference = `ORDER_${orderId}_${Date.now()}`
       const callbackUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/pesapal-ipn`
       const redirectMode = 'PARENT_WINDOW'
-      const redirectUrl = `https://hevbjzdahldvijwqtqcx.supabase.co/pesapal-callback`
+      const redirectUrl = `https://siletoexpress.netlify.app/pesapal-callback`
 
       const paymentOrderData = {
         id: merchantReference,
@@ -148,10 +148,23 @@ serve(async (req) => {
         throw new Error('No redirect URL received from Pesapal')
       }
 
+      // Get user_id from the order
+      const { data: orderData, error: orderError } = await supabaseClient
+        .from('orders')
+        .select('user_id')
+        .eq('id', orderId)
+        .single()
+
+      if (orderError || !orderData) {
+        console.error('Failed to get order data:', orderError)
+        throw new Error('Order not found')
+      }
+
       // Step 3: Store payment record in database
       const { error: paymentError } = await supabaseClient
         .from('payments')
         .insert({
+          user_id: orderData.user_id,
           order_id: orderId,
           amount: amount,
           currency: currency,
