@@ -9,7 +9,7 @@ const corsHeaders = {
 interface PaymentRequest {
   amount: number
   currency: string
-  orderId: string
+  userId: string
   customerInfo: {
     email: string
     phone: string
@@ -21,6 +21,12 @@ interface PaymentRequest {
     city: string
     notes: string
   }
+  prescriptionId?: string | null
+  cartItems: Array<{
+    id: string
+    quantity: number
+    price: number
+  }>
 }
 
 interface PesapalAuthResponse {
@@ -83,8 +89,8 @@ async function createPesapalPaymentOrder(
   token: string,
   requestData: PaymentRequest
 ): Promise<{ paymentData: PesapalPaymentResponse; merchantReference: string }> {
-  const { amount, currency, orderId, customerInfo, formData } = requestData
-  const merchantReference = `ORDER_${orderId}_${Date.now()}`
+  const { amount, currency, userId, customerInfo, formData } = requestData
+  const merchantReference = `PESAPAL_${userId}_${Date.now()}`
   const callbackUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/pesapal-ipn`
   const redirectMode = 'PARENT_WINDOW'
   const redirectUrl = `https://siletoexpress.netlify.app/pesapal-callback`
@@ -93,7 +99,7 @@ async function createPesapalPaymentOrder(
     id: merchantReference,
     currency: currency,
     amount: amount,
-    description: `SiletoExpress Order #${orderId}`,
+    description: `SiletoExpress Payment`,
     callback_url: callbackUrl,
     redirect_mode: redirectMode,
     cancellation_url: redirectUrl,
@@ -141,32 +147,20 @@ async function createPesapalPaymentOrder(
   return { paymentData, merchantReference }
 }
 
-// Store payment record in database
-async function storePaymentRecord(
+// Store payment intent in database
+async function storePaymentIntent(
   supabaseClient: any,
   requestData: PaymentRequest,
   paymentData: PesapalPaymentResponse,
   merchantReference: string
 ): Promise<void> {
-  const { orderId, amount, currency } = requestData
-
-  // Get user_id from the order
-  const { data: orderData, error: orderError } = await supabaseClient
-    .from('orders')
-    .select('user_id')
-    .eq('id', orderId)
-    .single()
-
-  if (orderError || !orderData) {
-    console.error('Failed to get order data:', orderError)
-    throw new Error('Order not found')
-  }
+  const { userId, amount, currency, cartItems, prescriptionId, formData, customerInfo } = requestData
 
   const { error: paymentError } = await supabaseClient
     .from('payments')
     .insert({
-      user_id: orderData.user_id,
-      order_id: orderId,
+      user_id: userId,
+      order_id: null, // No order created yet
       amount: amount,
       currency: currency,
       method: 'pesapal',
@@ -176,23 +170,31 @@ async function storePaymentRecord(
       pesapal_merchant_reference: merchantReference,
       metadata: {
         redirect_url: paymentData.redirect_url,
+        cart_items: cartItems,
+        prescription_id: prescriptionId,
+        delivery_info: {
+          phone: formData.phone,
+          address: formData.address,
+          city: formData.city,
+          notes: formData.notes
+        },
         billing_address: {
-          email_address: requestData.customerInfo.email,
-          phone_number: requestData.customerInfo.phone,
-          first_name: requestData.customerInfo.name.split(' ')[0],
-          last_name: requestData.customerInfo.name.split(' ').slice(1).join(' '),
-          line_1: requestData.formData.address,
-          city: requestData.formData.city
+          email_address: customerInfo.email,
+          phone_number: customerInfo.phone,
+          first_name: customerInfo.name.split(' ')[0],
+          last_name: customerInfo.name.split(' ').slice(1).join(' '),
+          line_1: formData.address,
+          city: formData.city
         }
       }
     })
 
   if (paymentError) {
-    console.error('Failed to store payment record:', paymentError)
-    throw new Error('Failed to store payment record')
+    console.error('Failed to store payment intent:', paymentError)
+    throw new Error('Failed to store payment intent')
   }
 
-  console.log('Payment record stored successfully')
+  console.log('Payment intent stored successfully')
 }
 
 serve(async (req) => {
@@ -217,8 +219,8 @@ serve(async (req) => {
       // Step 2: Create payment order
       const { paymentData, merchantReference } = await createPesapalPaymentOrder(token, requestData)
 
-      // Step 3: Store payment record in database
-      await storePaymentRecord(supabaseClient, requestData, paymentData, merchantReference)
+      // Step 3: Store payment intent in database
+      await storePaymentIntent(supabaseClient, requestData, paymentData, merchantReference)
 
       return new Response(
         JSON.stringify({

@@ -43,69 +43,33 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const createOrder = async () => {
-    if (!user) throw new Error('User not authenticated');
-
-    // Create order
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        user_id: user.id,
-        total_amount: amount,
-        phone_number: formData.phone,
-        delivery_address: `${formData.address}, ${formData.city}`,
-        status: 'pending',
-        payment_method: 'pesapal',
-        currency: currency
-      })
-      .select()
-      .single();
-
-    if (orderError) throw orderError;
-
-    // Create order items
-    const orderItems = items.map(item => ({
-      order_id: order.id,
-      product_id: item.id,
-      quantity: item.quantity,
-      price: item.price
-    }));
-
-    const { error: itemsError } = await supabase
-      .from('order_items')
-      .insert(orderItems);
-
-    if (itemsError) throw itemsError;
-
-    // Link prescription if exists
-    if (prescriptionId) {
-      await supabase
-        .from('prescriptions')
-        .update({ order_id: order.id })
-        .eq('id', prescriptionId);
-    }
-
-    return order;
-  };
 
   const handlePesapalPayment = async () => {
+    if (!user) {
+      onError('User not authenticated');
+      return;
+    }
+
     setLoading(true);
     
     try {
-      // Create order first
-      const order = await createOrder();
-      
-      // Prepare payment data for Pesapal
+      // Prepare payment data for Pesapal (no order creation yet)
       const paymentData = {
         amount,
         currency,
-        orderId: order.id,
+        userId: user.id,
         customerInfo: {
           email: customerInfo.email,
           phone: customerInfo.phone.replace(/^\+?254/, '254'), // Ensure proper format
           name: customerInfo.name
         },
-        formData
+        formData,
+        prescriptionId,
+        cartItems: items.map(item => ({
+          id: item.id,
+          quantity: item.quantity,
+          price: item.price
+        }))
       };
 
       console.log('Initiating Pesapal payment:', paymentData);
@@ -130,12 +94,14 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
 
       // Store payment tracking info in localStorage for later retrieval
       localStorage.setItem('pesapal_payment', JSON.stringify({
-        orderId: order.id,
         trackingId: pesapalResponse.order_tracking_id,
         merchantReference: pesapalResponse.merchant_reference,
         amount: amount,
         currency: currency
       }));
+
+      // Clear cart since payment intent is created
+      clearCart();
 
       // Redirect to Pesapal payment page
       window.location.href = pesapalResponse.redirect_url;

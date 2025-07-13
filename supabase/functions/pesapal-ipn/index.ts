@@ -95,7 +95,19 @@ serve(async (req) => {
       const statusData: PesapalStatusResponse = await statusResponse.json()
       console.log('Transaction status:', statusData)
 
-      // Step 3: Update payment record in database
+      // Step 3: Get existing payment record first to preserve metadata
+      const { data: existingPayment, error: fetchError } = await supabaseClient
+        .from('payments')
+        .select('*')
+        .eq('pesapal_tracking_id', orderTrackingId)
+        .single()
+
+      if (fetchError || !existingPayment) {
+        console.error('Failed to fetch payment record:', fetchError)
+        throw new Error('Payment record not found')
+      }
+
+      // Step 4: Update payment record with transaction status
       const paymentStatus = statusData.status_code === 1 ? 'success' : 
                            statusData.status_code === 2 ? 'failed' : 'pending'
 
@@ -105,6 +117,7 @@ serve(async (req) => {
           status: paymentStatus,
           transaction_id: statusData.confirmation_code,
           metadata: {
+            ...existingPayment.metadata, // Preserve existing metadata (cart_items, delivery_info, etc.)
             payment_method: statusData.payment_method,
             payment_account: statusData.payment_account,
             confirmation_code: statusData.confirmation_code,
@@ -124,21 +137,85 @@ serve(async (req) => {
 
       console.log('Payment record updated:', payment)
 
-      // Step 4: Update order status if payment is successful
-      if (paymentStatus === 'success' && payment.order_id) {
-        const { error: orderError } = await supabaseClient
+      // Step 5: Create order and update payment if payment is successful
+      if (paymentStatus === 'success') {
+        console.log('Payment successful, creating order...')
+        
+        // Get the payment metadata containing cart items and delivery info
+        const metadata = payment.metadata as any
+        if (!metadata?.cart_items || !metadata?.delivery_info) {
+          console.error('Missing cart items or delivery info in payment metadata')
+          throw new Error('Invalid payment metadata')
+        }
+
+        // Create order
+        const { data: order, error: orderError } = await supabaseClient
           .from('orders')
-          .update({
+          .insert({
+            user_id: payment.user_id,
+            total_amount: payment.amount,
+            phone_number: metadata.delivery_info.phone,
+            delivery_address: `${metadata.delivery_info.address}, ${metadata.delivery_info.city}`,
             status: 'approved',
-            payment_method: 'pesapal'
+            payment_method: 'pesapal',
+            currency: payment.currency || 'KES'
           })
-          .eq('id', payment.order_id)
+          .select()
+          .single()
 
         if (orderError) {
-          console.error('Failed to update order status:', orderError)
-        } else {
-          console.log('Order status updated to approved')
+          console.error('Failed to create order:', orderError)
+          throw new Error('Failed to create order')
         }
+
+        console.log('Order created:', order.id)
+
+        // Create order items
+        const orderItems = metadata.cart_items.map((item: any) => ({
+          order_id: order.id,
+          product_id: item.id,
+          quantity: item.quantity,
+          price: item.price
+        }))
+
+        const { error: itemsError } = await supabaseClient
+          .from('order_items')
+          .insert(orderItems)
+
+        if (itemsError) {
+          console.error('Failed to create order items:', itemsError)
+          throw new Error('Failed to create order items')
+        }
+
+        console.log('Order items created')
+
+        // Link prescription if exists
+        if (metadata.prescription_id) {
+          const { error: prescriptionError } = await supabaseClient
+            .from('prescriptions')
+            .update({ order_id: order.id })
+            .eq('id', metadata.prescription_id)
+
+          if (prescriptionError) {
+            console.error('Failed to link prescription:', prescriptionError)
+          } else {
+            console.log('Prescription linked to order')
+          }
+        }
+
+        // Update payment record with order_id
+        const { error: updatePaymentError } = await supabaseClient
+          .from('payments')
+          .update({ order_id: order.id })
+          .eq('id', payment.id)
+
+        if (updatePaymentError) {
+          console.error('Failed to update payment with order_id:', updatePaymentError)
+        } else {
+          console.log('Payment updated with order_id')
+        }
+      } else {
+        console.log(`Payment ${paymentStatus}, no order created`)
       }
 
       return new Response('IPN processed successfully', {
