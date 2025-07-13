@@ -4,16 +4,25 @@ import { Button } from '@/components/ui/button';
 import { CreditCard, Loader2 } from 'lucide-react';
 import { flutterwaveService } from '@/services/flutterwaveService';
 import { useToast } from '@/components/ui/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useCart } from '@/contexts/CartContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface CardPaymentButtonProps {
   amount: number;
   currency: string;
-  orderId: string;
   customerInfo: {
     email: string;
     phone: string;
     name: string;
   };
+  formData: {
+    phone: string;
+    address: string;
+    city: string;
+    notes: string;
+  };
+  prescriptionId?: string | null;
   onSuccess: (transactionData: any) => void;
   onError: (error: string) => void;
 }
@@ -21,20 +30,71 @@ interface CardPaymentButtonProps {
 const CardPaymentButton: React.FC<CardPaymentButtonProps> = ({
   amount,
   currency,
-  orderId,
   customerInfo,
+  formData,
+  prescriptionId,
   onSuccess,
   onError
 }) => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const { items, clearCart } = useCart();
+  const { user } = useAuth();
+
+  const createOrder = async () => {
+    if (!user) throw new Error('User not authenticated');
+
+    // Create order
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .insert({
+        user_id: user.id,
+        total_amount: amount,
+        phone_number: formData.phone,
+        delivery_address: `${formData.address}, ${formData.city}`,
+        status: 'pending',
+        payment_method: 'card',
+        currency: currency
+      })
+      .select()
+      .single();
+
+    if (orderError) throw orderError;
+
+    // Create order items
+    const orderItems = items.map(item => ({
+      order_id: order.id,
+      product_id: item.id,
+      quantity: item.quantity,
+      price: item.price
+    }));
+
+    const { error: itemsError } = await supabase
+      .from('order_items')
+      .insert(orderItems);
+
+    if (itemsError) throw itemsError;
+
+    // Link prescription if exists
+    if (prescriptionId) {
+      await supabase
+        .from('prescriptions')
+        .update({ order_id: order.id })
+        .eq('id', prescriptionId);
+    }
+
+    return order;
+  };
 
   const handleCardPayment = async () => {
     setLoading(true);
     
     try {
+      // Create order first
+      const order = await createOrder();
+      
       const txRef = flutterwaveService.generateTransactionRef();
-      const redirectUrl = `${window.location.origin}/payment-success?tx_ref=${txRef}&order_id=${orderId}`;
+      const redirectUrl = `${window.location.origin}/payment-success?tx_ref=${txRef}&order_id=${order.id}`;
 
       const paymentData = {
         amount,
@@ -44,6 +104,7 @@ const CardPaymentButton: React.FC<CardPaymentButtonProps> = ({
         name: customerInfo.name,
         tx_ref: txRef,
         redirect_url: redirectUrl,
+        order_id: order.id,
         customer: {
           email: customerInfo.email,
           phone_number: customerInfo.phone,
@@ -56,10 +117,7 @@ const CardPaymentButton: React.FC<CardPaymentButtonProps> = ({
         }
       };
 
-      const response = await flutterwaveService.initiatePayment({
-        ...paymentData,
-        order_id: orderId
-      });
+      const response = await flutterwaveService.initiatePayment(paymentData);
 
       if (response.status === 'success' && response.data?.link) {
         // Redirect to Flutterwave payment page

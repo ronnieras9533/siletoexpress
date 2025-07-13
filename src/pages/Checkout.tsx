@@ -423,12 +423,13 @@ Please assist me with completing this order.`;
                         <CardPaymentButton
                           amount={totalAmount}
                           currency="KES"
-                          orderId=""
                           customerInfo={{
                             email: user.email || '',
                             phone: formData.phone,
                             name: user.user_metadata?.full_name || 'Customer'
                           }}
+                          formData={formData}
+                          prescriptionId={prescriptionId}
                           onSuccess={handleCardPaymentSuccess}
                           onError={handleCardPaymentError}
                         />

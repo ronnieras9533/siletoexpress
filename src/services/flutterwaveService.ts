@@ -9,6 +9,7 @@ export interface FlutterwavePaymentData {
   name: string;
   tx_ref: string;
   redirect_url: string;
+  order_id?: string;
   customer: {
     email: string;
     phone_number: string;
