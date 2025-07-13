@@ -36,16 +36,19 @@ const AdminDashboard = () => {
     queryFn: async () => {
       const [products, orders, users, prescriptions] = await Promise.all([
         supabase.from('products').select('id, stock').then(r => r.data || []),
-        supabase.from('orders').select('id, total_amount').then(r => r.data || []),
+        supabase.from('orders').select('id, total_amount, status').then(r => r.data || []),
         supabase.from('profiles').select('id').then(r => r.data || []),
         supabase.from('prescriptions').select('id, status').then(r => r.data || [])
       ]);
 
+      // Filter out pending orders from revenue calculation (only count approved/delivered orders)
+      const completedOrders = orders.filter(order => order.status === 'approved' || order.status === 'delivered');
+      
       return {
         totalProducts: products.length,
         lowStockProducts: products.filter(p => p.stock < 10).length,
-        totalOrders: orders.length,
-        totalRevenue: orders.reduce((sum, order) => sum + Number(order.total_amount), 0),
+        totalOrders: completedOrders.length,
+        totalRevenue: completedOrders.reduce((sum, order) => sum + Number(order.total_amount), 0),
         totalUsers: users.length,
         pendingPrescriptions: prescriptions.filter(p => p.status === 'pending').length
       };

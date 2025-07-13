@@ -131,25 +131,65 @@ Please assist me with completing this order.`;
   const handleMpesaPayment = async () => {
     setLoading(true);
     try {
-      const order = await createOrder();
       const totalAmount = getTotalPrice() + (getTotalPrice() >= 2000 ? 0 : 200);
+
+      // Create payment intent with order data (but don't create order yet)
+      const { data: paymentIntent, error: paymentError } = await supabase
+        .from('payments')
+        .insert({
+          user_id: user!.id,
+          method: 'mpesa',
+          amount: totalAmount,
+          currency: 'KES',
+          status: 'pending',
+          gateway: 'mpesa',
+          metadata: {
+            items: items.map(item => ({
+              id: item.id,
+              name: item.name,
+              quantity: item.quantity,
+              price: item.price
+            })),
+            phone_number: formData.phone,
+            delivery_address: `${formData.address}, ${formData.city}`,
+            prescription_id: prescriptionId,
+            notes: formData.notes
+          }
+        })
+        .select()
+        .single();
+
+      if (paymentError) throw paymentError;
 
       toast({
         title: "Initiating M-PESA Payment",
         description: "Please check your phone for the M-PESA prompt and enter your PIN...",
       });
 
-      const paymentResult = await initiateSTKPush(order.id, totalAmount);
+      const paymentData = {
+        phoneNumber: formData.phone,
+        amount: totalAmount,
+        orderId: paymentIntent.id, // Use payment ID as order reference for now
+        accountReference: paymentIntent.id,
+        transactionDesc: `SiletoExpress Payment ${paymentIntent.id}`
+      };
+
+      const paymentResult = await initiateSTKPush(paymentIntent.id, totalAmount);
 
       if (paymentResult.success && paymentResult.checkoutRequestID) {
-        // Payment STK push sent successfully
+        // Update payment with checkout request ID
+        await supabase
+          .from('payments')
+          .update({ transaction_id: paymentResult.checkoutRequestID })
+          .eq('id', paymentIntent.id);
+
         toast({
           title: "M-PESA Prompt Sent!",
           description: "Please check your phone and enter your M-PESA PIN to complete the payment.",
         });
 
         // Redirect to callback page for status monitoring
-        navigate(`/mpesa-callback?checkout_request_id=${paymentResult.checkoutRequestID}&order_id=${order.id}`);
+        navigate(`/mpesa-callback?checkout_request_id=${paymentResult.checkoutRequestID}&payment_id=${paymentIntent.id}`);
       } else {
         throw new Error(paymentResult.error || 'Failed to initiate M-PESA payment');
       }

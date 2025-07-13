@@ -61,45 +61,86 @@ serve(async (req) => {
 
         console.log('Payment successful:', { mpesaReceiptNumber, phoneNumber, amount });
 
-        // Update payment status
-        const { error: updatePaymentError } = await supabaseClient
-          .from('payments')
-          .update({
-            status: 'completed',
-            metadata: {
-              ...payment.metadata,
-              callback: callbackData,
-              mpesa_receipt_number: mpesaReceiptNumber,
-              phone_number: phoneNumber
-            }
+        // Now create the order since payment is successful
+        const orderData = payment.metadata;
+        const { data: order, error: orderError } = await supabaseClient
+          .from('orders')
+          .insert({
+            user_id: payment.user_id,
+            total_amount: payment.amount,
+            phone_number: orderData.phone_number,
+            delivery_address: orderData.delivery_address,
+            status: 'approved', // Directly set to approved since payment is successful
+            payment_method: 'mpesa',
+            currency: 'KES',
+            mpesa_receipt_number: mpesaReceiptNumber
           })
-          .eq('id', payment.id);
+          .select()
+          .single();
 
-        if (updatePaymentError) {
-          console.error('Error updating payment:', updatePaymentError);
-        }
+        if (orderError) {
+          console.error('Error creating order:', orderError);
+        } else {
+          console.log('Order created successfully:', order.id);
 
-        // Update order status
-        if (payment.orders) {
-          const { error: updateOrderError } = await supabaseClient
-            .from('orders')
+          // Create order items
+          if (orderData.items && Array.isArray(orderData.items)) {
+            const orderItems = orderData.items.map((item: any) => ({
+              order_id: order.id,
+              product_id: item.id,
+              quantity: item.quantity,
+              price: item.price
+            }));
+
+            const { error: itemsError } = await supabaseClient
+              .from('order_items')
+              .insert(orderItems);
+
+            if (itemsError) {
+              console.error('Error creating order items:', itemsError);
+            } else {
+              console.log('Order items created successfully');
+            }
+          }
+
+          // Link prescription if exists
+          if (orderData.prescription_id) {
+            const { error: prescriptionError } = await supabaseClient
+              .from('prescriptions')
+              .update({ order_id: order.id })
+              .eq('id', orderData.prescription_id);
+
+            if (prescriptionError) {
+              console.error('Error linking prescription:', prescriptionError);
+            }
+          }
+
+          // Update payment with order reference
+          const { error: updatePaymentError } = await supabaseClient
+            .from('payments')
             .update({
-              status: 'approved',
-              mpesa_receipt_number: mpesaReceiptNumber
+              status: 'completed',
+              order_id: order.id,
+              metadata: {
+                ...payment.metadata,
+                callback: callbackData,
+                mpesa_receipt_number: mpesaReceiptNumber,
+                phone_number: phoneNumber,
+                order_id: order.id
+              }
             })
-            .eq('id', payment.order_id);
+            .eq('id', payment.id);
 
-          if (updateOrderError) {
-            console.error('Error updating order:', updateOrderError);
+          if (updatePaymentError) {
+            console.error('Error updating payment with order:', updatePaymentError);
           }
         }
 
-        console.log('Payment and order updated successfully');
+        console.log('Payment processing completed successfully');
       } else {
-        // Payment failed
+        // Payment failed - just update payment status (no order to cancel since none was created)
         console.log('Payment failed:', ResultDesc);
 
-        // Update payment status to failed
         const { error: updatePaymentError } = await supabaseClient
           .from('payments')
           .update({
@@ -114,20 +155,6 @@ serve(async (req) => {
 
         if (updatePaymentError) {
           console.error('Error updating failed payment:', updatePaymentError);
-        }
-
-        // Update order status to cancelled
-        if (payment.orders) {
-          const { error: updateOrderError } = await supabaseClient
-            .from('orders')
-            .update({
-              status: 'cancelled'
-            })
-            .eq('id', payment.order_id);
-
-          if (updateOrderError) {
-            console.error('Error updating cancelled order:', updateOrderError);
-          }
         }
       }
     }

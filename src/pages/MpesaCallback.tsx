@@ -16,7 +16,7 @@ const MpesaCallback = () => {
   const [paymentData, setPaymentData] = useState<any>(null);
 
   const checkoutRequestID = searchParams.get('checkout_request_id');
-  const orderId = searchParams.get('order_id');
+  const paymentId = searchParams.get('payment_id');
 
   useEffect(() => {
     if (!checkoutRequestID) {
