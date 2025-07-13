@@ -105,6 +105,8 @@ export type Database = {
           metadata: Json | null
           method: string
           order_id: string | null
+          pesapal_merchant_reference: string | null
+          pesapal_tracking_id: string | null
           status: string
           transaction_id: string | null
           updated_at: string
@@ -119,6 +121,8 @@ export type Database = {
           metadata?: Json | null
           method: string
           order_id?: string | null
+          pesapal_merchant_reference?: string | null
+          pesapal_tracking_id?: string | null
           status?: string
           transaction_id?: string | null
           updated_at?: string
@@ -133,6 +137,8 @@ export type Database = {
           metadata?: Json | null
           method?: string
           order_id?: string | null
+          pesapal_merchant_reference?: string | null
+          pesapal_tracking_id?: string | null
           status?: string
           transaction_id?: string | null
           updated_at?: string
