@@ -19,6 +19,7 @@ interface PrescriptionWithProfile {
   status: PrescriptionStatus;
   admin_notes: string | null;
   user_id: string;
+  order_id: string | null;
   profiles: {
     full_name: string;
     email: string;
@@ -31,11 +32,13 @@ const AdminPrescriptionsTable = () => {
   const [adminNotes, setAdminNotes] = useState('');
 
   const { data: prescriptions, isLoading, refetch } = useQuery({
-    queryKey: ['adminPrescriptions'],
+    queryKey: ['adminGeneralPrescriptions'],
     queryFn: async () => {
+      // Only fetch prescriptions that are NOT associated with orders (general prescriptions)
       const { data, error } = await supabase
         .from('prescriptions')
         .select('*')
+        .is('order_id', null)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
@@ -107,7 +110,10 @@ const AdminPrescriptionsTable = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Prescription Management</CardTitle>
+        <CardTitle>General Prescription Management</CardTitle>
+        <p className="text-sm text-gray-600">
+          Prescriptions uploaded independently (not associated with specific orders)
+        </p>
       </CardHeader>
       <CardContent>
         {prescriptions && prescriptions.length > 0 ? (
@@ -178,7 +184,7 @@ const AdminPrescriptionsTable = () => {
           </div>
         ) : (
           <div className="text-center py-8 text-gray-500">
-            No prescriptions found.
+            No general prescriptions found.
           </div>
         )}
       </CardContent>

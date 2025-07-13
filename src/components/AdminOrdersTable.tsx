@@ -1,15 +1,19 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { format } from 'date-fns';
+import { Eye, Check, X } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
 
 type OrderStatus = Database['public']['Enums']['order_status'];
+type PrescriptionStatus = Database['public']['Enums']['prescription_status'];
 
 interface OrderWithProfile {
   id: string;
@@ -31,10 +35,19 @@ interface OrderWithProfile {
       name: string;
     } | null;
   }[];
+  prescriptions: {
+    id: string;
+    image_url: string;
+    status: PrescriptionStatus;
+    admin_notes: string | null;
+    created_at: string;
+  }[];
 }
 
 const AdminOrdersTable = () => {
   const { toast } = useToast();
+  const [selectedPrescription, setSelectedPrescription] = useState<string | null>(null);
+  const [adminNotes, setAdminNotes] = useState('');
 
   const { data: orders, isLoading, refetch } = useQuery({
     queryKey: ['adminOrders'],
@@ -47,6 +60,13 @@ const AdminOrdersTable = () => {
             quantity,
             price,
             products(name)
+          ),
+          prescriptions(
+            id,
+            image_url,
+            status,
+            admin_notes,
+            created_at
           )
         `)
         .order('created_at', { ascending: false });
@@ -93,12 +113,39 @@ const AdminOrdersTable = () => {
     }
   };
 
-  const getStatusColor = (status: OrderStatus) => {
+  const updatePrescriptionStatus = async (prescriptionId: string, status: PrescriptionStatus, notes?: string) => {
+    const { error } = await supabase
+      .from('prescriptions')
+      .update({ 
+        status,
+        admin_notes: notes || null
+      })
+      .eq('id', prescriptionId);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update prescription status",
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Success",
+        description: "Prescription status updated successfully"
+      });
+      refetch();
+      setSelectedPrescription(null);
+      setAdminNotes('');
+    }
+  };
+
+  const getStatusColor = (status: OrderStatus | PrescriptionStatus) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'approved': return 'bg-blue-100 text-blue-800';
-      case 'delivered': return 'bg-green-100 text-green-800';
+      case 'approved': return 'bg-green-100 text-green-800';
+      case 'delivered': return 'bg-blue-100 text-blue-800';
       case 'cancelled': return 'bg-red-100 text-red-800';
+      case 'rejected': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -151,6 +198,74 @@ const AdminOrdersTable = () => {
                     ))}
                   </div>
                 </div>
+
+                {/* Prescription Section */}
+                {order.prescriptions && order.prescriptions.length > 0 && (
+                  <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <h4 className="font-medium mb-2 text-blue-800">Order Prescription</h4>
+                    {order.prescriptions.map((prescription) => (
+                      <div key={prescription.id} className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Badge className={getStatusColor(prescription.status)}>
+                              {prescription.status}
+                            </Badge>
+                            <span className="text-sm text-gray-600">
+                              Uploaded: {format(new Date(prescription.created_at), 'MMM dd, yyyy HH:mm')}
+                            </span>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(prescription.image_url, '_blank')}
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            View Prescription
+                          </Button>
+                        </div>
+
+                        {prescription.admin_notes && (
+                          <div className="p-2 bg-gray-50 rounded">
+                            <p className="text-sm font-medium">Admin Notes:</p>
+                            <p className="text-sm text-gray-600">{prescription.admin_notes}</p>
+                          </div>
+                        )}
+
+                        {prescription.status === 'pending' && (
+                          <div className="space-y-2">
+                            <Textarea
+                              placeholder="Add notes (optional)"
+                              value={selectedPrescription === prescription.id ? adminNotes : ''}
+                              onChange={(e) => {
+                                setSelectedPrescription(prescription.id);
+                                setAdminNotes(e.target.value);
+                              }}
+                              className="min-h-20"
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => updatePrescriptionStatus(prescription.id, 'approved', adminNotes)}
+                                className="bg-green-600 hover:bg-green-700"
+                              >
+                                <Check className="h-4 w-4 mr-1" />
+                                Approve Prescription
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => updatePrescriptionStatus(prescription.id, 'rejected', adminNotes)}
+                              >
+                                <X className="h-4 w-4 mr-1" />
+                                Reject Prescription
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-gray-600">
