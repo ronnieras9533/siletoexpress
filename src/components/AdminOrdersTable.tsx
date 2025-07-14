@@ -64,7 +64,6 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
         .from('orders')
         .select(`
           *,
-          profiles (full_name, email),
           order_items (
             quantity,
             price,
@@ -84,11 +83,32 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
         query = query.or('requires_prescription.is.null,requires_prescription.eq.false');
       }
 
-      const { data, error } = await query;
+      const { data: ordersData, error } = await query;
 
       if (error) throw error;
 
-      setOrders(data || []);
+      if (ordersData && ordersData.length > 0) {
+        // Fetch profiles separately to avoid join issues
+        const userIds = ordersData.map(order => order.user_id);
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', userIds);
+
+        if (profilesError) {
+          console.error('Error fetching profiles:', profilesError);
+        }
+
+        // Combine orders with profiles
+        const ordersWithProfiles = ordersData.map(order => ({
+          ...order,
+          profiles: profilesData?.find(profile => profile.id === order.user_id) || null
+        }));
+
+        setOrders(ordersWithProfiles);
+      } else {
+        setOrders([]);
+      }
     } catch (error) {
       console.error('Error fetching orders:', error);
       toast({

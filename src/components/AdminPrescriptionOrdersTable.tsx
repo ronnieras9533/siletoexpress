@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
@@ -68,11 +67,10 @@ const AdminPrescriptionOrdersTable: React.FC<AdminPrescriptionOrdersTableProps> 
 
   const fetchOrders = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: ordersData, error } = await supabase
         .from('orders')
         .select(`
           *,
-          profiles (full_name, email),
           order_items (
             quantity,
             price,
@@ -97,7 +95,28 @@ const AdminPrescriptionOrdersTable: React.FC<AdminPrescriptionOrdersTableProps> 
 
       if (error) throw error;
 
-      setOrders(data || []);
+      if (ordersData && ordersData.length > 0) {
+        // Fetch profiles separately to avoid join issues
+        const userIds = ordersData.map(order => order.user_id);
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', userIds);
+
+        if (profilesError) {
+          console.error('Error fetching profiles:', profilesError);
+        }
+
+        // Combine orders with profiles
+        const ordersWithProfiles = ordersData.map(order => ({
+          ...order,
+          profiles: profilesData?.find(profile => profile.id === order.user_id) || null
+        }));
+
+        setOrders(ordersWithProfiles);
+      } else {
+        setOrders([]);
+      }
     } catch (error) {
       console.error('Error fetching prescription orders:', error);
       toast({
