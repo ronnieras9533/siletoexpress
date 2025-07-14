@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
@@ -12,6 +12,7 @@ const Header = () => {
   const { user, isAdmin, signOut } = useAuth();
   const { getTotalItems } = useCart();
   const navigate = useNavigate();
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -87,7 +88,15 @@ const Header = () => {
                 </div>
               </div>
             ) : (
-              <LoginModal />
+              <div>
+                <Button onClick={() => setShowLoginModal(true)}>
+                  Sign In
+                </Button>
+                <LoginModal 
+                  isOpen={showLoginModal} 
+                  onClose={() => setShowLoginModal(false)}
+                />
+              </div>
             )}
           </div>
         </div>

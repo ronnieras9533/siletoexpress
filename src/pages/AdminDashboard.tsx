@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -46,8 +47,8 @@ const AdminDashboard = () => {
         supabase.from('chat_messages').select('id, read, is_admin_message').then(r => r.data || [])
       ]);
 
-      // Filter out pending orders from revenue calculation (only count approved/delivered orders)
-      const completedOrders = orders.filter(order => order.status === 'confirmed' || order.status === 'delivered');
+      // Filter completed orders for revenue calculation
+      const completedOrders = orders.filter(order => order.status === 'delivered');
       
       return {
         totalProducts: products.length,
@@ -86,7 +87,7 @@ const AdminDashboard = () => {
         .from('orders')
         .select(`
           *,
-          profiles(full_name, email),
+          profiles!orders_user_id_fkey(full_name, email),
           order_items(*, products(name))
         `)
         .order('created_at', { ascending: false })
@@ -208,7 +209,6 @@ const AdminDashboard = () => {
                             <div className="flex items-center gap-2">
                               <Badge className={`${
                                 order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                order.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
                                 order.status === 'delivered' ? 'bg-green-100 text-green-800' :
                                 'bg-gray-100 text-gray-800'
                               }`}>

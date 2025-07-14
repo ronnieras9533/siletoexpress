@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { Truck, MapPin } from 'lucide-react';
 
 interface AdminOrderTrackingProps {
@@ -29,7 +29,7 @@ const AdminOrderTracking: React.FC<AdminOrderTrackingProps> = ({ orderId, curren
       // Update order status
       const { error: orderError } = await supabase
         .from('orders')
-        .update({ status })
+        .update({ status: status as any })
         .eq('id', orderId);
 
       if (orderError) throw orderError;
@@ -39,7 +39,7 @@ const AdminOrderTracking: React.FC<AdminOrderTrackingProps> = ({ orderId, curren
         .from('order_tracking')
         .insert({
           order_id: orderId,
-          status,
+          status: status as any,
           note: note || 'Status updated by admin',
           location: location || null,
         });
