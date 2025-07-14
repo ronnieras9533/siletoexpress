@@ -28,6 +28,36 @@ import AdminPrescriptionsTable from '@/components/AdminPrescriptionsTable';
 import AdminPrescriptionOrdersTable from '@/components/AdminPrescriptionOrdersTable';
 import AdminOrderTracking from '@/components/AdminOrderTracking';
 
+// Type for order with profile information
+type OrderWithProfile = {
+  id: string;
+  user_id: string;
+  status: 'pending' | 'approved' | 'delivered' | 'cancelled';
+  total_amount: number;
+  created_at: string;
+  currency: string;
+  delivery_address: string;
+  mpesa_receipt_number: string;
+  payment_initiated: boolean;
+  payment_method: string;
+  phone_number: string;
+  prescription_approved: boolean;
+  requires_prescription: boolean;
+  order_items: Array<{
+    id: string;
+    quantity: number;
+    price: number;
+    products: {
+      name: string;
+    };
+  }>;
+  profile?: {
+    id: string;
+    full_name: string;
+    email: string;
+  };
+};
+
 const AdminDashboard = () => {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -82,7 +112,7 @@ const AdminDashboard = () => {
   // Fetch recent orders for quick tracking updates
   const { data: recentOrders } = useQuery({
     queryKey: ['adminRecentOrders'],
-    queryFn: async () => {
+    queryFn: async (): Promise<OrderWithProfile[]> => {
       const { data: ordersData, error } = await supabase
         .from('orders')
         .select(`
@@ -250,7 +280,7 @@ const AdminDashboard = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      {['pending', 'confirmed', 'processing', 'shipped', 'out_for_delivery', 'delivered'].map((status) => {
+                      {['pending', 'approved', 'delivered', 'cancelled'].map((status) => {
                         const count = recentOrders?.filter(order => order.status === status).length || 0;
                         return (
                           <div key={status} className="flex justify-between items-center">
