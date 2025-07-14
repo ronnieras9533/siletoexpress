@@ -18,7 +18,9 @@ import {
   Trash2,
   Upload,
   MessageCircle,
-  Bell
+  Bell,
+  FileText,
+  Pill
 } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -68,17 +70,22 @@ const AdminDashboard = () => {
   const { data: stats } = useQuery({
     queryKey: ['adminStats'],
     queryFn: async () => {
-      const [products, orders, users, prescriptions, notifications, messages] = await Promise.all([
+      const [products, orders, users, prescriptions, notifications, messages, ordersWithPrescriptions] = await Promise.all([
         supabase.from('products').select('id, stock').then(r => r.data || []),
         supabase.from('orders').select('id, total_amount, status').then(r => r.data || []),
         supabase.from('profiles').select('id').then(r => r.data || []),
-        supabase.from('prescriptions').select('id, status').then(r => r.data || []),
+        supabase.from('prescriptions').select('id, status, order_id').then(r => r.data || []),
         supabase.from('notifications').select('id, read').then(r => r.data || []),
-        supabase.from('chat_messages').select('id, read, is_admin_message').then(r => r.data || [])
+        supabase.from('chat_messages').select('id, read, is_admin_message').then(r => r.data || []),
+        supabase.from('prescriptions').select('order_id').not('order_id', 'is', null).then(r => r.data || [])
       ]);
 
       // Filter completed orders for revenue calculation
       const completedOrders = orders.filter(order => order.status === 'delivered');
+      
+      // Separate general prescriptions from order prescriptions
+      const generalPrescriptions = prescriptions.filter(p => p.order_id === null);
+      const orderPrescriptions = prescriptions.filter(p => p.order_id !== null);
       
       return {
         totalProducts: products.length,
@@ -86,7 +93,9 @@ const AdminDashboard = () => {
         totalOrders: completedOrders.length,
         totalRevenue: completedOrders.reduce((sum, order) => sum + Number(order.total_amount), 0),
         totalUsers: users.length,
-        pendingPrescriptions: prescriptions.filter(p => p.status === 'pending').length,
+        pendingGeneralPrescriptions: generalPrescriptions.filter(p => p.status === 'pending').length,
+        pendingOrderPrescriptions: orderPrescriptions.filter(p => p.status === 'pending').length,
+        totalOrdersWithPrescriptions: ordersWithPrescriptions.length,
         unreadNotifications: notifications.filter(n => !n.read).length,
         unreadMessages: messages.filter(m => !m.read && !m.is_admin_message).length
       };
@@ -109,11 +118,20 @@ const AdminDashboard = () => {
     enabled: !!user && isAdmin
   });
 
-  // Fetch recent orders for quick tracking updates
+  // Fetch recent orders for quick tracking updates (orders without prescriptions)
   const { data: recentOrders } = useQuery({
     queryKey: ['adminRecentOrders'],
     queryFn: async (): Promise<OrderWithProfile[]> => {
-      const { data: ordersData, error } = await supabase
+      // First get order IDs that have prescriptions
+      const { data: ordersWithPrescriptions } = await supabase
+        .from('prescriptions')
+        .select('order_id')
+        .not('order_id', 'is', null);
+
+      const orderIdsWithPrescriptions = ordersWithPrescriptions?.map(p => p.order_id) || [];
+      
+      // Get orders that don't have prescriptions
+      let query = supabase
         .from('orders')
         .select(`
           *,
@@ -121,6 +139,13 @@ const AdminDashboard = () => {
         `)
         .order('created_at', { ascending: false })
         .limit(10);
+
+      // Exclude orders that have prescriptions
+      if (orderIdsWithPrescriptions.length > 0) {
+        query = query.not('id', 'in', `(${orderIdsWithPrescriptions.join(',')})`);
+      }
+
+      const { data: ordersData, error } = await query;
       
       if (error) throw error;
 
@@ -189,13 +214,13 @@ const AdminDashboard = () => {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+                <CardTitle className="text-sm font-medium">Orders & Prescriptions</CardTitle>
                 <ShoppingCart className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stats?.totalOrders || 0}</div>
                 <p className="text-xs text-muted-foreground">
-                  {stats?.pendingPrescriptions || 0} pending prescriptions
+                  {stats?.totalOrdersWithPrescriptions || 0} with prescriptions
                 </p>
               </CardContent>
             </Card>
@@ -212,13 +237,15 @@ const AdminDashboard = () => {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Communications</CardTitle>
-                <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Pending Reviews</CardTitle>
+                <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats?.unreadMessages || 0}</div>
+                <div className="text-2xl font-bold">
+                  {(stats?.pendingGeneralPrescriptions || 0) + (stats?.pendingOrderPrescriptions || 0)}
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  {stats?.unreadNotifications || 0} unread notifications
+                  {stats?.pendingGeneralPrescriptions || 0} general, {stats?.pendingOrderPrescriptions || 0} orders
                 </p>
               </CardContent>
             </Card>
@@ -226,11 +253,20 @@ const AdminDashboard = () => {
 
           {/* Main Content Tabs */}
           <Tabs defaultValue="orders" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="orders">Orders & Tracking</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="orders" className="flex items-center gap-2">
+                <ShoppingCart className="h-4 w-4" />
+                Regular Orders
+              </TabsTrigger>
+              <TabsTrigger value="prescription-orders" className="flex items-center gap-2">
+                <Pill className="h-4 w-4" />
+                Orders with Prescriptions
+              </TabsTrigger>
+              <TabsTrigger value="prescriptions" className="flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                General Prescriptions
+              </TabsTrigger>
               <TabsTrigger value="products">Products</TabsTrigger>
-              <TabsTrigger value="prescription-orders">Orders with Prescriptions</TabsTrigger>
-              <TabsTrigger value="prescriptions">Prescriptions</TabsTrigger>
               <TabsTrigger value="analytics">Analytics</TabsTrigger>
             </TabsList>
 
@@ -239,7 +275,8 @@ const AdminDashboard = () => {
                 {/* Recent Orders Quick Actions */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Recent Orders - Quick Update</CardTitle>
+                    <CardTitle>Recent Regular Orders - Quick Update</CardTitle>
+                    <p className="text-sm text-gray-600">Orders without prescriptions</p>
                   </CardHeader>
                   <CardContent>
                     {recentOrders && recentOrders.length > 0 ? (
@@ -268,7 +305,7 @@ const AdminDashboard = () => {
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center py-8 text-gray-500">No recent orders</div>
+                      <div className="text-center py-8 text-gray-500">No recent regular orders</div>
                     )}
                   </CardContent>
                 </Card>
@@ -296,6 +333,14 @@ const AdminDashboard = () => {
               
               {/* Full Orders Table */}
               <AdminOrdersTable />
+            </TabsContent>
+
+            <TabsContent value="prescription-orders">
+              <AdminPrescriptionOrdersTable />
+            </TabsContent>
+
+            <TabsContent value="prescriptions">
+              <AdminPrescriptionsTable />
             </TabsContent>
 
             <TabsContent value="products" className="space-y-4">
@@ -370,14 +415,6 @@ const AdminDashboard = () => {
                   )}
                 </CardContent>
               </Card>
-            </TabsContent>
-
-            <TabsContent value="prescription-orders">
-              <AdminPrescriptionOrdersTable />
-            </TabsContent>
-
-            <TabsContent value="prescriptions">
-              <AdminPrescriptionsTable />
             </TabsContent>
 
             <TabsContent value="analytics">

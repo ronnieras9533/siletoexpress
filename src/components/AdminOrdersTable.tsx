@@ -37,9 +37,9 @@ const AdminOrdersTable = () => {
   const { toast } = useToast();
 
   const { data: orders, isLoading, refetch } = useQuery({
-    queryKey: ['adminOrders'],
+    queryKey: ['adminOrdersWithoutPrescriptions'],
     queryFn: async () => {
-      console.log('Fetching orders without prescriptions...');
+      console.log('Fetching orders WITHOUT prescriptions...');
       
       // First get order IDs that have prescriptions
       const { data: ordersWithPrescriptions, error: prescError } = await supabase
@@ -51,8 +51,10 @@ const AdminOrdersTable = () => {
 
       const orderIdsWithPrescriptions = ordersWithPrescriptions.map(p => p.order_id);
       
+      console.log('Order IDs with prescriptions:', orderIdsWithPrescriptions);
+      
       // Get orders that don't have prescriptions
-      const query = supabase
+      let query = supabase
         .from('orders')
         .select(`
           *,
@@ -66,7 +68,7 @@ const AdminOrdersTable = () => {
 
       // Exclude orders that have prescriptions
       if (orderIdsWithPrescriptions.length > 0) {
-        query.not('id', 'in', `(${orderIdsWithPrescriptions.join(',')})`);
+        query = query.not('id', 'in', `(${orderIdsWithPrescriptions.join(',')})`);
       }
 
       const { data, error } = await query;
@@ -90,11 +92,10 @@ const AdminOrdersTable = () => {
         throw profilesError;
       }
 
-      // Combine orders with profiles (no prescriptions needed)
+      // Combine orders with profiles
       const ordersWithProfiles = data.map(order => ({
         ...order,
-        profiles: profiles?.find(profile => profile.id === order.user_id) || null,
-        prescriptions: [] // No prescriptions for regular orders
+        profiles: profiles?.find(profile => profile.id === order.user_id) || null
       }));
 
       console.log('Orders without prescriptions:', ordersWithProfiles);
@@ -146,7 +147,10 @@ const AdminOrdersTable = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Order Management</CardTitle>
+        <CardTitle>Regular Order Management</CardTitle>
+        <p className="text-sm text-gray-600">
+          Orders without prescription requirements
+        </p>
       </CardHeader>
       <CardContent>
         {orders && orders.length > 0 ? (
@@ -209,7 +213,7 @@ const AdminOrdersTable = () => {
           </div>
         ) : (
           <div className="text-center py-8 text-gray-500">
-            No orders found.
+            No regular orders found.
           </div>
         )}
       </CardContent>

@@ -123,7 +123,7 @@ const AdminPrescriptionsTable = () => {
       <CardHeader>
         <CardTitle>General Prescription Management</CardTitle>
         <p className="text-sm text-gray-600">
-          Prescriptions uploaded independently (not associated with specific orders)
+          Prescriptions uploaded independently from the homepage (not associated with specific orders)
         </p>
       </CardHeader>
       <CardContent>
