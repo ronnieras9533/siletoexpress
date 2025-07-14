@@ -200,6 +200,39 @@ const AdminPrescriptionOrdersTable: React.FC<AdminPrescriptionOrdersTableProps> 
     }
   };
 
+  const viewPrescription = async (imageUrl: string) => {
+    try {
+      // Extract the file path from the URL
+      const urlParts = imageUrl.split('/');
+      const fileName = urlParts[urlParts.length - 1];
+      const folderPath = urlParts[urlParts.length - 2];
+      const filePath = `${folderPath}/${fileName}`;
+      
+      // Get signed URL for viewing
+      const { data, error } = await supabase.storage
+        .from('prescriptions')
+        .createSignedUrl(filePath, 3600); // 1 hour expiry
+      
+      if (error) {
+        console.error('Error creating signed URL:', error);
+        // If signed URL fails, try to use the original URL
+        window.open(imageUrl, '_blank');
+        return;
+      }
+      
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, '_blank');
+      } else {
+        // Fallback to original URL
+        window.open(imageUrl, '_blank');
+      }
+    } catch (error) {
+      console.error('Error viewing prescription:', error);
+      // Fallback to original URL
+      window.open(imageUrl, '_blank');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -325,15 +358,21 @@ const AdminPrescriptionOrdersTable: React.FC<AdminPrescriptionOrdersTableProps> 
                                           {new Date(prescription.created_at).toLocaleDateString()}
                                         </span>
                                       </div>
+                                      
                                       {prescription.image_url && (
-                                        <div>
-                                          <img 
-                                            src={prescription.image_url} 
-                                            alt="Prescription" 
-                                            className="max-w-xs rounded-lg border"
-                                          />
+                                        <div className="space-y-2">
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => viewPrescription(prescription.image_url)}
+                                          >
+                                            <Eye className="h-4 w-4 mr-2" />
+                                            View Prescription
+                                          </Button>
+                                          <p className="text-xs text-gray-500">Click to view prescription image</p>
                                         </div>
                                       )}
+                                      
                                       {prescription.admin_notes && (
                                         <div>
                                           <p className="font-medium">Admin Notes:</p>
