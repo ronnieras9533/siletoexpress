@@ -108,6 +108,39 @@ const AdminPrescriptionsTable = () => {
     }
   };
 
+  const viewPrescription = async (imageUrl: string) => {
+    try {
+      // Extract the file path from the URL
+      const urlParts = imageUrl.split('/');
+      const fileName = urlParts[urlParts.length - 1];
+      const folderPath = urlParts[urlParts.length - 2];
+      const filePath = `${folderPath}/${fileName}`;
+      
+      // Get signed URL for viewing
+      const { data, error } = await supabase.storage
+        .from('prescriptions')
+        .createSignedUrl(filePath, 3600); // 1 hour expiry
+      
+      if (error) {
+        console.error('Error creating signed URL:', error);
+        // If signed URL fails, try to use the original URL
+        window.open(imageUrl, '_blank');
+        return;
+      }
+      
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, '_blank');
+      } else {
+        // Fallback to original URL
+        window.open(imageUrl, '_blank');
+      }
+    } catch (error) {
+      console.error('Error viewing prescription:', error);
+      // Fallback to original URL
+      window.open(imageUrl, '_blank');
+    }
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -147,13 +180,16 @@ const AdminPrescriptionsTable = () => {
                 </div>
 
                 <div className="mb-4">
-                  <img 
-                    src={prescription.image_url} 
-                    alt="Prescription"
-                    className="max-w-xs max-h-48 object-contain border rounded cursor-pointer"
-                    onClick={() => window.open(prescription.image_url, '_blank')}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Click to view full size</p>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => viewPrescription(prescription.image_url)}
+                    >
+                      View Prescription
+                    </Button>
+                  </div>
+                  <p className="text-xs text-gray-500">Click to view prescription image</p>
                 </div>
 
                 {prescription.admin_notes && (

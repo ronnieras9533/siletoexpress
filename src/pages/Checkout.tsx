@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -10,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, CreditCard, AlertCircle, Smartphone, MessageCircle, MapPin } from 'lucide-react';
+import { ArrowLeft, CreditCard, AlertCircle, Smartphone, MessageCircle, MapPin, Upload, FileText } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import OrderPrescriptionUpload from '@/components/OrderPrescriptionUpload';
@@ -27,6 +26,8 @@ const Checkout = () => {
   const [prescriptionId, setPrescriptionId] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'card' | 'mobile'>('mpesa');
   const [deliveryFee, setDeliveryFee] = useState(0);
+  const [prescriptionFile, setPrescriptionFile] = useState<File | null>(null);
+  const [uploadingPrescription, setUploadingPrescription] = useState(false);
   const [formData, setFormData] = useState({
     phone: '',
     address: '',
@@ -96,6 +97,80 @@ const Checkout = () => {
       ...prev,
       county: value
     }));
+  };
+
+  const handlePrescriptionFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      if (selectedFile.size > 10 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: "Please select a file smaller than 10MB",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      if (!selectedFile.type.startsWith('image/') && selectedFile.type !== 'application/pdf') {
+        toast({
+          title: "Invalid file type",
+          description: "Please select an image file or PDF",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      setPrescriptionFile(selectedFile);
+    }
+  };
+
+  const handlePrescriptionUpload = async () => {
+    if (!prescriptionFile || !user) return;
+
+    setUploadingPrescription(true);
+    try {
+      const fileExt = prescriptionFile.name.split('.').pop();
+      const fileName = `${user.id}/order_${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('prescriptions')
+        .upload(fileName, prescriptionFile);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('prescriptions')
+        .getPublicUrl(fileName);
+
+      // Create prescription record for this order
+      const { data: prescription, error: prescriptionError } = await supabase
+        .from('prescriptions')
+        .insert({
+          user_id: user.id,
+          image_url: publicUrl,
+          status: 'pending',
+          admin_notes: `Prescription for items: ${items.filter(item => item.prescription_required).map(item => item.name).join(', ')}`
+        })
+        .select()
+        .single();
+
+      if (prescriptionError) throw prescriptionError;
+
+      setPrescriptionId(prescription.id);
+      toast({
+        title: "Prescription uploaded successfully!",
+        description: "You can now proceed with your order.",
+      });
+    } catch (error) {
+      console.error('Error uploading prescription:', error);
+      toast({
+        title: "Upload failed",
+        description: "Please try again later.",
+        variant: "destructive"
+      });
+    } finally {
+      setUploadingPrescription(false);
+    }
   };
 
   const initiateSTKPush = async (orderId: string, totalAmount: number) => {
@@ -318,7 +393,11 @@ Please assist me with completing this order.`;
 
     // Check if prescription items require prescription upload
     if (hasPrescriptionItems() && !prescriptionId) {
-      setShowPrescriptionUpload(true);
+      toast({
+        title: "Prescription Required",
+        description: "Please upload your prescription before proceeding.",
+        variant: "destructive"
+      });
       return;
     }
 
@@ -339,39 +418,6 @@ Please assist me with completing this order.`;
 
   const totalAmount = getTotalPrice() + deliveryFee;
   const prescriptionItems = items.filter(item => item.prescription_required);
-
-  // Show prescription upload if needed
-  if (showPrescriptionUpload) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <Header />
-        
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex items-center gap-4 mb-8">
-            <Button
-              variant="ghost"
-              onClick={() => setShowPrescriptionUpload(false)}
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft size={16} />
-              Back to Checkout
-            </Button>
-            <h1 className="text-3xl font-bold text-gray-900">Upload Prescription</h1>
-          </div>
-
-          <div className="max-w-2xl mx-auto">
-            <OrderPrescriptionUpload
-              onPrescriptionUploaded={handlePrescriptionUploaded}
-              onCancel={() => setShowPrescriptionUpload(false)}
-              prescriptionItems={prescriptionItems}
-            />
-          </div>
-        </div>
-        
-        <Footer />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -498,27 +544,86 @@ Please assist me with completing this order.`;
                     />
                   </div>
 
-                  {hasPrescriptionItems() && !prescriptionId && (
+                  {/* Prescription Upload Section */}
+                  {hasPrescriptionItems() && (
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <div className="flex items-center gap-2 text-blue-800 mb-2">
-                        <AlertCircle size={16} />
+                      <div className="flex items-center gap-2 text-blue-800 mb-3">
+                        <FileText size={16} />
                         <span className="font-medium">Prescription Required</span>
                       </div>
-                      <p className="text-sm text-blue-700 mb-3">
-                        Your cart contains prescription items. You need to upload your prescription to continue.
-                      </p>
-                    </div>
-                  )}
-
-                  {hasPrescriptionItems() && prescriptionId && (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                      <div className="flex items-center gap-2 text-green-800 mb-2">
-                        <AlertCircle size={16} />
-                        <span className="font-medium">Prescription Uploaded</span>
+                      
+                      <div className="mb-3">
+                        <p className="text-sm text-blue-700 mb-2">
+                          Items requiring prescription:
+                        </p>
+                        <ul className="text-sm text-blue-700 space-y-1">
+                          {prescriptionItems.map(item => (
+                            <li key={item.id}>• {item.name}</li>
+                          ))}
+                        </ul>
                       </div>
-                      <p className="text-sm text-green-700">
-                        Your prescription has been uploaded successfully. You can now proceed with payment.
-                      </p>
+
+                      {!prescriptionId ? (
+                        <div className="space-y-3">
+                          <div>
+                            <Label htmlFor="prescription-file">Upload Prescription</Label>
+                            <div className="border-2 border-dashed border-blue-300 rounded-lg p-4 text-center">
+                              <input
+                                id="prescription-file"
+                                type="file"
+                                accept="image/*,.pdf"
+                                onChange={handlePrescriptionFileChange}
+                                className="hidden"
+                              />
+                              <label
+                                htmlFor="prescription-file"
+                                className="cursor-pointer flex flex-col items-center"
+                              >
+                                <Upload className="h-8 w-8 text-blue-400 mb-2" />
+                                <p className="text-sm font-medium text-blue-700">
+                                  Click to upload prescription
+                                </p>
+                                <p className="text-xs text-blue-600">
+                                  JPG, PNG, PDF (max 10MB)
+                                </p>
+                              </label>
+                            </div>
+                          </div>
+
+                          {prescriptionFile && (
+                            <div className="bg-white border border-blue-200 rounded-lg p-3">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-sm font-medium text-blue-800">
+                                    {prescriptionFile.name}
+                                  </p>
+                                  <p className="text-xs text-blue-600">
+                                    {(prescriptionFile.size / 1024 / 1024).toFixed(2)} MB
+                                  </p>
+                                </div>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={handlePrescriptionUpload}
+                                  disabled={uploadingPrescription}
+                                >
+                                  {uploadingPrescription ? 'Uploading...' : 'Upload'}
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                          <div className="flex items-center gap-2 text-green-800">
+                            <AlertCircle size={16} />
+                            <span className="text-sm font-medium">Prescription Uploaded Successfully</span>
+                          </div>
+                          <p className="text-sm text-green-700 mt-1">
+                            Your prescription has been uploaded and is ready for review.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -585,7 +690,11 @@ Please assist me with completing this order.`;
                           type="button"
                           onClick={() => {
                             if (hasPrescriptionItems() && !prescriptionId) {
-                              setShowPrescriptionUpload(true);
+                              toast({
+                                title: "Prescription Required",
+                                description: "Please upload your prescription before proceeding.",
+                                variant: "destructive"
+                              });
                             } else if (!formData.county) {
                               toast({
                                 title: "County Required",

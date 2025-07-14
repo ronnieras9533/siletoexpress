@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -25,6 +24,7 @@ import TrackOrder from "./pages/TrackOrder";
 import NotFound from "./pages/NotFound";
 import WhatsAppFloat from "./components/WhatsAppFloat";
 import ErrorBoundary from "./components/ErrorBoundary";
+import MyOrdersAndPrescriptions from "./pages/MyOrdersAndPrescriptions";
 
 const queryClient = new QueryClient();
 
@@ -46,6 +46,7 @@ function App() {
                   <Route path="/cart" element={<Cart />} />
                   <Route path="/checkout" element={<Checkout />} />
                   <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/my-orders-prescriptions" element={<MyOrdersAndPrescriptions />} />
                   <Route path="/admin" element={<Admin />} />
                   <Route path="/seller-dashboard" element={<SellerDashboard />} />
                   <Route path="/prescription-upload" element={<PrescriptionUpload />} />

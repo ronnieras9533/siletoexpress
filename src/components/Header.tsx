@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { Button } from '@/components/ui/button';
-import { ShoppingCart, User, LogOut, Search, Package } from 'lucide-react';
+import { ShoppingCart, User, LogOut, Search, FileText } from 'lucide-react';
 import LoginModal from './LoginModal';
 import NotificationPanel from './NotificationPanel';
 
@@ -43,9 +43,9 @@ const Header = () => {
               Why Choose Us
             </Link>
             {user && (
-              <Link to="/track-order" className="text-gray-700 hover:text-blue-600 transition-colors flex items-center gap-1">
-                <Package className="h-4 w-4" />
-                Track Order
+              <Link to="/my-orders-prescriptions" className="text-gray-700 hover:text-blue-600 transition-colors flex items-center gap-1">
+                <FileText className="h-4 w-4" />
+                My Orders & Prescriptions
               </Link>
             )}
           </nav>
