@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -23,10 +24,17 @@ import {
   Check, 
   X,
   Eye,
-  AlertCircle
+  AlertCircle,
+  TrendingUp,
+  Pill
 } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import AdminProductForm from '@/components/AdminProductForm';
+import AdminOrdersTable from '@/components/AdminOrdersTable';
+import AdminPrescriptionsTable from '@/components/AdminPrescriptionsTable';
+import AdminPrescriptionOrdersTable from '@/components/AdminPrescriptionOrdersTable';
+import AdminOrderTracking from '@/components/AdminOrderTracking';
 import {
   Dialog,
   DialogContent,
@@ -50,6 +58,36 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+// Type for order with profile information
+type OrderWithProfile = {
+  id: string;
+  user_id: string;
+  status: 'pending' | 'approved' | 'delivered' | 'cancelled';
+  total_amount: number;
+  created_at: string;
+  currency: string;
+  delivery_address: string;
+  mpesa_receipt_number: string;
+  payment_initiated: boolean;
+  payment_method: string;
+  phone_number: string;
+  prescription_approved: boolean;
+  requires_prescription: boolean;
+  order_items: Array<{
+    id: string;
+    quantity: number;
+    price: number;
+    products: {
+      name: string;
+    };
+  }>;
+  profile?: {
+    id: string;
+    full_name: string;
+    email: string;
+  };
+};
+
 const Admin = () => {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -57,6 +95,8 @@ const Admin = () => {
   const queryClient = useQueryClient();
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
+  const [showProductForm, setShowProductForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
 
   // Redirect if not admin
   useEffect(() => {
@@ -67,8 +107,45 @@ const Admin = () => {
     }
   }, [user, isAdmin, navigate]);
 
-  // Fetch data
-  const { data: products, isLoading: productsLoading } = useQuery({
+  // Fetch dashboard stats
+  const { data: stats } = useQuery({
+    queryKey: ['adminStats'],
+    queryFn: async () => {
+      const [products, orders, users, prescriptions, notifications, messages, ordersWithPrescriptions] = await Promise.all([
+        supabase.from('products').select('id, stock').then(r => r.data || []),
+        supabase.from('orders').select('id, total_amount, status').then(r => r.data || []),
+        supabase.from('profiles').select('id').then(r => r.data || []),
+        supabase.from('prescriptions').select('id, status, order_id').then(r => r.data || []),
+        supabase.from('notifications').select('id, read').then(r => r.data || []),
+        supabase.from('chat_messages').select('id, read, is_admin_message').then(r => r.data || []),
+        supabase.from('prescriptions').select('order_id').not('order_id', 'is', null).then(r => r.data || [])
+      ]);
+
+      // Filter completed orders for revenue calculation
+      const completedOrders = orders.filter(order => order.status === 'delivered');
+      
+      // Separate general prescriptions from order prescriptions
+      const generalPrescriptions = prescriptions.filter(p => p.order_id === null);
+      const orderPrescriptions = prescriptions.filter(p => p.order_id !== null);
+      
+      return {
+        totalProducts: products.length,
+        lowStockProducts: products.filter(p => p.stock < 10).length,
+        totalOrders: completedOrders.length,
+        totalRevenue: completedOrders.reduce((sum, order) => sum + Number(order.total_amount), 0),
+        totalUsers: users.length,
+        pendingGeneralPrescriptions: generalPrescriptions.filter(p => p.status === 'pending').length,
+        pendingOrderPrescriptions: orderPrescriptions.filter(p => p.status === 'pending').length,
+        totalOrdersWithPrescriptions: ordersWithPrescriptions.length,
+        unreadNotifications: notifications.filter(n => !n.read).length,
+        unreadMessages: messages.filter(m => !m.read && !m.is_admin_message).length
+      };
+    },
+    enabled: !!user && isAdmin
+  });
+
+  // Fetch products for management
+  const { data: products, isLoading: productsLoading, refetch: refetchProducts } = useQuery({
     queryKey: ['adminProducts'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -79,69 +156,61 @@ const Admin = () => {
       if (error) throw error;
       return data;
     },
-    enabled: isAdmin,
+    enabled: !!user && isAdmin
   });
 
-  const { data: orders, isLoading: ordersLoading } = useQuery({
-    queryKey: ['adminOrders'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      
-      // Fetch user profiles separately
-      const orderUserIds = data?.map(order => order.user_id) || [];
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, full_name, email')
-        .in('id', orderUserIds);
-      
-      if (profilesError) throw profilesError;
-      
-      // Combine orders with profiles
-      const ordersWithProfiles = data?.map(order => ({
-        ...order,
-        profile: profiles?.find(p => p.id === order.user_id)
-      }));
-      
-      return ordersWithProfiles;
-    },
-    enabled: isAdmin,
-  });
-
-  const { data: prescriptions, isLoading: prescriptionsLoading } = useQuery({
-    queryKey: ['adminPrescriptions'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+  // Fetch recent orders for quick tracking updates (orders without prescriptions)
+  const { data: recentOrders } = useQuery({
+    queryKey: ['adminRecentOrders'],
+    queryFn: async (): Promise<OrderWithProfile[]> => {
+      // First get order IDs that have prescriptions
+      const { data: ordersWithPrescriptions } = await supabase
         .from('prescriptions')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('order_id')
+        .not('order_id', 'is', null);
+
+      const orderIdsWithPrescriptions = ordersWithPrescriptions?.map(p => p.order_id) || [];
+      
+      // Get orders that don't have prescriptions
+      let query = supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items(*, products(name))
+        `)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      // Exclude orders that have prescriptions
+      if (orderIdsWithPrescriptions.length > 0) {
+        query = query.not('id', 'in', `(${orderIdsWithPrescriptions.join(',')})`);
+      }
+
+      const { data: ordersData, error } = await query;
       
       if (error) throw error;
-      
+
       // Fetch user profiles separately
-      const prescriptionUserIds = data?.map(prescription => prescription.user_id) || [];
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, full_name, email')
-        .in('id', prescriptionUserIds);
-      
-      if (profilesError) throw profilesError;
-      
-      // Combine prescriptions with profiles
-      const prescriptionsWithProfiles = data?.map(prescription => ({
-        ...prescription,
-        profile: profiles?.find(p => p.id === prescription.user_id)
-      }));
-      
-      return prescriptionsWithProfiles;
+      if (ordersData && ordersData.length > 0) {
+        const userIds = ordersData.map(order => order.user_id);
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', userIds);
+
+        // Combine orders with profiles
+        return ordersData.map(order => ({
+          ...order,
+          profile: profiles?.find(p => p.id === order.user_id)
+        }));
+      }
+
+      return ordersData || [];
     },
-    enabled: isAdmin,
+    enabled: !!user && isAdmin
   });
 
+  // Fetch users
   const { data: users, isLoading: usersLoading } = useQuery({
     queryKey: ['adminUsers'],
     queryFn: async () => {
@@ -157,42 +226,6 @@ const Admin = () => {
   });
 
   // Mutations
-  const updateOrderStatus = useMutation({
-    mutationFn: async ({ orderId, status }: { orderId: string; status: 'pending' | 'approved' | 'delivered' | 'cancelled' }) => {
-      const { error } = await supabase
-        .from('orders')
-        .update({ status })
-        .eq('id', orderId);
-      
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['adminOrders'] });
-      toast({ title: 'Order status updated successfully' });
-    },
-    onError: (error) => {
-      toast({ title: 'Error updating order status', description: error.message, variant: 'destructive' });
-    },
-  });
-
-  const updatePrescriptionStatus = useMutation({
-    mutationFn: async ({ prescriptionId, status, notes }: { prescriptionId: string; status: 'pending' | 'approved' | 'rejected'; notes?: string }) => {
-      const { error } = await supabase
-        .from('prescriptions')
-        .update({ status, admin_notes: notes })
-        .eq('id', prescriptionId);
-      
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['adminPrescriptions'] });
-      toast({ title: 'Prescription status updated successfully' });
-    },
-    onError: (error) => {
-      toast({ title: 'Error updating prescription status', description: error.message, variant: 'destructive' });
-    },
-  });
-
   const deleteProduct = useMutation({
     mutationFn: async (productId: string) => {
       const { error } = await supabase
@@ -211,48 +244,9 @@ const Admin = () => {
     },
   });
 
-  const saveProduct = useMutation({
-    mutationFn: async (productData: any) => {
-      if (selectedProduct?.id) {
-        const { error } = await supabase
-          .from('products')
-          .update(productData)
-          .eq('id', selectedProduct.id);
-        
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('products')
-          .insert(productData);
-        
-        if (error) throw error;
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['adminProducts'] });
-      setIsProductDialogOpen(false);
-      setSelectedProduct(null);
-      toast({ title: 'Product saved successfully' });
-    },
-    onError: (error) => {
-      toast({ title: 'Error saving product', description: error.message, variant: 'destructive' });
-    },
-  });
-
-  const handleProductSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const formData = new FormData(e.target as HTMLFormElement);
-    const productData = {
-      name: formData.get('name') as string,
-      description: formData.get('description') as string,
-      price: parseFloat(formData.get('price') as string),
-      stock: parseInt(formData.get('stock') as string),
-      category: formData.get('category') as string,
-      brand: formData.get('brand') as string,
-      prescription_required: formData.get('prescription_required') === 'on',
-    };
-    
-    saveProduct.mutate(productData);
+  const handleDeleteProduct = async (productId: string) => {
+    if (!confirm('Are you sure you want to delete this product?')) return;
+    deleteProduct.mutate(productId);
   };
 
   const getStatusColor = (status: string) => {
@@ -283,13 +277,10 @@ const Admin = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">Admin Panel</h1>
-            <Button variant="outline" onClick={() => navigate('/dashboard')}>
-              Back to Dashboard
-            </Button>
+            <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
           </div>
 
-          {/* Stats Cards */}
+          {/* Stats Overview */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -297,345 +288,210 @@ const Admin = () => {
                 <Package className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{products?.length || 0}</div>
+                <div className="text-2xl font-bold">{stats?.totalProducts || 0}</div>
+                <p className="text-xs text-muted-foreground">
+                  {stats?.lowStockProducts || 0} low stock
+                </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+                <CardTitle className="text-sm font-medium">Orders & Prescriptions</CardTitle>
                 <ShoppingCart className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{orders?.length || 0}</div>
+                <div className="text-2xl font-bold">{stats?.totalOrders || 0}</div>
+                <p className="text-xs text-muted-foreground">
+                  {stats?.totalOrdersWithPrescriptions || 0} with prescriptions
+                </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Pending Prescriptions</CardTitle>
+                <CardTitle className="text-sm font-medium">Revenue</CardTitle>
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">KES {stats?.totalRevenue?.toLocaleString() || 0}</div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Pending Reviews</CardTitle>
                 <FileText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {prescriptions?.filter(p => p.status === 'pending').length || 0}
+                  {(stats?.pendingGeneralPrescriptions || 0) + (stats?.pendingOrderPrescriptions || 0)}
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{users?.length || 0}</div>
+                <p className="text-xs text-muted-foreground">
+                  {stats?.pendingGeneralPrescriptions || 0} general, {stats?.pendingOrderPrescriptions || 0} orders
+                </p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Main Content */}
-          <Tabs defaultValue="products" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-4">
+          {/* Main Content Tabs */}
+          <Tabs defaultValue="orders" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="orders" className="flex items-center gap-2">
+                <ShoppingCart className="h-4 w-4" />
+                Regular Orders
+              </TabsTrigger>
+              <TabsTrigger value="prescription-orders" className="flex items-center gap-2">
+                <Pill className="h-4 w-4" />
+                Orders with Prescriptions
+              </TabsTrigger>
+              <TabsTrigger value="prescriptions" className="flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                General Prescriptions
+              </TabsTrigger>
               <TabsTrigger value="products">Products</TabsTrigger>
-              <TabsTrigger value="orders">Orders</TabsTrigger>
-              <TabsTrigger value="prescriptions">Prescriptions</TabsTrigger>
               <TabsTrigger value="users">Users</TabsTrigger>
             </TabsList>
 
+            <TabsContent value="orders" className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Recent Orders Quick Actions */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Recent Regular Orders - Quick Update</CardTitle>
+                    <p className="text-sm text-gray-600">Orders without prescriptions</p>
+                  </CardHeader>
+                  <CardContent>
+                    {recentOrders && recentOrders.length > 0 ? (
+                      <div className="space-y-4">
+                        {recentOrders.slice(0, 5).map((order) => (
+                          <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg">
+                            <div className="flex-1">
+                              <p className="font-medium">#{order.id.slice(0, 8)}</p>
+                              <p className="text-sm text-gray-600">{order.profile?.full_name || 'Unknown User'}</p>
+                              <p className="text-sm text-gray-500">KES {order.total_amount.toLocaleString()}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge className={getStatusColor(order.status)}>
+                                {order.status.replace('_', ' ')}
+                              </Badge>
+                              <AdminOrderTracking 
+                                orderId={order.id} 
+                                currentStatus={order.status}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">No recent regular orders</div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Order Status Distribution */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Order Status Overview</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {['pending', 'approved', 'delivered', 'cancelled'].map((status) => {
+                        const count = recentOrders?.filter(order => order.status === status).length || 0;
+                        return (
+                          <div key={status} className="flex justify-between items-center">
+                            <span className="capitalize">{status.replace('_', ' ')}</span>
+                            <Badge variant="outline">{count}</Badge>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              {/* Full Orders Table */}
+              <AdminOrdersTable />
+            </TabsContent>
+
+            <TabsContent value="prescription-orders">
+              <AdminPrescriptionOrdersTable />
+            </TabsContent>
+
+            <TabsContent value="prescriptions">
+              <AdminPrescriptionsTable />
+            </TabsContent>
+
             <TabsContent value="products" className="space-y-4">
-              <div className="flex justify-between items-center">
+              <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold">Product Management</h2>
-                <Dialog open={isProductDialogOpen} onOpenChange={setIsProductDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button onClick={() => setSelectedProduct(null)}>
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add Product
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                      <DialogTitle>
-                        {selectedProduct ? 'Edit Product' : 'Add New Product'}
-                      </DialogTitle>
-                    </DialogHeader>
-                    <form onSubmit={handleProductSubmit} className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="name">Product Name</Label>
-                          <Input
-                            id="name"
-                            name="name"
-                            defaultValue={selectedProduct?.name || ''}
-                            required
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="brand">Brand</Label>
-                          <Input
-                            id="brand"
-                            name="brand"
-                            defaultValue={selectedProduct?.brand || ''}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <Label htmlFor="description">Description</Label>
-                        <Textarea
-                          id="description"
-                          name="description"
-                          defaultValue={selectedProduct?.description || ''}
-                        />
-                      </div>
-                      <div className="grid grid-cols-3 gap-4">
-                        <div>
-                          <Label htmlFor="price">Price (KES)</Label>
-                          <Input
-                            id="price"
-                            name="price"
-                            type="number"
-                            step="0.01"
-                            defaultValue={selectedProduct?.price || ''}
-                            required
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="stock">Stock</Label>
-                          <Input
-                            id="stock"
-                            name="stock"
-                            type="number"
-                            defaultValue={selectedProduct?.stock || ''}
-                            required
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="category">Category</Label>
-                          <Select name="category" defaultValue={selectedProduct?.category || ''}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select category" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Pain Relief">Pain Relief</SelectItem>
-                              <SelectItem value="General Medicine">General Medicine</SelectItem>
-                              <SelectItem value="Chronic Care">Chronic Care</SelectItem>
-                              <SelectItem value="Supplements">Supplements</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Switch
-                          id="prescription_required"
-                          name="prescription_required"
-                          defaultChecked={selectedProduct?.prescription_required || false}
-                        />
-                        <Label htmlFor="prescription_required">Prescription Required</Label>
-                      </div>
-                      <div className="flex justify-end space-x-2">
-                        <Button type="button" variant="outline" onClick={() => setIsProductDialogOpen(false)}>
-                          Cancel
-                        </Button>
-                        <Button type="submit">
-                          {selectedProduct ? 'Update' : 'Create'} Product
-                        </Button>
-                      </div>
-                    </form>
-                  </DialogContent>
-                </Dialog>
+                <Button onClick={() => setShowProductForm(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Product
+                </Button>
               </div>
 
               <Card>
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Brand</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Price</TableHead>
-                        <TableHead>Stock</TableHead>
-                        <TableHead>Prescription</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {products?.map((product) => (
-                        <TableRow key={product.id}>
-                          <TableCell className="font-medium">{product.name}</TableCell>
-                          <TableCell>{product.brand}</TableCell>
-                          <TableCell>{product.category}</TableCell>
-                          <TableCell>KES {product.price}</TableCell>
-                          <TableCell>{product.stock}</TableCell>
-                          <TableCell>
-                            {product.prescription_required ? (
-                              <Badge className="bg-red-100 text-red-800">Required</Badge>
-                            ) : (
-                              <Badge className="bg-green-100 text-green-800">Not Required</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex space-x-2">
-                              <Button
-                                variant="outline"
+                <CardContent className="p-6">
+                  {productsLoading ? (
+                    <div className="text-center py-8">Loading products...</div>
+                  ) : products && products.length > 0 ? (
+                    <div className="space-y-4">
+                      {products.map((product) => (
+                        <div key={product.id} className="flex items-center justify-between p-4 border rounded-lg">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-4">
+                              {product.image_url && (
+                                <img 
+                                  src={product.image_url} 
+                                  alt={product.name}
+                                  className="w-16 h-16 object-cover rounded"
+                                />
+                              )}
+                              <div>
+                                <h3 className="font-medium">{product.name}</h3>
+                                <p className="text-sm text-gray-600">{product.category}</p>
+                                <p className="text-sm font-medium">KES {Number(product.price).toLocaleString()}</p>
+                                {product.prescription_required && (
+                                  <Badge variant="secondary" className="bg-red-100 text-red-800 mt-1">
+                                    Prescription Required
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <Badge variant={product.stock > 10 ? "default" : product.stock > 0 ? "secondary" : "destructive"}>
+                              {product.stock} in stock
+                            </Badge>
+                            <div className="flex gap-2">
+                              <Button 
+                                variant="outline" 
                                 size="sm"
                                 onClick={() => {
-                                  setSelectedProduct(product);
-                                  setIsProductDialogOpen(true);
+                                  setEditingProduct(product);
+                                  setShowProductForm(true);
                                 }}
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>
-                              <Button
-                                variant="destructive"
+                              <Button 
+                                variant="outline" 
                                 size="sm"
-                                onClick={() => deleteProduct.mutate(product.id)}
+                                onClick={() => handleDeleteProduct(product.id)}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
-                          </TableCell>
-                        </TableRow>
+                          </div>
+                        </div>
                       ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="orders" className="space-y-4">
-              <h2 className="text-xl font-semibold">Order Management</h2>
-              <Card>
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Order ID</TableHead>
-                        <TableHead>Customer</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {orders?.map((order) => (
-                        <TableRow key={order.id}>
-                          <TableCell className="font-mono text-sm">
-                            {order.id.slice(0, 8)}...
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <div className="font-medium">{order.profile?.full_name || 'N/A'}</div>
-                              <div className="text-sm text-gray-500">{order.profile?.email || 'N/A'}</div>
-                            </div>
-                          </TableCell>
-                          <TableCell>KES {order.total_amount.toLocaleString()}</TableCell>
-                          <TableCell>
-                            <Badge className={getStatusColor(order.status)}>
-                              {order.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {new Date(order.created_at).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={order.status}
-                              onValueChange={(value: 'pending' | 'approved' | 'delivered' | 'cancelled') => 
-                                updateOrderStatus.mutate({ orderId: order.id, status: value })
-                              }
-                            >
-                              <SelectTrigger className="w-32">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="pending">Pending</SelectItem>
-                                <SelectItem value="approved">Approved</SelectItem>
-                                <SelectItem value="delivered">Delivered</SelectItem>
-                                <SelectItem value="cancelled">Cancelled</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="prescriptions" className="space-y-4">
-              <h2 className="text-xl font-semibold">Prescription Management</h2>
-              <Card>
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Prescription ID</TableHead>
-                        <TableHead>Customer</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {prescriptions?.map((prescription) => (
-                        <TableRow key={prescription.id}>
-                          <TableCell className="font-mono text-sm">
-                            {prescription.id.slice(0, 8)}...
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <div className="font-medium">{prescription.profile?.full_name || 'N/A'}</div>
-                              <div className="text-sm text-gray-500">{prescription.profile?.email || 'N/A'}</div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={getStatusColor(prescription.status)}>
-                              {prescription.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {new Date(prescription.created_at).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex space-x-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => window.open(prescription.image_url, '_blank')}
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => updatePrescriptionStatus.mutate({
-                                  prescriptionId: prescription.id,
-                                  status: 'approved'
-                                })}
-                                disabled={prescription.status === 'approved'}
-                              >
-                                <Check className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => updatePrescriptionStatus.mutate({
-                                  prescriptionId: prescription.id,
-                                  status: 'rejected'
-                                })}
-                                disabled={prescription.status === 'rejected'}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      No products yet. <Button variant="link" onClick={() => setShowProductForm(true)}>Add your first product</Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -676,6 +532,21 @@ const Admin = () => {
           </Tabs>
         </div>
       </div>
+
+      {showProductForm && (
+        <AdminProductForm
+          product={editingProduct}
+          onClose={() => {
+            setShowProductForm(false);
+            setEditingProduct(null);
+          }}
+          onSuccess={() => {
+            refetchProducts();
+            setShowProductForm(false);
+            setEditingProduct(null);
+          }}
+        />
+      )}
 
       <Footer />
     </div>

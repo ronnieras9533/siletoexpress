@@ -14,7 +14,6 @@ import Cart from "./pages/Cart";
 import Checkout from "./pages/Checkout";
 import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
-import AdminDashboard from "./pages/AdminDashboard";
 import SellerDashboard from "./pages/SellerDashboard";
 import PrescriptionUpload from "./pages/PrescriptionUpload";
 import WhyChooseUs from "./pages/WhyChooseUs";
@@ -48,7 +47,6 @@ function App() {
                   <Route path="/checkout" element={<Checkout />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/admin" element={<Admin />} />
-                  <Route path="/admin-dashboard" element={<AdminDashboard />} />
                   <Route path="/seller-dashboard" element={<SellerDashboard />} />
                   <Route path="/prescription-upload" element={<PrescriptionUpload />} />
                   <Route path="/why-choose-us" element={<WhyChooseUs />} />
