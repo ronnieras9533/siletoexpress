@@ -132,7 +132,7 @@ const Admin = () => {
     try {
       const { error } = await supabase
         .from('orders')
-        .update({ status: newStatus })
+        .update({ status: newStatus as any })
         .eq('id', orderId);
 
       if (error) throw error;
@@ -336,7 +336,7 @@ const Admin = () => {
                 <CardTitle>General Prescriptions (Homepage Uploads)</CardTitle>
               </CardHeader>
               <CardContent>
-                <AdminPrescriptionsTable prescriptionType="general" />
+                <AdminPrescriptionsTable />
               </CardContent>
             </Card>
           </TabsContent>
@@ -347,7 +347,7 @@ const Admin = () => {
                 <CardTitle>Product Management</CardTitle>
               </CardHeader>
               <CardContent>
-                <ProductForm />
+                <ProductForm onClose={() => {}} />
               </CardContent>
             </Card>
           </TabsContent>

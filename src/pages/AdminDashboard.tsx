@@ -34,17 +34,20 @@ import AdminOrderTracking from '@/components/AdminOrderTracking';
 type OrderWithProfile = {
   id: string;
   user_id: string;
-  status: 'pending' | 'approved' | 'delivered' | 'cancelled';
+  status: 'pending' | 'approved' | 'delivered' | 'cancelled' | 'confirmed' | 'processing' | 'shipped' | 'out_for_delivery';
   total_amount: number;
   created_at: string;
-  currency: string;
-  delivery_address: string;
-  mpesa_receipt_number: string;
-  payment_initiated: boolean;
-  payment_method: string;
-  phone_number: string;
-  prescription_approved: boolean;
-  requires_prescription: boolean;
+  currency: string | null;
+  delivery_address: string | null;
+  mpesa_receipt_number: string | null;
+  payment_initiated: boolean | null;
+  payment_method: string | null;
+  phone_number: string | null;
+  prescription_approved: boolean | null;
+  requires_prescription: boolean | null;
+  county: string | null;
+  delivery_fee: number | null;
+  delivery_instructions: string | null;
   order_items: Array<{
     id: string;
     quantity: number;
@@ -161,10 +164,10 @@ const AdminDashboard = () => {
         return ordersData.map(order => ({
           ...order,
           profile: profiles?.find(p => p.id === order.user_id)
-        }));
+        })) as OrderWithProfile[];
       }
 
-      return ordersData || [];
+      return ordersData as OrderWithProfile[] || [];
     },
     enabled: !!user && isAdmin
   });
@@ -332,7 +335,7 @@ const AdminDashboard = () => {
               </div>
               
               {/* Full Orders Table */}
-              <AdminOrdersTable />
+              <AdminOrdersTable orderType="regular" />
             </TabsContent>
 
             <TabsContent value="prescription-orders">

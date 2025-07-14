@@ -16,18 +16,18 @@ interface Order {
   total_amount: number;
   status: string;
   created_at: string;
-  phone_number: string;
-  delivery_address: string;
-  county: string;
-  delivery_instructions: string;
-  delivery_fee: number;
-  payment_method: string;
-  currency: string;
-  requires_prescription: boolean;
+  phone_number: string | null;
+  delivery_address: string | null;
+  county: string | null;
+  delivery_instructions: string | null;
+  delivery_fee: number | null;
+  payment_method: string | null;
+  currency: string | null;
+  requires_prescription: boolean | null;
   profiles: {
     full_name: string;
     email: string;
-  };
+  } | null;
   order_items: {
     quantity: number;
     price: number;
@@ -39,17 +39,17 @@ interface Order {
   order_tracking: {
     status: string;
     created_at: string;
-    note: string;
-    location: string;
+    note: string | null;
+    location: string | null;
   }[];
 }
 
 interface AdminOrdersTableProps {
-  orderType: 'regular' | 'all';
+  orderType?: 'regular' | 'all';
   onStatusUpdate?: (orderId: string, newStatus: string) => void;
 }
 
-const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType, onStatusUpdate }) => {
+const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', onStatusUpdate }) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -106,7 +106,7 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType, onStatus
     try {
       const { error } = await supabase
         .from('orders')
-        .update({ status: newStatus })
+        .update({ status: newStatus as any })
         .eq('id', orderId);
 
       if (error) throw error;
@@ -189,7 +189,7 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType, onStatus
                   <div>
                     <CardTitle className="text-lg">Order #{order.id.slice(-8)}</CardTitle>
                     <p className="text-sm text-gray-600 mt-1">
-                      {order.profiles.full_name} • {new Date(order.created_at).toLocaleDateString()}
+                      {order.profiles?.full_name || 'Unknown User'} • {new Date(order.created_at).toLocaleDateString()}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -229,8 +229,8 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType, onStatus
                                 </CardHeader>
                                 <CardContent className="space-y-3">
                                   <div>
-                                    <p className="font-medium">{selectedOrder.profiles.full_name}</p>
-                                    <p className="text-sm text-gray-600">{selectedOrder.profiles.email}</p>
+                                    <p className="font-medium">{selectedOrder.profiles?.full_name || 'Unknown User'}</p>
+                                    <p className="text-sm text-gray-600">{selectedOrder.profiles?.email || 'No email'}</p>
                                   </div>
                                   {selectedOrder.phone_number && (
                                     <div className="flex items-center gap-2">
@@ -248,15 +248,15 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType, onStatus
                                 <CardContent className="space-y-3">
                                   <div className="flex justify-between">
                                     <span>Total Amount:</span>
-                                    <span className="font-medium">{selectedOrder.currency} {selectedOrder.total_amount.toLocaleString()}</span>
+                                    <span className="font-medium">{selectedOrder.currency || 'KES'} {selectedOrder.total_amount.toLocaleString()}</span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span>Payment Method:</span>
-                                    <span className="font-medium">{selectedOrder.payment_method}</span>
+                                    <span className="font-medium">{selectedOrder.payment_method || 'Not specified'}</span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span>Delivery Fee:</span>
-                                    <span className="font-medium">{selectedOrder.delivery_fee === 0 ? 'Free' : `${selectedOrder.currency} ${selectedOrder.delivery_fee.toLocaleString()}`}</span>
+                                    <span className="font-medium">{selectedOrder.delivery_fee === 0 ? 'Free' : `${selectedOrder.currency || 'KES'} ${selectedOrder.delivery_fee?.toLocaleString() || 0}`}</span>
                                   </div>
                                 </CardContent>
                               </Card>
@@ -276,10 +276,12 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType, onStatus
                                     <p className="font-medium">County:</p>
                                     <p className="text-sm text-gray-600">{selectedOrder.county}</p>
                                   </div>
-                                  <div>
-                                    <p className="font-medium">Address:</p>
-                                    <p className="text-sm text-gray-600">{selectedOrder.delivery_address}</p>
-                                  </div>
+                                  {selectedOrder.delivery_address && (
+                                    <div>
+                                      <p className="font-medium">Address:</p>
+                                      <p className="text-sm text-gray-600">{selectedOrder.delivery_address}</p>
+                                    </div>
+                                  )}
                                   {selectedOrder.delivery_instructions && (
                                     <div>
                                       <p className="font-medium">Delivery Instructions:</p>
@@ -302,7 +304,7 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType, onStatus
                                       <div className="flex-1">
                                         <p className="font-medium">{item.products.name}</p>
                                         <p className="text-sm text-gray-600">
-                                          Qty: {item.quantity} × {selectedOrder.currency} {item.price}
+                                          Qty: {item.quantity} × {selectedOrder.currency || 'KES'} {item.price}
                                         </p>
                                         {item.products.prescription_required && (
                                           <Badge variant="outline" className="text-xs mt-1">
@@ -311,7 +313,7 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType, onStatus
                                         )}
                                       </div>
                                       <span className="font-medium">
-                                        {selectedOrder.currency} {(item.quantity * item.price).toLocaleString()}
+                                        {selectedOrder.currency || 'KES'} {(item.quantity * item.price).toLocaleString()}
                                       </span>
                                     </div>
                                   ))}
@@ -360,7 +362,7 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType, onStatus
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                   <div>
                     <p className="text-gray-600">Total Amount</p>
-                    <p className="font-medium">{order.currency} {order.total_amount.toLocaleString()}</p>
+                    <p className="font-medium">{order.currency || 'KES'} {order.total_amount.toLocaleString()}</p>
                   </div>
                   <div>
                     <p className="text-gray-600">Items</p>
