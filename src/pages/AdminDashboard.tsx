@@ -83,18 +83,33 @@ const AdminDashboard = () => {
   const { data: recentOrders } = useQuery({
     queryKey: ['adminRecentOrders'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: ordersData, error } = await supabase
         .from('orders')
         .select(`
           *,
-          profiles!orders_user_id_fkey(full_name, email),
           order_items(*, products(name))
         `)
         .order('created_at', { ascending: false })
         .limit(10);
       
       if (error) throw error;
-      return data;
+
+      // Fetch user profiles separately
+      if (ordersData && ordersData.length > 0) {
+        const userIds = ordersData.map(order => order.user_id);
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', userIds);
+
+        // Combine orders with profiles
+        return ordersData.map(order => ({
+          ...order,
+          profile: profiles?.find(p => p.id === order.user_id)
+        }));
+      }
+
+      return ordersData || [];
     },
     enabled: !!user && isAdmin
   });
@@ -203,7 +218,7 @@ const AdminDashboard = () => {
                           <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg">
                             <div className="flex-1">
                               <p className="font-medium">#{order.id.slice(0, 8)}</p>
-                              <p className="text-sm text-gray-600">{order.profiles?.full_name}</p>
+                              <p className="text-sm text-gray-600">{order.profile?.full_name || 'Unknown User'}</p>
                               <p className="text-sm text-gray-500">KES {order.total_amount.toLocaleString()}</p>
                             </div>
                             <div className="flex items-center gap-2">

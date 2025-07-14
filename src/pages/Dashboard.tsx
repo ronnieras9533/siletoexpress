@@ -172,7 +172,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {orders?.filter(order => order.status === 'pending' || order.status === 'processing').length || 0}
+                  {orders?.filter(order => order.status === 'pending' || order.status === 'confirmed').length || 0}
                 </div>
               </CardContent>
             </Card>
