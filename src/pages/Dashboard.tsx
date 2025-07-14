@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
-import { User, Package, FileText, ShoppingCart, Settings } from 'lucide-react';
+import { User, Package, FileText, ShoppingCart, Settings, Bell, MessageCircle } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import ChatWidget from '@/components/ChatWidget';
 import { useQuery } from '@tanstack/react-query';
 
 const Dashboard = () => {
@@ -47,6 +48,23 @@ const Dashboard = () => {
     enabled: !!user,
   });
 
+  const { data: notifications } = useQuery({
+    queryKey: ['userNotifications', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('read', false)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
   if (!user) {
     navigate('/auth');
     return null;
@@ -56,18 +74,31 @@ const Dashboard = () => {
     switch (status) {
       case 'pending':
         return 'bg-yellow-100 text-yellow-800';
-      case 'approved':
-        return 'bg-green-100 text-green-800';
-      case 'delivered':
+      case 'confirmed':
         return 'bg-blue-100 text-blue-800';
+      case 'processing':
+        return 'bg-orange-100 text-orange-800';
+      case 'shipped':
+        return 'bg-purple-100 text-purple-800';
+      case 'out_for_delivery':
+        return 'bg-indigo-100 text-indigo-800';
+      case 'delivered':
+        return 'bg-green-100 text-green-800';
       case 'cancelled':
         return 'bg-red-100 text-red-800';
+      case 'approved':
+        return 'bg-green-100 text-green-800';
       case 'rejected':
         return 'bg-red-100 text-red-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
   };
+
+  // Orders requiring prescription approval
+  const prescriptionOrders = orders?.filter(order => 
+    order.requires_prescription && !order.prescription_approved
+  ) || [];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -85,6 +116,34 @@ const Dashboard = () => {
             )}
           </div>
 
+          {/* Prescription Approval Notifications */}
+          {prescriptionOrders.length > 0 && (
+            <Card className="mb-6 border-orange-200 bg-orange-50">
+              <CardHeader>
+                <CardTitle className="text-orange-800">Orders Pending Prescription Approval</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {prescriptionOrders.map((order) => (
+                    <div key={order.id} className="flex items-center justify-between p-3 bg-white rounded border">
+                      <div>
+                        <p className="font-medium">Order #{order.id.slice(0, 8)}</p>
+                        <p className="text-sm text-gray-600">KES {order.total_amount.toLocaleString()}</p>
+                      </div>
+                      <Badge className="bg-orange-100 text-orange-800">
+                        Awaiting Prescription Approval
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-sm text-orange-700 mt-3">
+                  Your prescription is being reviewed by our pharmacist. You'll be notified once approved to complete payment.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Quick Stats */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -113,18 +172,18 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {orders?.filter(order => order.status === 'pending').length || 0}
+                  {orders?.filter(order => order.status === 'pending' || order.status === 'confirmed').length || 0}
                 </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Account Status</CardTitle>
-                <User className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Notifications</CardTitle>
+                <Bell className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">Active</div>
+                <div className="text-2xl font-bold">{notifications?.length || 0}</div>
               </CardContent>
             </Card>
           </div>
@@ -148,10 +207,24 @@ const Dashboard = () => {
                             {new Date(order.created_at).toLocaleDateString()}
                           </p>
                           <p className="text-sm font-medium">KES {order.total_amount.toLocaleString()}</p>
+                          {order.requires_prescription && !order.prescription_approved && (
+                            <p className="text-xs text-orange-600 mt-1">Prescription review pending</p>
+                          )}
                         </div>
-                        <Badge className={getStatusColor(order.status)}>
-                          {order.status}
-                        </Badge>
+                        <div className="text-right">
+                          <Badge className={getStatusColor(order.status)}>
+                            {order.status.replace('_', ' ')}
+                          </Badge>
+                          <div className="mt-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => navigate(`/track-order?order_id=${order.id}`)}
+                            >
+                              Track
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -200,6 +273,9 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Chat Widget */}
+      <ChatWidget />
 
       <Footer />
     </div>

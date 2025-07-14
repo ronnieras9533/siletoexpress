@@ -14,6 +14,108 @@ export type Database = {
   }
   public: {
     Tables: {
+      chat_messages: {
+        Row: {
+          created_at: string
+          id: string
+          is_admin_message: boolean
+          message: string
+          order_id: string | null
+          prescription_id: string | null
+          read: boolean
+          receiver_id: string | null
+          sender_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_admin_message?: boolean
+          message: string
+          order_id?: string | null
+          prescription_id?: string | null
+          read?: boolean
+          receiver_id?: string | null
+          sender_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_admin_message?: boolean
+          message?: string
+          order_id?: string | null
+          prescription_id?: string | null
+          read?: boolean
+          receiver_id?: string | null
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_messages_prescription_id_fkey"
+            columns: ["prescription_id"]
+            isOneToOne: false
+            referencedRelation: "prescriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          order_id: string | null
+          prescription_id: string | null
+          read: boolean
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          order_id?: string | null
+          prescription_id?: string | null
+          read?: boolean
+          title: string
+          type?: Database["public"]["Enums"]["notification_type"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          order_id?: string | null
+          prescription_id?: string | null
+          read?: boolean
+          title?: string
+          type?: Database["public"]["Enums"]["notification_type"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_prescription_id_fkey"
+            columns: ["prescription_id"]
+            isOneToOne: false
+            referencedRelation: "prescriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_items: {
         Row: {
           created_at: string
@@ -56,6 +158,44 @@ export type Database = {
           },
         ]
       }
+      order_tracking: {
+        Row: {
+          created_at: string
+          id: string
+          location: string | null
+          note: string | null
+          order_id: string
+          status: Database["public"]["Enums"]["order_status"]
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          location?: string | null
+          note?: string | null
+          order_id: string
+          status: Database["public"]["Enums"]["order_status"]
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          location?: string | null
+          note?: string | null
+          order_id?: string
+          status?: Database["public"]["Enums"]["order_status"]
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_tracking_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           created_at: string
@@ -63,8 +203,11 @@ export type Database = {
           delivery_address: string | null
           id: string
           mpesa_receipt_number: string | null
+          payment_initiated: boolean | null
           payment_method: string | null
           phone_number: string | null
+          prescription_approved: boolean | null
+          requires_prescription: boolean | null
           status: Database["public"]["Enums"]["order_status"]
           total_amount: number
           user_id: string
@@ -75,8 +218,11 @@ export type Database = {
           delivery_address?: string | null
           id?: string
           mpesa_receipt_number?: string | null
+          payment_initiated?: boolean | null
           payment_method?: string | null
           phone_number?: string | null
+          prescription_approved?: boolean | null
+          requires_prescription?: boolean | null
           status?: Database["public"]["Enums"]["order_status"]
           total_amount: number
           user_id: string
@@ -87,8 +233,11 @@ export type Database = {
           delivery_address?: string | null
           id?: string
           mpesa_receipt_number?: string | null
+          payment_initiated?: boolean | null
           payment_method?: string | null
           phone_number?: string | null
+          prescription_approved?: boolean | null
+          requires_prescription?: boolean | null
           status?: Database["public"]["Enums"]["order_status"]
           total_amount?: number
           user_id?: string
@@ -275,6 +424,11 @@ export type Database = {
       }
     }
     Enums: {
+      notification_type:
+        | "order_status"
+        | "prescription_update"
+        | "payment_required"
+        | "general"
       order_status: "pending" | "approved" | "delivered" | "cancelled"
       prescription_status: "pending" | "approved" | "rejected"
       user_role: "user" | "admin"
@@ -405,6 +559,12 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      notification_type: [
+        "order_status",
+        "prescription_update",
+        "payment_required",
+        "general",
+      ],
       order_status: ["pending", "approved", "delivered", "cancelled"],
       prescription_status: ["pending", "approved", "rejected"],
       user_role: ["user", "admin"],

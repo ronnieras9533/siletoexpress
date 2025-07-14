@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -16,7 +15,9 @@ import {
   Plus,
   Edit,
   Trash2,
-  Upload
+  Upload,
+  MessageCircle,
+  Bell
 } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -24,6 +25,7 @@ import AdminProductForm from '@/components/AdminProductForm';
 import AdminOrdersTable from '@/components/AdminOrdersTable';
 import AdminPrescriptionsTable from '@/components/AdminPrescriptionsTable';
 import AdminPrescriptionOrdersTable from '@/components/AdminPrescriptionOrdersTable';
+import AdminOrderTracking from '@/components/AdminOrderTracking';
 
 const AdminDashboard = () => {
   const { user, isAdmin } = useAuth();
@@ -35,15 +37,17 @@ const AdminDashboard = () => {
   const { data: stats } = useQuery({
     queryKey: ['adminStats'],
     queryFn: async () => {
-      const [products, orders, users, prescriptions] = await Promise.all([
+      const [products, orders, users, prescriptions, notifications, messages] = await Promise.all([
         supabase.from('products').select('id, stock').then(r => r.data || []),
         supabase.from('orders').select('id, total_amount, status').then(r => r.data || []),
         supabase.from('profiles').select('id').then(r => r.data || []),
-        supabase.from('prescriptions').select('id, status').then(r => r.data || [])
+        supabase.from('prescriptions').select('id, status').then(r => r.data || []),
+        supabase.from('notifications').select('id, read').then(r => r.data || []),
+        supabase.from('chat_messages').select('id, read, is_admin_message').then(r => r.data || [])
       ]);
 
       // Filter out pending orders from revenue calculation (only count approved/delivered orders)
-      const completedOrders = orders.filter(order => order.status === 'approved' || order.status === 'delivered');
+      const completedOrders = orders.filter(order => order.status === 'confirmed' || order.status === 'delivered');
       
       return {
         totalProducts: products.length,
@@ -51,7 +55,9 @@ const AdminDashboard = () => {
         totalOrders: completedOrders.length,
         totalRevenue: completedOrders.reduce((sum, order) => sum + Number(order.total_amount), 0),
         totalUsers: users.length,
-        pendingPrescriptions: prescriptions.filter(p => p.status === 'pending').length
+        pendingPrescriptions: prescriptions.filter(p => p.status === 'pending').length,
+        unreadNotifications: notifications.filter(n => !n.read).length,
+        unreadMessages: messages.filter(m => !m.read && !m.is_admin_message).length
       };
     },
     enabled: !!user && isAdmin
@@ -65,6 +71,26 @@ const AdminDashboard = () => {
         .from('products')
         .select('*')
         .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user && isAdmin
+  });
+
+  // Fetch recent orders for quick tracking updates
+  const { data: recentOrders } = useQuery({
+    queryKey: ['adminRecentOrders'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          profiles(full_name, email),
+          order_items(*, products(name))
+        `)
+        .order('created_at', { ascending: false })
+        .limit(10);
       
       if (error) throw error;
       return data;
@@ -122,6 +148,9 @@ const AdminDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stats?.totalOrders || 0}</div>
+                <p className="text-xs text-muted-foreground">
+                  {stats?.pendingPrescriptions || 0} pending prescriptions
+                </p>
               </CardContent>
             </Card>
 
@@ -137,27 +166,92 @@ const AdminDashboard = () => {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Users</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Communications</CardTitle>
+                <MessageCircle className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats?.totalUsers || 0}</div>
+                <div className="text-2xl font-bold">{stats?.unreadMessages || 0}</div>
                 <p className="text-xs text-muted-foreground">
-                  {stats?.pendingPrescriptions || 0} pending prescriptions
+                  {stats?.unreadNotifications || 0} unread notifications
                 </p>
               </CardContent>
             </Card>
           </div>
 
           {/* Main Content Tabs */}
-          <Tabs defaultValue="products" className="space-y-4">
+          <Tabs defaultValue="orders" className="space-y-4">
             <TabsList>
+              <TabsTrigger value="orders">Orders & Tracking</TabsTrigger>
               <TabsTrigger value="products">Products</TabsTrigger>
-              <TabsTrigger value="orders">Orders</TabsTrigger>
               <TabsTrigger value="prescription-orders">Orders with Prescriptions</TabsTrigger>
               <TabsTrigger value="prescriptions">Prescriptions</TabsTrigger>
               <TabsTrigger value="analytics">Analytics</TabsTrigger>
             </TabsList>
+
+            <TabsContent value="orders" className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Recent Orders Quick Actions */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Recent Orders - Quick Update</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {recentOrders && recentOrders.length > 0 ? (
+                      <div className="space-y-4">
+                        {recentOrders.slice(0, 5).map((order) => (
+                          <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg">
+                            <div className="flex-1">
+                              <p className="font-medium">#{order.id.slice(0, 8)}</p>
+                              <p className="text-sm text-gray-600">{order.profiles?.full_name}</p>
+                              <p className="text-sm text-gray-500">KES {order.total_amount.toLocaleString()}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge className={`${
+                                order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                order.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
+                                order.status === 'delivered' ? 'bg-green-100 text-green-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {order.status.replace('_', ' ')}
+                              </Badge>
+                              <AdminOrderTracking 
+                                orderId={order.id} 
+                                currentStatus={order.status}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">No recent orders</div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Order Status Distribution */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Order Status Overview</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {['pending', 'confirmed', 'processing', 'shipped', 'out_for_delivery', 'delivered'].map((status) => {
+                        const count = recentOrders?.filter(order => order.status === status).length || 0;
+                        return (
+                          <div key={status} className="flex justify-between items-center">
+                            <span className="capitalize">{status.replace('_', ' ')}</span>
+                            <Badge variant="outline">{count}</Badge>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              {/* Full Orders Table */}
+              <AdminOrdersTable />
+            </TabsContent>
 
             <TabsContent value="products" className="space-y-4">
               <div className="flex items-center justify-between">
@@ -231,10 +325,6 @@ const AdminDashboard = () => {
                   )}
                 </CardContent>
               </Card>
-            </TabsContent>
-
-            <TabsContent value="orders">
-              <AdminOrdersTable />
             </TabsContent>
 
             <TabsContent value="prescription-orders">
