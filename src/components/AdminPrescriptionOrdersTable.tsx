@@ -1,230 +1,425 @@
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+
+import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { toast } from 'sonner';
-import { format } from 'date-fns';
-import { Database } from '@/integrations/supabase/types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
+import { Eye, FileText, Clock, Package, Truck, CheckCircle, AlertCircle } from 'lucide-react';
+import OrderStatusStepper from './OrderStatusStepper';
 
-type PrescriptionStatus = Database['public']['Enums']['prescription_status'];
-type OrderStatus = Database['public']['Enums']['order_status'];
-
-interface PrescriptionOrderData {
+interface Order {
   id: string;
+  user_id: string;
   total_amount: number;
-  status: OrderStatus;
+  status: string;
   created_at: string;
   phone_number: string | null;
   delivery_address: string | null;
+  county: string | null;
+  delivery_instructions: string | null;
+  delivery_fee: number | null;
+  payment_method: string | null;
+  currency: string | null;
+  requires_prescription: boolean | null;
+  prescription_approved: boolean | null;
   profiles: {
     full_name: string;
     email: string;
-  };
+  } | null;
+  order_items: {
+    quantity: number;
+    price: number;
+    products: {
+      name: string;
+      prescription_required: boolean;
+    };
+  }[];
+  order_tracking: {
+    status: string;
+    created_at: string;
+    note: string | null;
+    location: string | null;
+  }[];
   prescriptions: {
     id: string;
+    status: string;
     image_url: string;
-    status: PrescriptionStatus;
     admin_notes: string | null;
     created_at: string;
   }[];
 }
 
-const AdminPrescriptionOrdersTable = () => {
-  const { data: prescriptionOrders, isLoading, refetch } = useQuery({
-    queryKey: ['prescriptionOrders'],
-    queryFn: async () => {
-      // First get orders that have prescriptions
-      const { data: ordersWithPrescriptions, error: ordersError } = await supabase
-        .from('prescriptions')
-        .select('order_id')
-        .not('order_id', 'is', null);
+interface AdminPrescriptionOrdersTableProps {
+  onStatusUpdate?: (orderId: string, newStatus: string) => void;
+}
 
-      if (ordersError) throw ordersError;
+const AdminPrescriptionOrdersTable: React.FC<AdminPrescriptionOrdersTableProps> = ({ onStatusUpdate }) => {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const { toast } = useToast();
 
-      const orderIds = ordersWithPrescriptions.map(p => p.order_id);
-      
-      if (orderIds.length === 0) return [];
+  useEffect(() => {
+    fetchOrders();
+  }, []);
 
+  const fetchOrders = async () => {
+    try {
       const { data, error } = await supabase
         .from('orders')
         .select(`
-          id,
-          total_amount,
-          status,
-          created_at,
-          phone_number,
-          delivery_address,
-          user_id,
+          *,
+          profiles (full_name, email),
+          order_items (
+            quantity,
+            price,
+            products (name, prescription_required)
+          ),
+          order_tracking (
+            status,
+            created_at,
+            note,
+            location
+          ),
           prescriptions (
             id,
-            image_url,
             status,
+            image_url,
             admin_notes,
             created_at
           )
         `)
-        .in('id', orderIds)
+        .eq('requires_prescription', true)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      // Get user profiles separately
-      const userIds = data.map(order => order.user_id);
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, full_name, email')
-        .in('id', userIds);
-
-      if (profilesError) throw profilesError;
-
-      // Combine the data
-      return data.map(order => ({
-        ...order,
-        profiles: profiles.find(p => p.id === order.user_id) || { full_name: 'Unknown', email: 'Unknown' }
-      })) as PrescriptionOrderData[];
+      setOrders(data || []);
+    } catch (error) {
+      console.error('Error fetching prescription orders:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch prescription orders",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
-  });
+  };
 
-  const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
-    const { error } = await supabase
-      .from('orders')
-      .update({ status })
-      .eq('id', orderId);
+  const handleStatusUpdate = async (orderId: string, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: newStatus as any })
+        .eq('id', orderId);
 
-    if (error) {
-      toast.error('Failed to update order status');
-    } else {
-      toast.success('Order status updated successfully');
-      refetch();
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `Order status updated to ${newStatus}`,
+      });
+
+      // Refresh orders
+      fetchOrders();
+      
+      // Call parent callback
+      if (onStatusUpdate) {
+        onStatusUpdate(orderId, newStatus);
+      }
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update order status",
+        variant: "destructive"
+      });
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'approved': return 'bg-green-100 text-green-800';
-      case 'delivered': return 'bg-blue-100 text-blue-800';
+      case 'confirmed': return 'bg-blue-100 text-blue-800';
+      case 'processing': return 'bg-purple-100 text-purple-800';
+      case 'shipped': return 'bg-indigo-100 text-indigo-800';
+      case 'out_for_delivery': return 'bg-orange-100 text-orange-800';
+      case 'delivered': return 'bg-green-100 text-green-800';
       case 'cancelled': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'pending': return <Clock className="h-4 w-4" />;
+      case 'confirmed': return <CheckCircle className="h-4 w-4" />;
+      case 'processing': return <Package className="h-4 w-4" />;
+      case 'shipped': return <Truck className="h-4 w-4" />;
+      case 'out_for_delivery': return <Truck className="h-4 w-4" />;
+      case 'delivered': return <CheckCircle className="h-4 w-4" />;
+      default: return <Clock className="h-4 w-4" />;
+    }
+  };
+
+  const formatStatus = (status: string) => {
+    return status.split('_').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ');
+  };
+
+  const getPrescriptionStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'approved': return 'bg-green-100 text-green-800';
       case 'rejected': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  if (isLoading) {
+  if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Orders with Prescriptions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8">Loading prescription orders...</div>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Orders with Prescriptions ({prescriptionOrders?.length || 0})</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {prescriptionOrders && prescriptionOrders.length > 0 ? (
-          <div className="space-y-6">
-            {prescriptionOrders.map((order) => (
-              <div key={order.id} className="border rounded-lg p-4 space-y-4">
-                <div className="flex items-center justify-between">
+    <div className="space-y-4">
+      {orders.length === 0 ? (
+        <div className="text-center py-8">
+          <FileText className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Prescription Orders Found</h3>
+          <p className="text-gray-600">No orders requiring prescriptions to display</p>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {orders.map((order) => (
+            <Card key={order.id}>
+              <CardHeader className="pb-3">
+                <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="font-semibold">Order #{order.id.slice(0, 8)}</h3>
-                    <p className="text-sm text-gray-600">
-                      Customer: {order.profiles?.full_name} ({order.profiles?.email})
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Amount: KES {Number(order.total_amount).toLocaleString()}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Phone: {order.phone_number || 'Not provided'}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Address: {order.delivery_address || 'Not provided'}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Created: {format(new Date(order.created_at), 'PPp')}
+                    <CardTitle className="text-lg">Order #{order.id.slice(-8)}</CardTitle>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {order.profiles?.full_name || 'Unknown User'} • {new Date(order.created_at).toLocaleDateString()}
                     </p>
                   </div>
-                  <div className="text-right space-y-2">
+                  <div className="flex items-center gap-2">
                     <Badge className={getStatusColor(order.status)}>
-                      {order.status}
+                      {getStatusIcon(order.status)}
+                      <span className="ml-1">{formatStatus(order.status)}</span>
                     </Badge>
-                    {order.status === 'pending' && (
-                      <div className="space-x-2">
+                    {order.prescriptions.length > 0 && (
+                      <Badge className={getPrescriptionStatusColor(order.prescriptions[0].status)}>
+                        <FileText className="h-3 w-3 mr-1" />
+                        Prescription: {order.prescriptions[0].status}
+                      </Badge>
+                    )}
+                    <Dialog>
+                      <DialogTrigger asChild>
                         <Button 
+                          variant="outline" 
                           size="sm"
-                          onClick={() => updateOrderStatus(order.id, 'approved')}
+                          onClick={() => setSelectedOrder(order)}
                         >
-                          Approve
+                          <Eye className="h-4 w-4 mr-1" />
+                          View
                         </Button>
-                        <Button 
-                          size="sm" 
-                          variant="destructive"
-                          onClick={() => updateOrderStatus(order.id, 'cancelled')}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    )}
-                    {order.status === 'approved' && (
-                      <Button 
-                        size="sm"
-                        onClick={() => updateOrderStatus(order.id, 'delivered')}
-                      >
-                        Mark Delivered
-                      </Button>
-                    )}
-                  </div>
-                </div>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle>Prescription Order Details #{order.id.slice(-8)}</DialogTitle>
+                        </DialogHeader>
+                        
+                        {selectedOrder && (
+                          <div className="space-y-6">
+                            {/* Order Progress */}
+                            <OrderStatusStepper
+                              currentStatus={selectedOrder.status}
+                              orderTracking={selectedOrder.order_tracking}
+                            />
 
-                <div className="border-t pt-4">
-                  <h4 className="font-medium mb-3">Prescriptions ({order.prescriptions.length})</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {order.prescriptions.map((prescription) => (
-                      <div key={prescription.id} className="border rounded p-3 space-y-2">
-                        <img 
-                          src={prescription.image_url} 
-                          alt="Prescription"
-                          className="w-full h-32 object-cover rounded"
-                        />
-                        <div className="flex items-center justify-between">
-                          <Badge className={getStatusColor(prescription.status)}>
-                            {prescription.status}
-                          </Badge>
-                          <span className="text-xs text-gray-500">
-                            {format(new Date(prescription.created_at), 'PP')}
-                          </span>
-                        </div>
-                        {prescription.admin_notes && (
-                          <div className="text-xs">
-                            <span className="font-medium">Notes:</span>
-                            <p className="text-gray-600 mt-1">{prescription.admin_notes}</p>
+                            {/* Customer & Order Info */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle className="text-lg">Customer Information</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                  <div>
+                                    <p className="font-medium">{selectedOrder.profiles?.full_name || 'Unknown User'}</p>
+                                    <p className="text-sm text-gray-600">{selectedOrder.profiles?.email || 'No email'}</p>
+                                  </div>
+                                  {selectedOrder.phone_number && (
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm">{selectedOrder.phone_number}</span>
+                                    </div>
+                                  )}
+                                </CardContent>
+                              </Card>
+
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle className="text-lg">Order Summary</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                  <div className="flex justify-between">
+                                    <span>Total Amount:</span>
+                                    <span className="font-medium">{selectedOrder.currency || 'KES'} {selectedOrder.total_amount.toLocaleString()}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span>Prescription Approved:</span>
+                                    <span className="font-medium">
+                                      {selectedOrder.prescription_approved ? 'Yes' : 'No'}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span>Delivery Fee:</span>
+                                    <span className="font-medium">{selectedOrder.delivery_fee === 0 ? 'Free' : `${selectedOrder.currency || 'KES'} ${selectedOrder.delivery_fee?.toLocaleString() || 0}`}</span>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            </div>
+
+                            {/* Prescription Information */}
+                            {selectedOrder.prescriptions.length > 0 && (
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle className="text-lg flex items-center gap-2">
+                                    <FileText className="h-5 w-5" />
+                                    Prescription Details
+                                  </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                  {selectedOrder.prescriptions.map((prescription, index) => (
+                                    <div key={prescription.id} className="space-y-3 border-b pb-3 last:border-b-0">
+                                      <div className="flex justify-between items-center">
+                                        <Badge className={getPrescriptionStatusColor(prescription.status)}>
+                                          {prescription.status}
+                                        </Badge>
+                                        <span className="text-sm text-gray-600">
+                                          {new Date(prescription.created_at).toLocaleDateString()}
+                                        </span>
+                                      </div>
+                                      {prescription.image_url && (
+                                        <div>
+                                          <img 
+                                            src={prescription.image_url} 
+                                            alt="Prescription" 
+                                            className="max-w-xs rounded-lg border"
+                                          />
+                                        </div>
+                                      )}
+                                      {prescription.admin_notes && (
+                                        <div>
+                                          <p className="font-medium">Admin Notes:</p>
+                                          <p className="text-sm text-gray-600">{prescription.admin_notes}</p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </CardContent>
+                              </Card>
+                            )}
+
+                            {/* Order Items */}
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="text-lg">Order Items</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <div className="space-y-3">
+                                  {selectedOrder.order_items.map((item, index) => (
+                                    <div key={index} className="flex justify-between items-center py-2 border-b last:border-b-0">
+                                      <div className="flex-1">
+                                        <p className="font-medium">{item.products.name}</p>
+                                        <p className="text-sm text-gray-600">
+                                          Qty: {item.quantity} × {selectedOrder.currency || 'KES'} {item.price}
+                                        </p>
+                                        {item.products.prescription_required && (
+                                          <Badge variant="outline" className="text-xs mt-1">
+                                            Prescription Required
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <span className="font-medium">
+                                        {selectedOrder.currency || 'KES'} {(item.quantity * item.price).toLocaleString()}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </CardContent>
+                            </Card>
+
+                            {/* Status Update */}
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="text-lg">Update Order Status</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <div className="flex items-center gap-4">
+                                  <Select
+                                    value={selectedOrder.status}
+                                    onValueChange={(value) => handleStatusUpdate(selectedOrder.id, value)}
+                                  >
+                                    <SelectTrigger className="w-48">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="pending">Pending</SelectItem>
+                                      <SelectItem value="confirmed">Confirmed</SelectItem>
+                                      <SelectItem value="processing">Processing</SelectItem>
+                                      <SelectItem value="shipped">Shipped</SelectItem>
+                                      <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
+                                      <SelectItem value="delivered">Delivered</SelectItem>
+                                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <p className="text-sm text-gray-600">
+                                    Current status: <span className="font-medium">{formatStatus(selectedOrder.status)}</span>
+                                  </p>
+                                </div>
+                              </CardContent>
+                            </Card>
                           </div>
                         )}
-                      </div>
-                    ))}
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-8 text-gray-500">
-            No orders with prescriptions found.
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-600">Total Amount</p>
+                    <p className="font-medium">{order.currency || 'KES'} {order.total_amount.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Items</p>
+                    <p className="font-medium">{order.order_items.length} item(s)</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">County</p>
+                    <p className="font-medium">{order.county || 'Not specified'}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Prescription</p>
+                    <p className="font-medium">
+                      {order.prescription_approved ? 'Approved' : 'Pending'}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 
