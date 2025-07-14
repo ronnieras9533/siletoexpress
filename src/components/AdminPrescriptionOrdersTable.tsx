@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
@@ -5,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Eye, FileText, Clock, Package, Truck, CheckCircle, AlertCircle } from 'lucide-react';
+import { Eye, FileText, Clock, Package, Truck, CheckCircle, AlertCircle, Check, X } from 'lucide-react';
 import OrderStatusStepper from './OrderStatusStepper';
 
 interface Order {
@@ -59,6 +61,7 @@ const AdminPrescriptionOrdersTable: React.FC<AdminPrescriptionOrdersTableProps> 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [adminNotes, setAdminNotes] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -155,6 +158,36 @@ const AdminPrescriptionOrdersTable: React.FC<AdminPrescriptionOrdersTableProps> 
       toast({
         title: "Error",
         description: "Failed to update order status",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handlePrescriptionApproval = async (prescriptionId: string, status: 'approved' | 'rejected', notes: string) => {
+    try {
+      const { error } = await supabase
+        .from('prescriptions')
+        .update({ 
+          status: status,
+          admin_notes: notes 
+        })
+        .eq('id', prescriptionId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `Prescription ${status} successfully`,
+      });
+
+      // Refresh orders
+      fetchOrders();
+      setAdminNotes('');
+    } catch (error) {
+      console.error('Error updating prescription:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update prescription",
         variant: "destructive"
       });
     }
@@ -349,7 +382,7 @@ const AdminPrescriptionOrdersTable: React.FC<AdminPrescriptionOrdersTableProps> 
                                 </CardHeader>
                                 <CardContent>
                                   {selectedOrder.prescriptions.map((prescription, index) => (
-                                    <div key={prescription.id} className="space-y-3 border-b pb-3 last:border-b-0">
+                                    <div key={prescription.id} className="space-y-4 border-b pb-4 last:border-b-0">
                                       <div className="flex justify-between items-center">
                                         <Badge className={getPrescriptionStatusColor(prescription.status)}>
                                           {prescription.status}
@@ -377,6 +410,36 @@ const AdminPrescriptionOrdersTable: React.FC<AdminPrescriptionOrdersTableProps> 
                                         <div>
                                           <p className="font-medium">Admin Notes:</p>
                                           <p className="text-sm text-gray-600">{prescription.admin_notes}</p>
+                                        </div>
+                                      )}
+
+                                      {prescription.status === 'pending' && (
+                                        <div className="space-y-3">
+                                          <div>
+                                            <label className="block text-sm font-medium mb-2">Admin Notes:</label>
+                                            <Textarea
+                                              value={adminNotes}
+                                              onChange={(e) => setAdminNotes(e.target.value)}
+                                              placeholder="Add notes about the prescription..."
+                                              className="min-h-[80px]"
+                                            />
+                                          </div>
+                                          <div className="flex gap-2">
+                                            <Button
+                                              onClick={() => handlePrescriptionApproval(prescription.id, 'approved', adminNotes)}
+                                              className="bg-green-600 hover:bg-green-700"
+                                            >
+                                              <Check className="h-4 w-4 mr-2" />
+                                              Approve
+                                            </Button>
+                                            <Button
+                                              onClick={() => handlePrescriptionApproval(prescription.id, 'rejected', adminNotes)}
+                                              variant="destructive"
+                                            >
+                                              <X className="h-4 w-4 mr-2" />
+                                              Reject
+                                            </Button>
+                                          </div>
                                         </div>
                                       )}
                                     </div>
