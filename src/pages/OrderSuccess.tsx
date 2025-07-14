@@ -3,14 +3,21 @@ import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, AlertCircle, Home, ShoppingBag } from 'lucide-react';
+import { CheckCircle, AlertCircle, Home, ShoppingBag, MapPin } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
 const OrderSuccess = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { orderId, hasPrescriptionItems, totalAmount } = location.state || {};
+  const { 
+    orderId, 
+    hasPrescriptionItems, 
+    totalAmount, 
+    county,
+    deliveryFee,
+    deliveryInstructions 
+  } = location.state || {};
 
   if (!orderId) {
     navigate('/');
@@ -42,6 +49,25 @@ const OrderSuccess = () => {
                 </p>
               </div>
 
+              {/* Delivery Information */}
+              {county && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-blue-800 mb-2">
+                    <MapPin size={16} />
+                    <span className="font-medium">Delivery Information</span>
+                  </div>
+                  <div className="space-y-1 text-sm text-blue-700">
+                    <p><span className="font-medium">County:</span> {county}</p>
+                    {deliveryFee !== undefined && (
+                      <p><span className="font-medium">Delivery Fee:</span> {deliveryFee === 0 ? 'Free' : `KES ${deliveryFee.toLocaleString()}`}</p>
+                    )}
+                    {deliveryInstructions && (
+                      <p><span className="font-medium">Instructions:</span> {deliveryInstructions}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {hasPrescriptionItems && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                   <div className="flex items-center gap-2 text-yellow-800 mb-2">
@@ -72,14 +98,15 @@ const OrderSuccess = () => {
                     {hasPrescriptionItems && <li>• Prescription items will be reviewed separately</li>}
                     <li>• We'll prepare your order for delivery</li>
                     <li>• You'll receive delivery tracking information</li>
+                    <li>• You'll be notified when your order is delivered</li>
                   </ul>
                 </div>
 
                 <div className="border-t pt-4">
                   <h3 className="font-medium mb-2">Need help?</h3>
                   <p className="text-sm text-gray-600">
-                    Contact us at <span className="font-medium">+254 700 123 456</span> or email{' '}
-                    <span className="font-medium">support@siletorx.com</span>
+                    Contact us at <span className="font-medium">+254 718 925 368</span> or email{' '}
+                    <span className="font-medium">support@siletoexpress.com</span>
                   </p>
                 </div>
               </div>

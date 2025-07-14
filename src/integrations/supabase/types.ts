@@ -198,10 +198,14 @@ export type Database = {
       }
       orders: {
         Row: {
+          county: string | null
           created_at: string
           currency: string | null
           delivery_address: string | null
+          delivery_fee: number | null
+          delivery_instructions: string | null
           id: string
+          location_point: unknown | null
           mpesa_receipt_number: string | null
           payment_initiated: boolean | null
           payment_method: string | null
@@ -213,10 +217,14 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          county?: string | null
           created_at?: string
           currency?: string | null
           delivery_address?: string | null
+          delivery_fee?: number | null
+          delivery_instructions?: string | null
           id?: string
+          location_point?: unknown | null
           mpesa_receipt_number?: string | null
           payment_initiated?: boolean | null
           payment_method?: string | null
@@ -228,10 +236,14 @@ export type Database = {
           user_id: string
         }
         Update: {
+          county?: string | null
           created_at?: string
           currency?: string | null
           delivery_address?: string | null
+          delivery_fee?: number | null
+          delivery_instructions?: string | null
           id?: string
+          location_point?: unknown | null
           mpesa_receipt_number?: string | null
           payment_initiated?: boolean | null
           payment_method?: string | null
@@ -418,6 +430,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      calculate_delivery_fee: {
+        Args: { county_name: string; order_total: number }
+        Returns: number
+      }
       is_admin: {
         Args: { user_id?: string }
         Returns: boolean
@@ -429,7 +445,15 @@ export type Database = {
         | "prescription_update"
         | "payment_required"
         | "general"
-      order_status: "pending" | "approved" | "delivered" | "cancelled"
+      order_status:
+        | "pending"
+        | "approved"
+        | "delivered"
+        | "cancelled"
+        | "confirmed"
+        | "processing"
+        | "shipped"
+        | "out_for_delivery"
       prescription_status: "pending" | "approved" | "rejected"
       user_role: "user" | "admin"
     }
@@ -565,7 +589,16 @@ export const Constants = {
         "payment_required",
         "general",
       ],
-      order_status: ["pending", "approved", "delivered", "cancelled"],
+      order_status: [
+        "pending",
+        "approved",
+        "delivered",
+        "cancelled",
+        "confirmed",
+        "processing",
+        "shipped",
+        "out_for_delivery",
+      ],
       prescription_status: ["pending", "approved", "rejected"],
       user_role: ["user", "admin"],
     },

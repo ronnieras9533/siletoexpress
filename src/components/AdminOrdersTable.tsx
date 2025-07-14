@@ -1,223 +1,382 @@
 
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/components/ui/use-toast';
-import { format } from 'date-fns';
-import type { Database } from '@/integrations/supabase/types';
+import { Eye, MapPin, Phone, Clock, Package, Truck, CheckCircle } from 'lucide-react';
+import OrderStatusStepper from './OrderStatusStepper';
 
-type OrderStatus = Database['public']['Enums']['order_status'];
-
-interface OrderWithProfile {
+interface Order {
   id: string;
-  created_at: string;
-  total_amount: number;
-  status: OrderStatus;
-  phone_number: string | null;
-  delivery_address: string | null;
-  mpesa_receipt_number: string | null;
   user_id: string;
+  total_amount: number;
+  status: string;
+  created_at: string;
+  phone_number: string;
+  delivery_address: string;
+  county: string;
+  delivery_instructions: string;
+  delivery_fee: number;
+  payment_method: string;
+  currency: string;
+  requires_prescription: boolean;
   profiles: {
     full_name: string;
     email: string;
-  } | null;
+  };
   order_items: {
     quantity: number;
     price: number;
     products: {
       name: string;
-    } | null;
+      prescription_required: boolean;
+    };
+  }[];
+  order_tracking: {
+    status: string;
+    created_at: string;
+    note: string;
+    location: string;
   }[];
 }
 
-const AdminOrdersTable = () => {
+interface AdminOrdersTableProps {
+  orderType: 'regular' | 'all';
+  onStatusUpdate?: (orderId: string, newStatus: string) => void;
+}
+
+const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType, onStatusUpdate }) => {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const { toast } = useToast();
 
-  const { data: orders, isLoading, refetch } = useQuery({
-    queryKey: ['adminOrdersWithoutPrescriptions'],
-    queryFn: async () => {
-      console.log('Fetching orders WITHOUT prescriptions...');
-      
-      // First get order IDs that have prescriptions
-      const { data: ordersWithPrescriptions, error: prescError } = await supabase
-        .from('prescriptions')
-        .select('order_id')
-        .not('order_id', 'is', null);
+  useEffect(() => {
+    fetchOrders();
+  }, [orderType]);
 
-      if (prescError) throw prescError;
-
-      const orderIdsWithPrescriptions = ordersWithPrescriptions.map(p => p.order_id);
-      
-      console.log('Order IDs with prescriptions:', orderIdsWithPrescriptions);
-      
-      // Get orders that don't have prescriptions
+  const fetchOrders = async () => {
+    try {
       let query = supabase
         .from('orders')
         .select(`
           *,
-          order_items(
+          profiles (full_name, email),
+          order_items (
             quantity,
             price,
-            products(name)
+            products (name, prescription_required)
+          ),
+          order_tracking (
+            status,
+            created_at,
+            note,
+            location
           )
         `)
         .order('created_at', { ascending: false });
 
-      // Exclude orders that have prescriptions
-      if (orderIdsWithPrescriptions.length > 0) {
-        query = query.not('id', 'in', `(${orderIdsWithPrescriptions.join(',')})`);
+      // Filter based on order type
+      if (orderType === 'regular') {
+        query = query.or('requires_prescription.is.null,requires_prescription.eq.false');
       }
 
       const { data, error } = await query;
-      
-      if (error) {
-        console.error('Error fetching orders:', error);
-        throw error;
-      }
 
-      console.log('Raw orders data (without prescriptions):', data);
+      if (error) throw error;
 
-      // Fetch profiles separately
-      const userIds = data.map(order => order.user_id);
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, full_name, email')
-        .in('id', userIds);
-
-      if (profilesError) {
-        console.error('Error fetching profiles:', profilesError);
-        throw profilesError;
-      }
-
-      // Combine orders with profiles
-      const ordersWithProfiles = data.map(order => ({
-        ...order,
-        profiles: profiles?.find(profile => profile.id === order.user_id) || null
-      }));
-
-      console.log('Orders without prescriptions:', ordersWithProfiles);
-      return ordersWithProfiles as OrderWithProfile[];
+      setOrders(data || []);
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch orders",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
-  });
+  };
 
-  const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
-    const { error } = await supabase
-      .from('orders')
-      .update({ status })
-      .eq('id', orderId);
+  const handleStatusUpdate = async (orderId: string, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: newStatus })
+        .eq('id', orderId);
 
-    if (error) {
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `Order status updated to ${newStatus}`,
+      });
+
+      // Refresh orders
+      fetchOrders();
+      
+      // Call parent callback
+      if (onStatusUpdate) {
+        onStatusUpdate(orderId, newStatus);
+      }
+    } catch (error) {
+      console.error('Error updating order status:', error);
       toast({
         title: "Error",
         description: "Failed to update order status",
         variant: "destructive"
       });
-    } else {
-      toast({
-        title: "Success",
-        description: "Order status updated successfully"
-      });
-      refetch();
     }
   };
 
-  const getStatusColor = (status: OrderStatus) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'approved': return 'bg-green-100 text-green-800';
-      case 'delivered': return 'bg-blue-100 text-blue-800';
+      case 'confirmed': return 'bg-blue-100 text-blue-800';
+      case 'processing': return 'bg-purple-100 text-purple-800';
+      case 'shipped': return 'bg-indigo-100 text-indigo-800';
+      case 'out_for_delivery': return 'bg-orange-100 text-orange-800';
+      case 'delivered': return 'bg-green-100 text-green-800';
       case 'cancelled': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  if (isLoading) {
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'pending': return <Clock className="h-4 w-4" />;
+      case 'confirmed': return <CheckCircle className="h-4 w-4" />;
+      case 'processing': return <Package className="h-4 w-4" />;
+      case 'shipped': return <Truck className="h-4 w-4" />;
+      case 'out_for_delivery': return <Truck className="h-4 w-4" />;
+      case 'delivered': return <CheckCircle className="h-4 w-4" />;
+      default: return <Clock className="h-4 w-4" />;
+    }
+  };
+
+  const formatStatus = (status: string) => {
+    return status.split('_').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ');
+  };
+
+  if (loading) {
     return (
-      <Card>
-        <CardContent className="p-6">
-          <div className="text-center">Loading orders...</div>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Regular Order Management</CardTitle>
-        <p className="text-sm text-gray-600">
-          Orders without prescription requirements
-        </p>
-      </CardHeader>
-      <CardContent>
-        {orders && orders.length > 0 ? (
-          <div className="space-y-4">
-            {orders.map((order) => (
-              <div key={order.id} className="border rounded-lg p-4">
-                <div className="flex items-center justify-between mb-4">
+    <div className="space-y-4">
+      {orders.length === 0 ? (
+        <div className="text-center py-8">
+          <Package className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Orders Found</h3>
+          <p className="text-gray-600">No {orderType === 'regular' ? 'regular' : ''} orders to display</p>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {orders.map((order) => (
+            <Card key={order.id}>
+              <CardHeader className="pb-3">
+                <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="font-medium">Order #{order.id.slice(0, 8)}</h3>
-                    <p className="text-sm text-gray-600">
-                      {order.profiles?.full_name || 'Unknown User'} ({order.profiles?.email || 'No email'})
+                    <CardTitle className="text-lg">Order #{order.id.slice(-8)}</CardTitle>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {order.profiles.full_name} • {new Date(order.created_at).toLocaleDateString()}
                     </p>
-                    <p className="text-sm text-gray-500">
-                      {format(new Date(order.created_at), 'MMM dd, yyyy HH:mm')}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-lg font-bold">KES {Number(order.total_amount).toLocaleString()}</p>
-                    <Badge className={getStatusColor(order.status)}>
-                      {order.status}
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className="mb-4">
-                  <h4 className="font-medium mb-2">Items:</h4>
-                  <div className="space-y-1">
-                    {order.order_items?.map((item, index) => (
-                      <div key={index} className="text-sm text-gray-600">
-                        {item.products?.name || 'Unknown Product'} - Qty: {item.quantity} - KES {Number(item.price).toLocaleString()}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-600">
-                    <p>Phone: {order.phone_number || 'N/A'}</p>
-                    <p>Address: {order.delivery_address || 'N/A'}</p>
-                    {order.mpesa_receipt_number && (
-                      <p>M-PESA Receipt: {order.mpesa_receipt_number}</p>
-                    )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <Select value={order.status} onValueChange={(value: OrderStatus) => updateOrderStatus(order.id, value)}>
-                      <SelectTrigger className="w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="approved">Approved</SelectItem>
-                        <SelectItem value="delivered">Delivered</SelectItem>
-                        <SelectItem value="cancelled">Cancelled</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Badge className={getStatusColor(order.status)}>
+                      {getStatusIcon(order.status)}
+                      <span className="ml-1">{formatStatus(order.status)}</span>
+                    </Badge>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => setSelectedOrder(order)}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          View
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle>Order Details #{order.id.slice(-8)}</DialogTitle>
+                        </DialogHeader>
+                        
+                        {selectedOrder && (
+                          <div className="space-y-6">
+                            {/* Order Progress */}
+                            <OrderStatusStepper
+                              currentStatus={selectedOrder.status}
+                              orderTracking={selectedOrder.order_tracking}
+                            />
+
+                            {/* Customer & Order Info */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle className="text-lg">Customer Information</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                  <div>
+                                    <p className="font-medium">{selectedOrder.profiles.full_name}</p>
+                                    <p className="text-sm text-gray-600">{selectedOrder.profiles.email}</p>
+                                  </div>
+                                  {selectedOrder.phone_number && (
+                                    <div className="flex items-center gap-2">
+                                      <Phone className="h-4 w-4 text-gray-500" />
+                                      <span className="text-sm">{selectedOrder.phone_number}</span>
+                                    </div>
+                                  )}
+                                </CardContent>
+                              </Card>
+
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle className="text-lg">Order Summary</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                  <div className="flex justify-between">
+                                    <span>Total Amount:</span>
+                                    <span className="font-medium">{selectedOrder.currency} {selectedOrder.total_amount.toLocaleString()}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span>Payment Method:</span>
+                                    <span className="font-medium">{selectedOrder.payment_method}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span>Delivery Fee:</span>
+                                    <span className="font-medium">{selectedOrder.delivery_fee === 0 ? 'Free' : `${selectedOrder.currency} ${selectedOrder.delivery_fee.toLocaleString()}`}</span>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            </div>
+
+                            {/* Delivery Information */}
+                            {selectedOrder.county && (
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle className="text-lg flex items-center gap-2">
+                                    <MapPin className="h-5 w-5" />
+                                    Delivery Information
+                                  </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                  <div>
+                                    <p className="font-medium">County:</p>
+                                    <p className="text-sm text-gray-600">{selectedOrder.county}</p>
+                                  </div>
+                                  <div>
+                                    <p className="font-medium">Address:</p>
+                                    <p className="text-sm text-gray-600">{selectedOrder.delivery_address}</p>
+                                  </div>
+                                  {selectedOrder.delivery_instructions && (
+                                    <div>
+                                      <p className="font-medium">Delivery Instructions:</p>
+                                      <p className="text-sm text-gray-600">{selectedOrder.delivery_instructions}</p>
+                                    </div>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            )}
+
+                            {/* Order Items */}
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="text-lg">Order Items</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <div className="space-y-3">
+                                  {selectedOrder.order_items.map((item, index) => (
+                                    <div key={index} className="flex justify-between items-center py-2 border-b last:border-b-0">
+                                      <div className="flex-1">
+                                        <p className="font-medium">{item.products.name}</p>
+                                        <p className="text-sm text-gray-600">
+                                          Qty: {item.quantity} × {selectedOrder.currency} {item.price}
+                                        </p>
+                                        {item.products.prescription_required && (
+                                          <Badge variant="outline" className="text-xs mt-1">
+                                            Prescription Required
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <span className="font-medium">
+                                        {selectedOrder.currency} {(item.quantity * item.price).toLocaleString()}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </CardContent>
+                            </Card>
+
+                            {/* Status Update */}
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="text-lg">Update Order Status</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <div className="flex items-center gap-4">
+                                  <Select
+                                    value={selectedOrder.status}
+                                    onValueChange={(value) => handleStatusUpdate(selectedOrder.id, value)}
+                                  >
+                                    <SelectTrigger className="w-48">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="pending">Pending</SelectItem>
+                                      <SelectItem value="confirmed">Confirmed</SelectItem>
+                                      <SelectItem value="processing">Processing</SelectItem>
+                                      <SelectItem value="shipped">Shipped</SelectItem>
+                                      <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
+                                      <SelectItem value="delivered">Delivered</SelectItem>
+                                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <p className="text-sm text-gray-600">
+                                    Current status: <span className="font-medium">{formatStatus(selectedOrder.status)}</span>
+                                  </p>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </div>
+                        )}
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-8 text-gray-500">
-            No regular orders found.
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-600">Total Amount</p>
+                    <p className="font-medium">{order.currency} {order.total_amount.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Items</p>
+                    <p className="font-medium">{order.order_items.length} item(s)</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">County</p>
+                    <p className="font-medium">{order.county || 'Not specified'}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 

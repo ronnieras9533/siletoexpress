@@ -1,19 +1,21 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, CreditCard, AlertCircle, Smartphone, MessageCircle } from 'lucide-react';
+import { ArrowLeft, CreditCard, AlertCircle, Smartphone, MessageCircle, MapPin } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import OrderPrescriptionUpload from '@/components/OrderPrescriptionUpload';
 import PesapalPaymentButton from '@/components/PesapalPaymentButton';
+import KenyaCountiesSelect from '@/components/KenyaCountiesSelect';
 
 const Checkout = () => {
   const { items, getTotalPrice, hasPrescriptionItems, clearCart } = useCart();
@@ -24,17 +26,75 @@ const Checkout = () => {
   const [showPrescriptionUpload, setShowPrescriptionUpload] = useState(false);
   const [prescriptionId, setPrescriptionId] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'card' | 'mobile'>('mpesa');
+  const [deliveryFee, setDeliveryFee] = useState(0);
   const [formData, setFormData] = useState({
     phone: '',
     address: '',
     city: '',
+    county: '',
+    deliveryInstructions: '',
     notes: ''
   });
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Calculate delivery fee based on county and order total
+  useEffect(() => {
+    const calculateDeliveryFee = async () => {
+      if (!formData.county) {
+        setDeliveryFee(0);
+        return;
+      }
+
+      const orderTotal = getTotalPrice();
+      
+      try {
+        const { data, error } = await supabase
+          .rpc('calculate_delivery_fee', {
+            county_name: formData.county,
+            order_total: orderTotal
+          });
+
+        if (error) {
+          console.error('Error calculating delivery fee:', error);
+          // Fallback calculation
+          if (orderTotal >= 2000) {
+            setDeliveryFee(0);
+          } else {
+            switch (formData.county.toLowerCase()) {
+              case 'nairobi':
+                setDeliveryFee(0);
+                break;
+              case 'kiambu':
+              case 'kajiado':
+              case 'machakos':
+                setDeliveryFee(200);
+                break;
+              default:
+                setDeliveryFee(300);
+            }
+          }
+        } else {
+          setDeliveryFee(data || 0);
+        }
+      } catch (error) {
+        console.error('Error calculating delivery fee:', error);
+        setDeliveryFee(0);
+      }
+    };
+
+    calculateDeliveryFee();
+  }, [formData.county, getTotalPrice]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData(prev => ({
       ...prev,
       [e.target.name]: e.target.value
+    }));
+  };
+
+  const handleCountyChange = (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      county: value
     }));
   };
 
@@ -66,15 +126,18 @@ const Checkout = () => {
       `• ${item.name} (Qty: ${item.quantity}) - KES ${(item.price * item.quantity).toLocaleString()}`
     ).join('\n');
     
+    const totalAmount = getTotalPrice() + deliveryFee;
+    
     const message = `Hi SiletoExpress, I need help with my checkout:
 
 ORDER SUMMARY:
 ${orderSummary}
 
 Subtotal: KES ${getTotalPrice().toLocaleString()}
-Delivery: ${deliveryFee === 0 ? 'Free' : `KES ${deliveryFee}`}
+Delivery Fee: KES ${deliveryFee.toLocaleString()}
 Total: KES ${totalAmount.toLocaleString()}
 
+County: ${formData.county}
 ${hasPrescriptionItems() ? '⚠️ This order includes prescription items' : ''}
 
 Please assist me with completing this order.`;
@@ -84,7 +147,7 @@ Please assist me with completing this order.`;
   };
 
   const createOrder = async () => {
-    const totalAmount = getTotalPrice() + (getTotalPrice() >= 2000 ? 0 : 200);
+    const totalAmount = getTotalPrice() + deliveryFee;
     
     // Create order
     const { data: order, error: orderError } = await supabase
@@ -94,9 +157,13 @@ Please assist me with completing this order.`;
         total_amount: totalAmount,
         phone_number: formData.phone,
         delivery_address: `${formData.address}, ${formData.city}`,
+        county: formData.county,
+        delivery_instructions: formData.deliveryInstructions,
+        delivery_fee: deliveryFee,
         status: 'pending',
         payment_method: paymentMethod,
-        currency: 'KES'
+        currency: 'KES',
+        requires_prescription: hasPrescriptionItems()
       })
       .select()
       .single();
@@ -131,9 +198,9 @@ Please assist me with completing this order.`;
   const handleMpesaPayment = async () => {
     setLoading(true);
     try {
-      const totalAmount = getTotalPrice() + (getTotalPrice() >= 2000 ? 0 : 200);
+      const totalAmount = getTotalPrice() + deliveryFee;
 
-      // Create payment intent with order data (but don't create order yet)
+      // Create payment intent with order data
       const { data: paymentIntent, error: paymentError } = await supabase
         .from('payments')
         .insert({
@@ -152,6 +219,9 @@ Please assist me with completing this order.`;
             })),
             phone_number: formData.phone,
             delivery_address: `${formData.address}, ${formData.city}`,
+            county: formData.county,
+            delivery_instructions: formData.deliveryInstructions,
+            delivery_fee: deliveryFee,
             prescription_id: prescriptionId,
             notes: formData.notes
           }
@@ -169,7 +239,7 @@ Please assist me with completing this order.`;
       const paymentData = {
         phoneNumber: formData.phone,
         amount: totalAmount,
-        orderId: paymentIntent.id, // Use payment ID as order reference for now
+        orderId: paymentIntent.id,
         accountReference: paymentIntent.id,
         transactionDesc: `SiletoExpress Payment ${paymentIntent.id}`
       };
@@ -177,7 +247,6 @@ Please assist me with completing this order.`;
       const paymentResult = await initiateSTKPush(paymentIntent.id, totalAmount);
 
       if (paymentResult.success && paymentResult.checkoutRequestID) {
-        // Update payment with checkout request ID
         await supabase
           .from('payments')
           .update({ transaction_id: paymentResult.checkoutRequestID })
@@ -188,7 +257,6 @@ Please assist me with completing this order.`;
           description: "Please check your phone and enter your M-PESA PIN to complete the payment.",
         });
 
-        // Redirect to callback page for status monitoring
         navigate(`/mpesa-callback?checkout_request_id=${paymentResult.checkoutRequestID}&payment_id=${paymentIntent.id}`);
       } else {
         throw new Error(paymentResult.error || 'Failed to initiate M-PESA payment');
@@ -229,6 +297,25 @@ Please assist me with completing this order.`;
       return;
     }
 
+    // Validate required fields
+    if (!formData.county) {
+      toast({
+        title: "County Required",
+        description: "Please select your county for delivery.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!formData.deliveryInstructions.trim()) {
+      toast({
+        title: "Delivery Instructions Required",
+        description: "Please provide delivery instructions (estate, building, landmarks, etc.).",
+        variant: "destructive"
+      });
+      return;
+    }
+
     // Check if prescription items require prescription upload
     if (hasPrescriptionItems() && !prescriptionId) {
       setShowPrescriptionUpload(true);
@@ -238,7 +325,6 @@ Please assist me with completing this order.`;
     if (paymentMethod === 'mpesa') {
       await handleMpesaPayment();
     }
-    // Card payment is handled by the CardPaymentButton component
   };
 
   if (!user) {
@@ -251,7 +337,6 @@ Please assist me with completing this order.`;
     return null;
   }
 
-  const deliveryFee = getTotalPrice() >= 2000 ? 0 : 200;
   const totalAmount = getTotalPrice() + deliveryFee;
   const prescriptionItems = items.filter(item => item.prescription_required);
 
@@ -332,13 +417,41 @@ Please assist me with completing this order.`;
                       {paymentMethod === 'mpesa' ? 'Enter the phone number registered with M-PESA' : 'Your contact phone number'}
                     </p>
                   </div>
+
+                  <KenyaCountiesSelect
+                    value={formData.county}
+                    onValueChange={handleCountyChange}
+                    required
+                  />
+
+                  {deliveryFee > 0 && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <div className="flex items-center gap-2 text-blue-800">
+                        <MapPin size={16} />
+                        <span className="text-sm">
+                          Delivery fee for {formData.county}: KES {deliveryFee.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {deliveryFee === 0 && formData.county && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <div className="flex items-center gap-2 text-green-800">
+                        <MapPin size={16} />
+                        <span className="text-sm">
+                          {getTotalPrice() >= 2000 ? 'Free delivery (order over KES 2,000)' : 'Free delivery to ' + formData.county}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                   
                   <div>
-                    <Label htmlFor="address">Delivery Address</Label>
+                    <Label htmlFor="address">Street Address</Label>
                     <Input
                       id="address"
                       name="address"
-                      placeholder="Enter your delivery address"
+                      placeholder="Enter your street address"
                       value={formData.address}
                       onChange={handleInputChange}
                       required
@@ -346,25 +459,42 @@ Please assist me with completing this order.`;
                   </div>
                   
                   <div>
-                    <Label htmlFor="city">City</Label>
+                    <Label htmlFor="city">City/Town</Label>
                     <Input
                       id="city"
                       name="city"
-                      placeholder="Enter your city"
+                      placeholder="Enter your city/town"
                       value={formData.city}
                       onChange={handleInputChange}
                       required
                     />
                   </div>
+
+                  <div>
+                    <Label htmlFor="deliveryInstructions">Delivery Instructions <span className="text-red-500">*</span></Label>
+                    <Textarea
+                      id="deliveryInstructions"
+                      name="deliveryInstructions"
+                      placeholder="Estate name, building name, apartment number, landmarks, gate code, or any special instructions..."
+                      value={formData.deliveryInstructions}
+                      onChange={handleInputChange}
+                      required
+                      rows={3}
+                    />
+                    <p className="text-sm text-gray-600 mt-1">
+                      Please provide specific details to help our delivery team find you easily
+                    </p>
+                  </div>
                   
                   <div>
                     <Label htmlFor="notes">Additional Notes (Optional)</Label>
-                    <Input
+                    <Textarea
                       id="notes"
                       name="notes"
-                      placeholder="Any special instructions..."
+                      placeholder="Any other special instructions..."
                       value={formData.notes}
                       onChange={handleInputChange}
+                      rows={2}
                     />
                   </div>
 
@@ -431,12 +561,16 @@ Please assist me with completing this order.`;
                     <Button 
                       type="submit" 
                       className="w-full" 
-                      disabled={loading || (hasPrescriptionItems() && !prescriptionId)}
+                      disabled={loading || (hasPrescriptionItems() && !prescriptionId) || !formData.county || !formData.deliveryInstructions.trim()}
                     >
                       {loading ? (
                         'Processing Payment...'
                       ) : hasPrescriptionItems() && !prescriptionId ? (
                         'Upload Prescription First'
+                      ) : !formData.county ? (
+                        'Select County First'
+                      ) : !formData.deliveryInstructions.trim() ? (
+                        'Add Delivery Instructions'
                       ) : (
                         <>
                           <Smartphone className="mr-2 h-4 w-4" />
@@ -446,13 +580,30 @@ Please assist me with completing this order.`;
                     </Button>
                   ) : (
                     <div className="space-y-2">
-                      {(hasPrescriptionItems() && !prescriptionId) ? (
+                      {(hasPrescriptionItems() && !prescriptionId) || !formData.county || !formData.deliveryInstructions.trim() ? (
                         <Button 
                           type="button"
-                          onClick={() => setShowPrescriptionUpload(true)}
+                          onClick={() => {
+                            if (hasPrescriptionItems() && !prescriptionId) {
+                              setShowPrescriptionUpload(true);
+                            } else if (!formData.county) {
+                              toast({
+                                title: "County Required",
+                                description: "Please select your county for delivery.",
+                                variant: "destructive"
+                              });
+                            } else if (!formData.deliveryInstructions.trim()) {
+                              toast({
+                                title: "Delivery Instructions Required",
+                                description: "Please provide delivery instructions.",
+                                variant: "destructive"
+                              });
+                            }
+                          }}
                           className="w-full"
                         >
-                          Upload Prescription First
+                          {hasPrescriptionItems() && !prescriptionId ? 'Upload Prescription First' : 
+                           !formData.county ? 'Select County First' : 'Add Delivery Instructions'}
                         </Button>
                       ) : (
                         <PesapalPaymentButton
@@ -510,9 +661,14 @@ Please assist me with completing this order.`;
                     <span>KES {getTotalPrice().toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Delivery</span>
-                    <span>{deliveryFee === 0 ? 'Free' : `KES ${deliveryFee}`}</span>
+                    <span>Delivery Fee</span>
+                    <span>{deliveryFee === 0 ? 'Free' : `KES ${deliveryFee.toLocaleString()}`}</span>
                   </div>
+                  {formData.county && (
+                    <div className="text-sm text-gray-600">
+                      <span>Delivery to: {formData.county}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between font-bold text-lg border-t pt-2">
                     <span>Total</span>
                     <span className="text-blue-600">KES {totalAmount.toLocaleString()}</span>
