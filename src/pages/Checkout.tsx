@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, CreditCard, AlertCircle, Smartphone, MessageCircle, MapPin, Upload, FileText } from 'lucide-react';
+import { ArrowLeft, CreditCard, AlertCircle, Smartphone, MessageCircle, MapPin, Upload, FileText, Info } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import OrderPrescriptionUpload from '@/components/OrderPrescriptionUpload';
@@ -23,10 +23,10 @@ const Checkout = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [showPrescriptionUpload, setShowPrescriptionUpload] = useState(false);
-  const [prescriptionId, setPrescriptionId] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'card' | 'mobile'>('mpesa');
+  const [prescriptionId, setPrescriptionId] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('mpesa');
   const [deliveryFee, setDeliveryFee] = useState(0);
-  const [prescriptionFile, setPrescriptionFile] = useState<File | null>(null);
+  const [prescriptionFile, setPrescriptionFile] = useState(null);
   const [uploadingPrescription, setUploadingPrescription] = useState(false);
   const [formData, setFormData] = useState({
     phone: '',
@@ -85,21 +85,21 @@ const Checkout = () => {
     calculateDeliveryFee();
   }, [formData.county, getTotalPrice]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e) => {
     setFormData(prev => ({
       ...prev,
       [e.target.name]: e.target.value
     }));
   };
 
-  const handleCountyChange = (value: string) => {
+  const handleCountyChange = (value) => {
     setFormData(prev => ({
       ...prev,
       county: value
     }));
   };
 
-  const handlePrescriptionFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePrescriptionFileChange = (e) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       if (selectedFile.size > 10 * 1024 * 1024) {
@@ -173,7 +173,7 @@ const Checkout = () => {
     }
   };
 
-  const initiateSTKPush = async (orderId: string, totalAmount: number) => {
+  const initiateSTKPush = async (orderId, totalAmount) => {
     const { mpesaService } = await import('@/services/mpesaService');
     
     const paymentData = {
@@ -187,7 +187,7 @@ const Checkout = () => {
     return await mpesaService.initiateSTKPush(paymentData);
   };
 
-  const handlePrescriptionUploaded = (uploadedPrescriptionId: string) => {
+  const handlePrescriptionUploaded = (uploadedPrescriptionId) => {
     setPrescriptionId(uploadedPrescriptionId);
     setShowPrescriptionUpload(false);
     toast({
@@ -224,21 +224,26 @@ Please assist me with completing this order.`;
   const createOrder = async () => {
     const totalAmount = getTotalPrice() + deliveryFee;
     
+    // For prescription orders, set initial status to 'pending' and don't require payment
+    const orderStatus = hasPrescriptionItems() ? 'pending' : 'pending';
+    
     // Create order
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
-        user_id: user!.id,
+        user_id: user.id,
         total_amount: totalAmount,
         phone_number: formData.phone,
         delivery_address: `${formData.address}, ${formData.city}`,
         county: formData.county,
         delivery_instructions: formData.deliveryInstructions,
         delivery_fee: deliveryFee,
-        status: 'pending',
+        status: orderStatus,
         payment_method: paymentMethod,
         currency: 'KES',
-        requires_prescription: hasPrescriptionItems()
+        requires_prescription: hasPrescriptionItems(),
+        prescription_approved: false,
+        payment_initiated: false
       })
       .select()
       .single();
@@ -279,7 +284,7 @@ Please assist me with completing this order.`;
       const { data: paymentIntent, error: paymentError } = await supabase
         .from('payments')
         .insert({
-          user_id: user!.id,
+          user_id: user.id,
           method: 'mpesa',
           amount: totalAmount,
           currency: 'KES',
@@ -349,7 +354,31 @@ Please assist me with completing this order.`;
     }
   };
 
-  const handleCardPaymentSuccess = (transactionData: any) => {
+  const handlePrescriptionOrder = async () => {
+    setLoading(true);
+    try {
+      const order = await createOrder();
+      
+      clearCart();
+      toast({
+        title: "Order Placed Successfully!",
+        description: "Your prescription order has been submitted. You'll be notified once the prescription is verified and you can proceed with payment.",
+      });
+      
+      navigate('/my-orders-prescriptions');
+    } catch (error) {
+      console.error('Error creating prescription order:', error);
+      toast({
+        title: "Order Failed",
+        description: "Failed to create order. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCardPaymentSuccess = (transactionData) => {
     clearCart();
     toast({
       title: "Payment Successful!",
@@ -357,7 +386,7 @@ Please assist me with completing this order.`;
     });
   };
 
-  const handleCardPaymentError = (error: string) => {
+  const handleCardPaymentError = (error) => {
     toast({
       title: "Payment Failed",
       description: error,
@@ -365,7 +394,7 @@ Please assist me with completing this order.`;
     });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!user) {
       navigate('/auth');
@@ -401,8 +430,14 @@ Please assist me with completing this order.`;
       return;
     }
 
-    if (paymentMethod === 'mpesa') {
-      await handleMpesaPayment();
+    // For prescription orders, create order without payment
+    if (hasPrescriptionItems()) {
+      await handlePrescriptionOrder();
+    } else {
+      // For regular orders, proceed with payment
+      if (paymentMethod === 'mpesa') {
+        await handleMpesaPayment();
+      }
     }
   };
 
@@ -443,10 +478,23 @@ Please assist me with completing this order.`;
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <CreditCard className="h-5 w-5" />
-                  Payment & Delivery Information
+                  {hasPrescriptionItems() ? 'Order Information' : 'Payment & Delivery Information'}
                 </CardTitle>
               </CardHeader>
               <CardContent>
+                {hasPrescriptionItems() && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                    <div className="flex items-center gap-2 text-blue-800 mb-2">
+                      <Info size={16} />
+                      <span className="font-medium">Prescription Order Process</span>
+                    </div>
+                    <p className="text-sm text-blue-700">
+                      Since your order contains prescription items, you'll place the order first without payment. 
+                      Once your prescription is verified and approved, you'll be notified to proceed with payment.
+                    </p>
+                  </div>
+                )}
+                
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
                     <Label htmlFor="phone">Phone Number</Label>
@@ -627,75 +675,74 @@ Please assist me with completing this order.`;
                     </div>
                   )}
 
-                  {/* Payment Method Selection */}
-                  <div className="space-y-3">
-                    <Label>Select Payment Method</Label>
-                    <div className="grid grid-cols-1 gap-3">
-                      <Button
-                        type="button"
-                        variant={paymentMethod === 'mpesa' ? 'default' : 'outline'}
-                        onClick={() => setPaymentMethod('mpesa')}
-                        className="flex items-center gap-2"
-                      >
-                        <Smartphone size={16} />
-                        M-PESA (Direct)
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={paymentMethod === 'card' ? 'default' : 'outline'}
-                        onClick={() => setPaymentMethod('card')}
-                        className="flex items-center gap-2"
-                      >
-                        <CreditCard size={16} />
-                        Visa / Mastercard
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={paymentMethod === 'mobile' ? 'default' : 'outline'}
-                        onClick={() => setPaymentMethod('mobile')}
-                        className="flex items-center gap-2"
-                      >
-                        <Smartphone size={16} />
-                        Mobile Money (M-PESA, Airtel)
-                      </Button>
+                  {/* Payment Method Selection - Only show for non-prescription orders */}
+                  {!hasPrescriptionItems() && (
+                    <div className="space-y-3">
+                      <Label>Select Payment Method</Label>
+                      <div className="grid grid-cols-1 gap-3">
+                        <Button
+                          type="button"
+                          variant={paymentMethod === 'mpesa' ? 'default' : 'outline'}
+                          onClick={() => setPaymentMethod('mpesa')}
+                          className="flex items-center gap-2"
+                        >
+                          <Smartphone size={16} />
+                          M-PESA (Direct)
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={paymentMethod === 'card' ? 'default' : 'outline'}
+                          onClick={() => setPaymentMethod('card')}
+                          className="flex items-center gap-2"
+                        >
+                          <CreditCard size={16} />
+                          Visa / Mastercard
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={paymentMethod === 'mobile' ? 'default' : 'outline'}
+                          onClick={() => setPaymentMethod('mobile')}
+                          className="flex items-center gap-2"
+                        >
+                          <Smartphone size={16} />
+                          Mobile Money (M-PESA, Airtel)
+                        </Button>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
-                  {/* Payment Buttons */}
-                  {paymentMethod === 'mpesa' ? (
-                    <Button 
-                      type="submit" 
-                      className="w-full" 
-                      disabled={loading || (hasPrescriptionItems() && !prescriptionId) || !formData.county || !formData.deliveryInstructions.trim()}
-                    >
-                      {loading ? (
-                        'Processing Payment...'
-                      ) : hasPrescriptionItems() && !prescriptionId ? (
-                        'Upload Prescription First'
-                      ) : !formData.county ? (
-                        'Select County First'
-                      ) : !formData.deliveryInstructions.trim() ? (
-                        'Add Delivery Instructions'
-                      ) : (
-                        <>
-                          <Smartphone className="mr-2 h-4 w-4" />
-                          Pay with M-PESA - KES {totalAmount.toLocaleString()}
-                        </>
-                      )}
-                    </Button>
-                  ) : (
+                  {/* Submit Button */}
+                  <Button 
+                    type="submit" 
+                    className="w-full" 
+                    disabled={loading || (hasPrescriptionItems() && !prescriptionId) || !formData.county || !formData.deliveryInstructions.trim()}
+                  >
+                    {loading ? (
+                      'Processing...'
+                    ) : hasPrescriptionItems() && !prescriptionId ? (
+                      'Upload Prescription First'
+                    ) : !formData.county ? (
+                      'Select County First'
+                    ) : !formData.deliveryInstructions.trim() ? (
+                      'Add Delivery Instructions'
+                    ) : hasPrescriptionItems() ? (
+                      'Place Order (Payment after verification)'
+                    ) : (
+                      <>
+                        <Smartphone className="mr-2 h-4 w-4" />
+                        Pay with M-PESA - KES {totalAmount.toLocaleString()}
+                      </>
+                    )}
+                  </Button>
+
+                  {/* Payment buttons for non-prescription orders */}
+                  {!hasPrescriptionItems() && paymentMethod !== 'mpesa' && (
                     <div className="space-y-2">
-                      {(hasPrescriptionItems() && !prescriptionId) || !formData.county || !formData.deliveryInstructions.trim() ? (
+                      {!formData.county || !formData.deliveryInstructions.trim() ? (
                         <Button 
                           type="button"
                           onClick={() => {
-                            if (hasPrescriptionItems() && !prescriptionId) {
-                              toast({
-                                title: "Prescription Required",
-                                description: "Please upload your prescription before proceeding.",
-                                variant: "destructive"
-                              });
-                            } else if (!formData.county) {
+                            if (!formData.county) {
                               toast({
                                 title: "County Required",
                                 description: "Please select your county for delivery.",
@@ -711,8 +758,7 @@ Please assist me with completing this order.`;
                           }}
                           className="w-full"
                         >
-                          {hasPrescriptionItems() && !prescriptionId ? 'Upload Prescription First' : 
-                           !formData.county ? 'Select County First' : 'Add Delivery Instructions'}
+                          {!formData.county ? 'Select County First' : 'Add Delivery Instructions'}
                         </Button>
                       ) : (
                         <PesapalPaymentButton
@@ -784,7 +830,17 @@ Please assist me with completing this order.`;
                   </div>
                 </div>
 
-                {paymentMethod === 'mpesa' ? (
+                {hasPrescriptionItems() ? (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 text-blue-800">
+                      <FileText size={16} />
+                      <span className="font-medium">Prescription Order</span>
+                    </div>
+                    <p className="text-sm text-blue-700 mt-1">
+                      Order will be placed without payment. Payment will be required after prescription verification.
+                    </p>
+                  </div>
+                ) : paymentMethod === 'mpesa' ? (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <div className="flex items-center gap-2 text-blue-800">
                       <Smartphone size={16} />

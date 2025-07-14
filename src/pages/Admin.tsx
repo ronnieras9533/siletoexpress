@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -8,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import { Package, FileText, Users, ShoppingCart, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { Package, FileText, Users, ShoppingCart, Clock, CheckCircle, AlertCircle, Edit, Trash2, Plus } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import AdminOrdersTable from '@/components/AdminOrdersTable';
@@ -23,6 +22,8 @@ const Admin = () => {
   const { toast } = useToast();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showProductForm, setShowProductForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
   const [stats, setStats] = useState({
     totalOrders: 0,
     pendingOrders: 0,
@@ -33,6 +34,10 @@ const Admin = () => {
     pendingPrescriptions: 0,
     generalPrescriptions: 0
   });
+  const [products, setProducts] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [usersLoading, setUsersLoading] = useState(true);
 
   useEffect(() => {
     checkAdminStatus();
@@ -41,6 +46,8 @@ const Admin = () => {
   useEffect(() => {
     if (isAdmin) {
       fetchStats();
+      fetchProducts();
+      fetchUsers();
     }
   }, [isAdmin]);
 
@@ -128,11 +135,82 @@ const Admin = () => {
     }
   };
 
-  const handleOrderStatusUpdate = async (orderId: string, newStatus: string) => {
+  const fetchProducts = async () => {
+    setProductsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setProducts(data || []);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch products",
+        variant: "destructive"
+      });
+    } finally {
+      setProductsLoading(false);
+    }
+  };
+
+  const fetchUsers = async () => {
+    setUsersLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setUsers(data || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch users",
+        variant: "destructive"
+      });
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  const handleDeleteProduct = async (productId) => {
+    if (!confirm('Are you sure you want to delete this product?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .eq('id', productId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Product deleted successfully",
+      });
+      
+      fetchProducts();
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete product",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleOrderStatusUpdate = async (orderId, newStatus) => {
     try {
       const { error } = await supabase
         .from('orders')
-        .update({ status: newStatus as any })
+        .update({ status: newStatus })
         .eq('id', orderId);
 
       if (error) throw error;
@@ -253,9 +331,13 @@ const Admin = () => {
             <CardContent>
               <div className="text-2xl font-bold mb-2">{stats.totalProducts}</div>
               <p className="text-xs text-muted-foreground mb-3">Total products in catalog</p>
-              <Button size="sm" className="w-full">
+              <Button 
+                size="sm" 
+                className="w-full"
+                onClick={() => setShowProductForm(true)}
+              >
                 <Package className="h-4 w-4 mr-2" />
-                Manage Products
+                Add Product
               </Button>
             </CardContent>
           </Card>
@@ -342,12 +424,75 @@ const Admin = () => {
           </TabsContent>
 
           <TabsContent value="products" className="space-y-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Product Management</h2>
+              <Button onClick={() => setShowProductForm(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Product
+              </Button>
+            </div>
+            
             <Card>
-              <CardHeader>
-                <CardTitle>Product Management</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ProductForm onClose={() => {}} />
+              <CardContent className="p-6">
+                {productsLoading ? (
+                  <div className="text-center py-8">Loading products...</div>
+                ) : products && products.length > 0 ? (
+                  <div className="space-y-4">
+                    {products.map((product) => (
+                      <div key={product.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-4">
+                            {product.image_url && (
+                              <img 
+                                src={product.image_url} 
+                                alt={product.name}
+                                className="w-16 h-16 object-cover rounded"
+                              />
+                            )}
+                            <div>
+                              <h3 className="font-medium">{product.name}</h3>
+                              <p className="text-sm text-gray-600">{product.category}</p>
+                              <p className="text-sm font-medium">KES {Number(product.price).toLocaleString()}</p>
+                              {product.prescription_required && (
+                                <Badge variant="secondary" className="bg-red-100 text-red-800 mt-1">
+                                  Prescription Required
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <Badge variant={product.stock > 10 ? "default" : product.stock > 0 ? "secondary" : "destructive"}>
+                            {product.stock} in stock
+                          </Badge>
+                          <div className="flex gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                setEditingProduct(product);
+                                setShowProductForm(true);
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => handleDeleteProduct(product.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    No products yet. <Button variant="link" onClick={() => setShowProductForm(true)}>Add your first product</Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -358,16 +503,54 @@ const Admin = () => {
                 <CardTitle>User Management</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8">
-                  <Users className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">User Management</h3>
-                  <p className="text-gray-600">User management features coming soon</p>
-                </div>
+                {usersLoading ? (
+                  <div className="text-center py-8">Loading users...</div>
+                ) : users && users.length > 0 ? (
+                  <div className="space-y-4">
+                    {users.map((user) => (
+                      <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-4">
+                            <div>
+                              <h3 className="font-medium">{user.full_name}</h3>
+                              <p className="text-sm text-gray-600">{user.email}</p>
+                              <p className="text-sm text-gray-500">
+                                {user.phone && `Phone: ${user.phone}`}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <Badge variant={user.role === 'admin' ? "default" : "secondary"}>
+                            {user.role}
+                          </Badge>
+                          <p className="text-sm text-gray-500">
+                            {new Date(user.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    No users found
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
       </div>
+
+      {showProductForm && (
+        <ProductForm
+          onClose={() => {
+            setShowProductForm(false);
+            setEditingProduct(null);
+          }}
+          product={editingProduct}
+        />
+      )}
 
       <Footer />
     </div>
