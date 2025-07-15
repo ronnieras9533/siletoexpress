@@ -178,27 +178,29 @@ async function createPesapalPaymentOrder(
       throw new Error('Invalid email address');
     }
 
+    // Fixed payment order data structure to match Pesapal API requirements
     const paymentOrderData = {
       id: merchantReference,
       currency: currency.toUpperCase(),
-      amount: Number(amount),
+      amount: parseFloat(amount.toString()),
       description: `SiletoExpress Payment - Order ${merchantReference}`,
       callback_url: callbackUrl,
-      redirect_mode: 'PARENT_WINDOW',
-      cancellation_url: redirectUrl,
+      redirect_mode: "PARENT_WINDOW",
       notification_id: merchantReference,
-      branch: 'SiletoExpress Main',
+      branch: "SiletoExpress Main",
       billing_address: {
         email_address: customerInfo.email.toLowerCase().trim(),
         phone_number: formattedPhone,
-        country_code: 'KE',
+        country_code: "KE",
         first_name: firstName.trim(),
+        middle_name: "",
         last_name: lastName.trim(),
-        line_1: formData.address?.trim() || 'N/A',
-        city: formData.city?.trim() || 'Nairobi',
-        state: 'Kenya',
-        postal_code: '00100',
-        zip_code: '00100'
+        line_1: formData.address?.trim() || "N/A",
+        line_2: "",
+        city: formData.city?.trim() || "Nairobi",
+        state: "Kenya",
+        postal_code: "00100",
+        zip_code: "00100"
       }
     }
 
@@ -223,24 +225,39 @@ async function createPesapalPaymentOrder(
 
     console.log(`Payment order response status: ${paymentResponse.status}`);
 
+    const responseText = await paymentResponse.text();
+    console.log('Raw payment response:', responseText);
+
     if (!paymentResponse.ok) {
-      const errorText = await paymentResponse.text()
-      console.error(`Payment order creation failed with status ${paymentResponse.status}:`, errorText)
-      throw new Error(`Payment order failed: ${paymentResponse.status} - ${errorText}`)
+      console.error(`Payment order creation failed with status ${paymentResponse.status}:`, responseText)
+      throw new Error(`Payment order failed: ${paymentResponse.status} - ${responseText}`)
     }
 
-    const paymentData: PesapalPaymentResponse = await paymentResponse.json()
+    let paymentData: PesapalPaymentResponse;
+    try {
+      paymentData = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse payment response:', parseError);
+      throw new Error(`Invalid payment response format: ${responseText}`);
+    }
     
     console.log('Payment order created:', {
       tracking_id: paymentData.order_tracking_id,
       merchant_ref: paymentData.merchant_reference,
       has_redirect_url: !!paymentData.redirect_url,
-      status: paymentData.status
+      status: paymentData.status,
+      full_response: paymentData
     });
 
     if (!paymentData.redirect_url) {
       console.error('No redirect URL in payment response:', paymentData)
-      throw new Error('No payment URL received from Pesapal')
+      
+      // Check if there's an error in the response
+      if (paymentData.error) {
+        throw new Error(`Pesapal error: ${JSON.stringify(paymentData.error)}`)
+      }
+      
+      throw new Error('No payment URL received from Pesapal - please check API credentials and request format')
     }
 
     console.log('✓ Payment order created successfully')
