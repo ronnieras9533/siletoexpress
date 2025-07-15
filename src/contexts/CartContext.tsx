@@ -8,6 +8,7 @@ interface CartItem {
   quantity: number;
   image_url?: string;
   prescription_required?: boolean;
+  stock?: number;
 }
 
 interface CartState {
@@ -93,10 +94,17 @@ interface CartContextType {
   items: CartItem[];
   total: number;
   addItem: (item: CartItem) => void;
+  addToCart: (item: CartItem) => void;
   removeItem: (id: string) => void;
+  removeFromCart: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
   itemCount: number;
+  getTotalItems: () => number;
+  getTotalPrice: () => number;
+  hasPrescriptionItems: () => boolean;
+  showLoginModal?: boolean;
+  setShowLoginModal?: (show: boolean) => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -130,7 +138,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     dispatch({ type: 'ADD_ITEM', payload: item });
   };
 
+  const addToCart = (item: CartItem) => {
+    dispatch({ type: 'ADD_ITEM', payload: item });
+  };
+
   const removeItem = (id: string) => {
+    dispatch({ type: 'REMOVE_ITEM', payload: id });
+  };
+
+  const removeFromCart = (id: string) => {
     dispatch({ type: 'REMOVE_ITEM', payload: id });
   };
 
@@ -144,15 +160,32 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const itemCount = state.items.reduce((sum, item) => sum + item.quantity, 0);
 
+  const getTotalItems = () => {
+    return state.items.reduce((sum, item) => sum + item.quantity, 0);
+  };
+
+  const getTotalPrice = () => {
+    return state.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  };
+
+  const hasPrescriptionItems = () => {
+    return state.items.some(item => item.prescription_required);
+  };
+
   return (
     <CartContext.Provider value={{
       items: state.items,
       total: state.total,
       addItem,
+      addToCart,
       removeItem,
+      removeFromCart,
       updateQuantity,
       clearCart,
-      itemCount
+      itemCount,
+      getTotalItems,
+      getTotalPrice,
+      hasPrescriptionItems
     }}>
       {children}
     </CartContext.Provider>

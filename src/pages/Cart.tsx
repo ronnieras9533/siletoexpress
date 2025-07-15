@@ -94,7 +94,7 @@ const Cart = () => {
                             variant="outline"
                             size="sm"
                             onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                            disabled={item.quantity >= item.stock}
+                            disabled={item.stock ? item.quantity >= item.stock : false}
                           >
                             <Plus size={14} />
                           </Button>

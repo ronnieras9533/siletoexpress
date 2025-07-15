@@ -23,7 +23,7 @@ interface Order {
   profiles: {
     full_name: string;
     email: string;
-  };
+  } | null;
   prescriptions: Array<{
     id: string;
     image_url: string;
@@ -84,7 +84,14 @@ const AdminPrescriptionOrdersTable: React.FC<AdminPrescriptionOrdersTableProps> 
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setOrders(data || []);
+      
+      // Transform the data to ensure proper typing
+      const transformedData = (data || []).map(order => ({
+        ...order,
+        profiles: order.profiles || { full_name: 'Unknown', email: 'unknown@example.com' }
+      }));
+      
+      setOrders(transformedData);
     } catch (error) {
       console.error('Error fetching orders:', error);
       toast({
@@ -155,7 +162,7 @@ const AdminPrescriptionOrdersTable: React.FC<AdminPrescriptionOrdersTableProps> 
                   <div>
                     <CardTitle className="text-lg">Order #{order.id.slice(0, 8)}</CardTitle>
                     <p className="text-sm text-gray-600">
-                      {order.profiles?.full_name} • {order.profiles?.email}
+                      {order.profiles?.full_name || 'Unknown'} • {order.profiles?.email || 'unknown@example.com'}
                     </p>
                     <p className="text-sm text-gray-500">
                       {new Date(order.created_at).toLocaleDateString()}

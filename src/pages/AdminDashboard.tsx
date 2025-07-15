@@ -1,192 +1,126 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 import { 
-  Package, 
   Users, 
+  Package, 
   ShoppingCart, 
-  TrendingUp, 
-  Plus,
-  Edit,
-  Trash2,
-  Upload,
-  MessageCircle,
-  Bell,
+  TrendingUp,
   FileText,
-  Pill
+  AlertCircle,
+  CheckCircle,
+  Clock
 } from 'lucide-react';
+import AdminOrdersTable from '@/components/AdminOrdersTable';
+import AdminPrescriptionOrdersTable from '@/components/AdminPrescriptionOrdersTable';
+import AdminPrescriptionsTable from '@/components/AdminPrescriptionsTable';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import AdminProductForm from '@/components/AdminProductForm';
-import AdminOrdersTable from '@/components/AdminOrdersTable';
-import AdminPrescriptionsTable from '@/components/AdminPrescriptionsTable';
-import AdminPrescriptionOrdersTable from '@/components/AdminPrescriptionOrdersTable';
-import AdminOrderTracking from '@/components/AdminOrderTracking';
-
-// Type for order with profile information
-type OrderWithProfile = {
-  id: string;
-  user_id: string;
-  status: 'pending' | 'approved' | 'delivered' | 'cancelled' | 'confirmed' | 'processing' | 'shipped' | 'out_for_delivery';
-  total_amount: number;
-  created_at: string;
-  currency: string | null;
-  delivery_address: string | null;
-  mpesa_receipt_number: string | null;
-  payment_initiated: boolean | null;
-  payment_method: string | null;
-  phone_number: string | null;
-  prescription_approved: boolean | null;
-  requires_prescription: boolean | null;
-  county: string | null;
-  delivery_fee: number | null;
-  delivery_instructions: string | null;
-  order_items: Array<{
-    id: string;
-    quantity: number;
-    price: number;
-    products: {
-      name: string;
-    };
-  }>;
-  profile?: {
-    id: string;
-    full_name: string;
-    email: string;
-  };
-};
 
 const AdminDashboard = () => {
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
-  const [showProductForm, setShowProductForm] = useState(false);
-  const [editingProduct, setEditingProduct] = useState(null);
 
-  // Fetch dashboard stats
-  const { data: stats } = useQuery({
-    queryKey: ['adminStats'],
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [monthlyRevenue, setMonthlyRevenue] = useState(0);
+
+  useEffect(() => {
+    if (!user) {
+      navigate('/auth');
+    }
+  }, [user, navigate]);
+
+  const { data: usersCount, isLoading: isLoadingUsers, error: errorUsers } = useQuery({
+    queryKey: ['usersCount'],
     queryFn: async () => {
-      const [products, orders, users, prescriptions, notifications, messages, ordersWithPrescriptions] = await Promise.all([
-        supabase.from('products').select('id, stock').then(r => r.data || []),
-        supabase.from('orders').select('id, total_amount, status').then(r => r.data || []),
-        supabase.from('profiles').select('id').then(r => r.data || []),
-        supabase.from('prescriptions').select('id, status, order_id').then(r => r.data || []),
-        supabase.from('notifications').select('id, read').then(r => r.data || []),
-        supabase.from('chat_messages').select('id, read, is_admin_message').then(r => r.data || []),
-        supabase.from('prescriptions').select('order_id').not('order_id', 'is', null).then(r => r.data || [])
-      ]);
+      const { count, error } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true });
 
-      // Filter completed orders for revenue calculation
-      const completedOrders = orders.filter(order => order.status === 'delivered');
-      
-      // Separate general prescriptions from order prescriptions
-      const generalPrescriptions = prescriptions.filter(p => p.order_id === null);
-      const orderPrescriptions = prescriptions.filter(p => p.order_id !== null);
-      
-      return {
-        totalProducts: products.length,
-        lowStockProducts: products.filter(p => p.stock < 10).length,
-        totalOrders: completedOrders.length,
-        totalRevenue: completedOrders.reduce((sum, order) => sum + Number(order.total_amount), 0),
-        totalUsers: users.length,
-        pendingGeneralPrescriptions: generalPrescriptions.filter(p => p.status === 'pending').length,
-        pendingOrderPrescriptions: orderPrescriptions.filter(p => p.status === 'pending').length,
-        totalOrdersWithPrescriptions: ordersWithPrescriptions.length,
-        unreadNotifications: notifications.filter(n => !n.read).length,
-        unreadMessages: messages.filter(m => !m.read && !m.is_admin_message).length
-      };
+      if (error) throw error;
+      return count || 0;
     },
-    enabled: !!user && isAdmin
   });
 
-  // Fetch products for management
-  const { data: products, isLoading: productsLoading, refetch: refetchProducts } = useQuery({
-    queryKey: ['adminProducts'],
+  const { data: productsCount, isLoading: isLoadingProducts, error: errorProducts } = useQuery({
+    queryKey: ['productsCount'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { count, error } = await supabase
         .from('products')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
+        .select('*', { count: 'exact', head: true });
+
       if (error) throw error;
-      return data;
+      return count || 0;
     },
-    enabled: !!user && isAdmin
   });
 
-  // Fetch recent orders for quick tracking updates (orders without prescriptions)
-  const { data: recentOrders } = useQuery({
-    queryKey: ['adminRecentOrders'],
-    queryFn: async (): Promise<OrderWithProfile[]> => {
-      // First get order IDs that have prescriptions
-      const { data: ordersWithPrescriptions } = await supabase
-        .from('prescriptions')
-        .select('order_id')
-        .not('order_id', 'is', null);
-
-      const orderIdsWithPrescriptions = ordersWithPrescriptions?.map(p => p.order_id) || [];
-      
-      // Get orders that don't have prescriptions
-      let query = supabase
+  const { data: ordersCount, isLoading: isLoadingOrders, error: errorOrders } = useQuery({
+    queryKey: ['ordersCount'],
+    queryFn: async () => {
+      const { count, error } = await supabase
         .from('orders')
-        .select(`
-          *,
-          order_items(*, products(name))
-        `)
-        .order('created_at', { ascending: false })
-        .limit(10);
+        .select('*', { count: 'exact', head: true });
 
-      // Exclude orders that have prescriptions
-      if (orderIdsWithPrescriptions.length > 0) {
-        query = query.not('id', 'in', `(${orderIdsWithPrescriptions.join(',')})`);
-      }
-
-      const { data: ordersData, error } = await query;
-      
       if (error) throw error;
-
-      // Fetch user profiles separately
-      if (ordersData && ordersData.length > 0) {
-        const userIds = ordersData.map(order => order.user_id);
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('id, full_name, email')
-          .in('id', userIds);
-
-        // Combine orders with profiles
-        return ordersData.map(order => ({
-          ...order,
-          profile: profiles?.find(p => p.id === order.user_id)
-        })) as OrderWithProfile[];
-      }
-
-      return ordersData as OrderWithProfile[] || [];
+      return count || 0;
     },
-    enabled: !!user && isAdmin
   });
 
-  if (!user || !isAdmin) {
-    navigate('/auth');
-    return null;
-  }
+  const { data: monthlyRevenueData, isLoading: isLoadingRevenue, error: errorRevenue } = useQuery({
+    queryKey: ['monthlyRevenue'],
+    queryFn: async () => {
+      const currentDate = new Date();
+      const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
+      const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString();
 
-  const handleDeleteProduct = async (productId: string) => {
-    if (!confirm('Are you sure you want to delete this product?')) return;
+      const { data, error } = await supabase
+        .from('orders')
+        .select('total_amount')
+        .gte('created_at', firstDayOfMonth)
+        .lte('created_at', lastDayOfMonth);
 
-    const { error } = await supabase
-      .from('products')
-      .delete()
-      .eq('id', productId);
+      if (error) throw error;
 
-    if (!error) {
-      refetchProducts();
+      const totalRevenue = data?.reduce((sum, order) => sum + order.total_amount, 0) || 0;
+      return totalRevenue;
+    },
+  });
+
+  useEffect(() => {
+    if (usersCount !== undefined) {
+      setTotalUsers(usersCount);
+    }
+    if (productsCount !== undefined) {
+      setTotalProducts(productsCount);
+    }
+    if (ordersCount !== undefined) {
+      setTotalOrders(ordersCount);
+    }
+    if (monthlyRevenueData !== undefined) {
+      setMonthlyRevenue(monthlyRevenueData);
+    }
+  }, [usersCount, productsCount, ordersCount, monthlyRevenueData]);
+
+  const handleStatusUpdate = async (orderId: string, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: newStatus })
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      // Refresh the data
+      // You might want to invalidate queries here
+    } catch (error) {
+      console.error('Error updating order status:', error);
     }
   };
 
@@ -195,262 +129,119 @@ const AdminDashboard = () => {
       <Header />
       
       <div className="container mx-auto px-4 py-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-          </div>
-
-          {/* Stats Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Products</CardTitle>
-                <Package className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats?.totalProducts || 0}</div>
-                <p className="text-xs text-muted-foreground">
-                  {stats?.lowStockProducts || 0} low stock
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Orders & Prescriptions</CardTitle>
-                <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stats?.totalOrders || 0}</div>
-                <p className="text-xs text-muted-foreground">
-                  {stats?.totalOrdersWithPrescriptions || 0} with prescriptions
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Revenue</CardTitle>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">KES {stats?.totalRevenue?.toLocaleString() || 0}</div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Pending Reviews</CardTitle>
-                <FileText className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {(stats?.pendingGeneralPrescriptions || 0) + (stats?.pendingOrderPrescriptions || 0)}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {stats?.pendingGeneralPrescriptions || 0} general, {stats?.pendingOrderPrescriptions || 0} orders
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Main Content Tabs */}
-          <Tabs defaultValue="orders" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="orders" className="flex items-center gap-2">
-                <ShoppingCart className="h-4 w-4" />
-                Regular Orders
-              </TabsTrigger>
-              <TabsTrigger value="prescription-orders" className="flex items-center gap-2">
-                <Pill className="h-4 w-4" />
-                Orders with Prescriptions
-              </TabsTrigger>
-              <TabsTrigger value="prescriptions" className="flex items-center gap-2">
-                <FileText className="h-4 w-4" />
-                General Prescriptions
-              </TabsTrigger>
-              <TabsTrigger value="products">Products</TabsTrigger>
-              <TabsTrigger value="analytics">Analytics</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="orders" className="space-y-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Recent Orders Quick Actions */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Recent Regular Orders - Quick Update</CardTitle>
-                    <p className="text-sm text-gray-600">Orders without prescriptions</p>
-                  </CardHeader>
-                  <CardContent>
-                    {recentOrders && recentOrders.length > 0 ? (
-                      <div className="space-y-4">
-                        {recentOrders.slice(0, 5).map((order) => (
-                          <div key={order.id} className="flex items-center justify-between p-4 border rounded-lg">
-                            <div className="flex-1">
-                              <p className="font-medium">#{order.id.slice(0, 8)}</p>
-                              <p className="text-sm text-gray-600">{order.profile?.full_name || 'Unknown User'}</p>
-                              <p className="text-sm text-gray-500">KES {order.total_amount.toLocaleString()}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge className={`${
-                                order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                order.status === 'delivered' ? 'bg-green-100 text-green-800' :
-                                'bg-gray-100 text-gray-800'
-                              }`}>
-                                {order.status.replace('_', ' ')}
-                              </Badge>
-                              <AdminOrderTracking 
-                                orderId={order.id} 
-                                currentStatus={order.status}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8 text-gray-500">No recent regular orders</div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Order Status Distribution */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Order Status Overview</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {['pending', 'approved', 'delivered', 'cancelled'].map((status) => {
-                        const count = recentOrders?.filter(order => order.status === status).length || 0;
-                        return (
-                          <div key={status} className="flex justify-between items-center">
-                            <span className="capitalize">{status.replace('_', ' ')}</span>
-                            <Badge variant="outline">{count}</Badge>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-              
-              {/* Full Orders Table */}
-              <AdminOrdersTable orderType="regular" />
-            </TabsContent>
-
-            <TabsContent value="prescription-orders">
-              <AdminPrescriptionOrdersTable />
-            </TabsContent>
-
-            <TabsContent value="prescriptions">
-              <AdminPrescriptionsTable />
-            </TabsContent>
-
-            <TabsContent value="products" className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">Product Management</h2>
-                <Button onClick={() => setShowProductForm(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Product
-                </Button>
-              </div>
-
-              <Card>
-                <CardContent className="p-6">
-                  {productsLoading ? (
-                    <div className="text-center py-8">Loading products...</div>
-                  ) : products && products.length > 0 ? (
-                    <div className="space-y-4">
-                      {products.map((product) => (
-                        <div key={product.id} className="flex items-center justify-between p-4 border rounded-lg">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-4">
-                              {product.image_url && (
-                                <img 
-                                  src={product.image_url} 
-                                  alt={product.name}
-                                  className="w-16 h-16 object-cover rounded"
-                                />
-                              )}
-                              <div>
-                                <h3 className="font-medium">{product.name}</h3>
-                                <p className="text-sm text-gray-600">{product.category}</p>
-                                <p className="text-sm font-medium">KES {Number(product.price).toLocaleString()}</p>
-                                {product.prescription_required && (
-                                  <Badge variant="secondary" className="bg-red-100 text-red-800 mt-1">
-                                    Prescription Required
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-4">
-                            <Badge variant={product.stock > 10 ? "default" : product.stock > 0 ? "secondary" : "destructive"}>
-                              {product.stock} in stock
-                            </Badge>
-                            <div className="flex gap-2">
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => {
-                                  setEditingProduct(product);
-                                  setShowProductForm(true);
-                                }}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={() => handleDeleteProduct(product.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      No products yet. <Button variant="link" onClick={() => setShowProductForm(true)}>Add your first product</Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="analytics">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Analytics Dashboard</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center py-8 text-gray-500">
-                    Analytics dashboard coming soon...
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+          <p className="text-gray-600">Manage your store efficiently</p>
         </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Users className="h-4 w-4 mr-1" />
+                Total Users
+              </CardTitle>
+              <Users className="h-8 w-8 text-gray-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{totalUsers}</div>
+              <p className="text-xs text-gray-500">
+                {isLoadingUsers ? 'Loading...' : errorUsers ? 'Error' : 'Active users'}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Package className="h-4 w-4 mr-1" />
+                Total Products
+              </CardTitle>
+              <Package className="h-8 w-8 text-gray-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{totalProducts}</div>
+              <p className="text-xs text-gray-500">
+                {isLoadingProducts ? 'Loading...' : errorProducts ? 'Error' : 'Available products'}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <ShoppingCart className="h-4 w-4 mr-1" />
+                Total Orders
+              </CardTitle>
+              <ShoppingCart className="h-8 w-8 text-gray-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{totalOrders}</div>
+              <p className="text-xs text-gray-500">
+                {isLoadingOrders ? 'Loading...' : errorOrders ? 'Error' : 'Orders placed'}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 mr-1" />
+                Monthly Revenue
+              </CardTitle>
+              <TrendingUp className="h-8 w-8 text-gray-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">KES {Number(monthlyRevenue).toLocaleString()}</div>
+              <p className="text-xs text-gray-500">
+                {isLoadingRevenue ? 'Loading...' : errorRevenue ? 'Error' : 'Revenue this month'}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Tabs defaultValue="orders" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="orders">All Orders</TabsTrigger>
+            <TabsTrigger value="prescription-orders">Prescription Orders</TabsTrigger>
+            <TabsTrigger value="prescriptions">Prescriptions</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="orders">
+            <Card>
+              <CardHeader>
+                <CardTitle>All Orders</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AdminOrdersTable />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="prescription-orders">
+            <Card>
+              <CardHeader>
+                <CardTitle>Prescription Orders</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AdminPrescriptionOrdersTable onStatusUpdate={handleStatusUpdate} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="prescriptions">
+            <Card>
+              <CardHeader>
+                <CardTitle>Prescriptions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AdminPrescriptionsTable />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
-
-      {showProductForm && (
-        <AdminProductForm
-          product={editingProduct}
-          onClose={() => {
-            setShowProductForm(false);
-            setEditingProduct(null);
-          }}
-          onSuccess={() => {
-            refetchProducts();
-            setShowProductForm(false);
-            setEditingProduct(null);
-          }}
-        />
-      )}
-
+      
       <Footer />
     </div>
   );
