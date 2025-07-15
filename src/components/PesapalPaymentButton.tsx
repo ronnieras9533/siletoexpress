@@ -74,10 +74,19 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
 
       console.log('Initiating Pesapal payment:', paymentData);
 
-      // Call Pesapal edge function
+      // Call Pesapal edge function with proper payment structure
+      const pesapalPaymentData = {
+        orderId: 'ORDER_' + Date.now(),
+        amount: amount,
+        currency: currency,
+        email: customerInfo.email,
+        phone: customerInfo.phone,
+        description: `SiletoExpress Order - ${amount} ${currency}`
+      };
+
       const { data: pesapalResponse, error: pesapalError } = await supabase.functions
         .invoke('pesapal-payment', {
-          body: paymentData
+          body: pesapalPaymentData
         });
 
       if (pesapalError) {

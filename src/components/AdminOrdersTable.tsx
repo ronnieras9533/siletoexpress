@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Eye, MapPin, Phone, Clock, Package, Truck, CheckCircle } from 'lucide-react';
+import { Eye, MapPin, Phone, Clock, Package, Truck, CheckCircle, FileText, Image } from 'lucide-react';
 import OrderStatusStepper from './OrderStatusStepper';
 
 interface Order {
@@ -41,6 +41,13 @@ interface Order {
     note: string | null;
     location: string | null;
   }[];
+  prescriptions?: {
+    id: string;
+    image_url: string;
+    status: string;
+    admin_notes: string | null;
+    created_at: string;
+  }[];
 }
 
 interface AdminOrdersTableProps {
@@ -52,6 +59,7 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedPrescription, setSelectedPrescription] = useState<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -74,6 +82,13 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
             created_at,
             note,
             location
+          ),
+          prescriptions (
+            id,
+            image_url,
+            status,
+            admin_notes,
+            created_at
           )
         `)
         .order('created_at', { ascending: false });
@@ -340,6 +355,59 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
                               </CardContent>
                             </Card>
 
+                            {/* Prescriptions Section */}
+                            {selectedOrder.requires_prescription && selectedOrder.prescriptions && selectedOrder.prescriptions.length > 0 && (
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle className="text-lg flex items-center gap-2">
+                                    <FileText className="h-5 w-5" />
+                                    Prescriptions
+                                  </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                  <div className="space-y-3">
+                                    {selectedOrder.prescriptions.map((prescription) => (
+                                      <div key={prescription.id} className="border rounded-lg p-3">
+                                        <div className="flex items-center justify-between mb-2">
+                                          <Badge className={getStatusColor(prescription.status)}>
+                                            {prescription.status.toUpperCase()}
+                                          </Badge>
+                                          <span className="text-xs text-gray-500">
+                                            {new Date(prescription.created_at).toLocaleDateString()}
+                                          </span>
+                                        </div>
+                                        
+                                        <div className="flex gap-3">
+                                          <img 
+                                            src={prescription.image_url} 
+                                            alt="Prescription"
+                                            className="w-16 h-16 object-cover rounded cursor-pointer hover:opacity-80"
+                                            onClick={() => setSelectedPrescription(prescription)}
+                                          />
+                                          <div className="flex-1 min-w-0">
+                                            {prescription.admin_notes && (
+                                              <p className="text-sm text-gray-600 mb-2">
+                                                <span className="font-medium">Notes:</span> {prescription.admin_notes}
+                                              </p>
+                                            )}
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={() => setSelectedPrescription(prescription)}
+                                              className="mt-2"
+                                            >
+                                              <Image className="h-3 w-3 mr-1" />
+                                              View Prescription
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            )}
+
                             {/* Status Update */}
                             <Card>
                               <CardHeader>
@@ -396,6 +464,42 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
             </Card>
           ))}
         </div>
+      )}
+
+      {/* Prescription Image Modal */}
+      {selectedPrescription && (
+        <Dialog open={!!selectedPrescription} onOpenChange={() => setSelectedPrescription(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Prescription Image</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <img 
+                src={selectedPrescription.image_url} 
+                alt="Prescription"
+                className="w-full max-h-96 object-contain rounded"
+              />
+              <div className="text-sm space-y-2">
+                <div>
+                  <span className="font-medium">Status:</span> 
+                  <Badge className={`ml-2 ${getStatusColor(selectedPrescription.status)}`}>
+                    {selectedPrescription.status.toUpperCase()}
+                  </Badge>
+                </div>
+                {selectedPrescription.admin_notes && (
+                  <div>
+                    <span className="font-medium">Admin Notes:</span> 
+                    <p className="text-gray-600 mt-1">{selectedPrescription.admin_notes}</p>
+                  </div>
+                )}
+                <div>
+                  <span className="font-medium">Upload Date:</span> 
+                  <span className="ml-2">{new Date(selectedPrescription.created_at).toLocaleDateString()}</span>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
