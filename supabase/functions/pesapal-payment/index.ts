@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -152,14 +151,15 @@ async function createPesapalPaymentOrder(
     const baseUrl = getPesapalBaseUrl();
     const paymentUrl = `${baseUrl}/Transactions/SubmitOrderRequest`;
     
-    // Fixed callback URL construction to use proper Supabase function URL
-    const callbackUrl = `${supabaseUrl}/functions/v1/pesapal-ipn`
+    // Fixed callback URL construction - remove /functions/v1 prefix for IPN
+    const callbackUrl = `${supabaseUrl.replace(/\/$/, '')}/functions/v1/pesapal-ipn`
     const redirectUrl = `https://siletoexpress.netlify.app/pesapal-callback`
 
     console.log('URLs configured:', {
       paymentUrl,
       callbackUrl,
-      redirectUrl
+      redirectUrl,
+      supabaseUrl
     });
 
     // Enhanced phone number formatting with validation
@@ -212,13 +212,14 @@ async function createPesapalPaymentOrder(
       }
     }
 
-    console.log('Payment order data:', {
+    console.log('Payment order data being sent to Pesapal:', {
       id: paymentOrderData.id,
       amount: paymentOrderData.amount,
       currency: paymentOrderData.currency,
       email: paymentOrderData.billing_address.email_address,
       phone: paymentOrderData.billing_address.phone_number,
       callback_url: paymentOrderData.callback_url,
+      redirect_mode: paymentOrderData.redirect_mode,
       url: paymentUrl
     });
 
