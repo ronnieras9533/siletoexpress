@@ -151,8 +151,16 @@ async function createPesapalPaymentOrder(
     
     const baseUrl = getPesapalBaseUrl();
     const paymentUrl = `${baseUrl}/Transactions/SubmitOrderRequest`;
+    
+    // Fixed callback URL construction to use proper Supabase function URL
     const callbackUrl = `${supabaseUrl}/functions/v1/pesapal-ipn`
     const redirectUrl = `https://siletoexpress.netlify.app/pesapal-callback`
+
+    console.log('URLs configured:', {
+      paymentUrl,
+      callbackUrl,
+      redirectUrl
+    });
 
     // Enhanced phone number formatting with validation
     let formattedPhone = customerInfo.phone.replace(/^\+?254/, '254');
@@ -210,6 +218,7 @@ async function createPesapalPaymentOrder(
       currency: paymentOrderData.currency,
       email: paymentOrderData.billing_address.email_address,
       phone: paymentOrderData.billing_address.phone_number,
+      callback_url: paymentOrderData.callback_url,
       url: paymentUrl
     });
 
