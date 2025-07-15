@@ -47,7 +47,16 @@ const FeaturedProducts = () => {
     e.stopPropagation(); // Prevent card click when clicking button
     console.log('FeaturedProducts: Adding product to cart:', product.id);
     try {
-      addToCart(product);
+      const cartItem = {
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        quantity: 1,
+        image_url: product.image_url,
+        prescription_required: product.prescription_required,
+        stock: product.stock
+      };
+      addToCart(cartItem);
     } catch (err) {
       console.error('FeaturedProducts: Error adding to cart:', err);
     }
