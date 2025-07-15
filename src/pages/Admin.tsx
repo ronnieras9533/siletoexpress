@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -13,7 +14,7 @@ import Footer from '@/components/Footer';
 import AdminOrdersTable from '@/components/AdminOrdersTable';
 import AdminPrescriptionsTable from '@/components/AdminPrescriptionsTable';
 import AdminPrescriptionOrdersTable from '@/components/AdminPrescriptionOrdersTable';
-import ProductForm from '@/components/ProductForm';
+import ProductFormModal from '@/components/ProductFormModal';
 import OrderStatusStepper from '@/components/OrderStatusStepper';
 
 const Admin = () => {
@@ -259,24 +260,24 @@ const Admin = () => {
     <div className="min-h-screen bg-gray-50">
       <Header />
       
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Panel</h1>
+      <div className="container mx-auto px-4 py-4 lg:py-8">
+        <div className="mb-6 lg:mb-8">
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">Admin Panel</h1>
           <p className="text-gray-600">Manage your SiletoExpress platform</p>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6 mb-6 lg:mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-              <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-xs lg:text-sm font-medium">Total Orders</CardTitle>
+              <ShoppingCart className="h-3 w-3 lg:h-4 lg:w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalOrders}</div>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="text-lg lg:text-2xl font-bold">{stats.totalOrders}</div>
+              <div className="flex items-center gap-1 lg:gap-2 mt-1">
                 <Badge variant="outline" className="text-xs">
-                  <Clock className="h-3 w-3 mr-1" />
+                  <Clock className="h-2 w-2 lg:h-3 lg:w-3 mr-1" />
                   {stats.pendingOrders} pending
                 </Badge>
               </div>
@@ -285,25 +286,25 @@ const Admin = () => {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Regular Orders</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-xs lg:text-sm font-medium">Regular Orders</CardTitle>
+              <Package className="h-3 w-3 lg:h-4 lg:w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.regularOrders}</div>
+              <div className="text-lg lg:text-2xl font-bold">{stats.regularOrders}</div>
               <p className="text-xs text-muted-foreground">No prescription required</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Prescription Orders</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-xs lg:text-sm font-medium">Prescription Orders</CardTitle>
+              <FileText className="h-3 w-3 lg:h-4 lg:w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.prescriptionOrders}</div>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="text-lg lg:text-2xl font-bold">{stats.prescriptionOrders}</div>
+              <div className="flex items-center gap-1 lg:gap-2 mt-1">
                 <Badge variant="outline" className="text-xs">
-                  <AlertCircle className="h-3 w-3 mr-1" />
+                  <AlertCircle className="h-2 w-2 lg:h-3 lg:w-3 mr-1" />
                   {stats.pendingPrescriptions} pending
                 </Badge>
               </div>
@@ -312,31 +313,31 @@ const Admin = () => {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">General Prescriptions</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-xs lg:text-sm font-medium">General Prescriptions</CardTitle>
+              <FileText className="h-3 w-3 lg:h-4 lg:w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.generalPrescriptions}</div>
+              <div className="text-lg lg:text-2xl font-bold">{stats.generalPrescriptions}</div>
               <p className="text-xs text-muted-foreground">From homepage uploads</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 mb-6 lg:mb-8">
           <Card>
             <CardHeader>
               <CardTitle className="text-sm font-medium">Products</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold mb-2">{stats.totalProducts}</div>
+              <div className="text-xl lg:text-2xl font-bold mb-2">{stats.totalProducts}</div>
               <p className="text-xs text-muted-foreground mb-3">Total products in catalog</p>
               <Button 
                 size="sm" 
-                className="w-full"
+                className="w-full text-xs lg:text-sm"
                 onClick={() => setShowProductForm(true)}
               >
-                <Package className="h-4 w-4 mr-2" />
+                <Package className="h-3 w-3 lg:h-4 lg:w-4 mr-2" />
                 Add Product
               </Button>
             </CardContent>
@@ -347,10 +348,10 @@ const Admin = () => {
               <CardTitle className="text-sm font-medium">Users</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold mb-2">{stats.totalUsers}</div>
+              <div className="text-xl lg:text-2xl font-bold mb-2">{stats.totalUsers}</div>
               <p className="text-xs text-muted-foreground mb-3">Registered users</p>
-              <Button size="sm" className="w-full" variant="outline">
-                <Users className="h-4 w-4 mr-2" />
+              <Button size="sm" className="w-full text-xs lg:text-sm" variant="outline">
+                <Users className="h-3 w-3 lg:h-4 lg:w-4 mr-2" />
                 View Users
               </Button>
             </CardContent>
@@ -362,11 +363,11 @@ const Admin = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-xs lg:text-sm">
                   <span>Pending</span>
                   <Badge variant="outline">{stats.pendingOrders}</Badge>
                 </div>
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-xs lg:text-sm">
                   <span>Prescriptions</span>
                   <Badge variant="outline">{stats.pendingPrescriptions}</Badge>
                 </div>
@@ -376,19 +377,19 @@ const Admin = () => {
         </div>
 
         {/* Main Content Tabs */}
-        <Tabs defaultValue="regular-orders" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="regular-orders">Regular Orders</TabsTrigger>
-            <TabsTrigger value="prescription-orders">Orders with Prescriptions</TabsTrigger>
-            <TabsTrigger value="prescriptions">General Prescriptions</TabsTrigger>
-            <TabsTrigger value="products">Products</TabsTrigger>
-            <TabsTrigger value="users">Users</TabsTrigger>
+        <Tabs defaultValue="regular-orders" className="space-y-4 lg:space-y-6">
+          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5 h-auto">
+            <TabsTrigger value="regular-orders" className="text-xs lg:text-sm px-2 lg:px-4">Regular Orders</TabsTrigger>
+            <TabsTrigger value="prescription-orders" className="text-xs lg:text-sm px-2 lg:px-4">Orders with Prescriptions</TabsTrigger>
+            <TabsTrigger value="prescriptions" className="text-xs lg:text-sm px-2 lg:px-4">General Prescriptions</TabsTrigger>
+            <TabsTrigger value="products" className="text-xs lg:text-sm px-2 lg:px-4">Products</TabsTrigger>
+            <TabsTrigger value="users" className="text-xs lg:text-sm px-2 lg:px-4">Users</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="regular-orders" className="space-y-6">
+          <TabsContent value="regular-orders" className="space-y-4 lg:space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Regular Orders (No Prescription Required)</CardTitle>
+                <CardTitle className="text-lg lg:text-xl">Regular Orders (No Prescription Required)</CardTitle>
               </CardHeader>
               <CardContent>
                 <AdminOrdersTable 
@@ -399,10 +400,10 @@ const Admin = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="prescription-orders" className="space-y-6">
+          <TabsContent value="prescription-orders" className="space-y-4 lg:space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Orders with Prescriptions</CardTitle>
+                <CardTitle className="text-lg lg:text-xl">Orders with Prescriptions</CardTitle>
               </CardHeader>
               <CardContent>
                 <AdminPrescriptionOrdersTable 
@@ -412,10 +413,10 @@ const Admin = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="prescriptions" className="space-y-6">
+          <TabsContent value="prescriptions" className="space-y-4 lg:space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>General Prescriptions (Homepage Uploads)</CardTitle>
+                <CardTitle className="text-lg lg:text-xl">General Prescriptions (Homepage Uploads)</CardTitle>
               </CardHeader>
               <CardContent>
                 <AdminPrescriptionsTable />
@@ -423,33 +424,33 @@ const Admin = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="products" className="space-y-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Product Management</h2>
-              <Button onClick={() => setShowProductForm(true)}>
+          <TabsContent value="products" className="space-y-4 lg:space-y-6">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-4 gap-4">
+              <h2 className="text-lg lg:text-xl font-semibold">Product Management</h2>
+              <Button onClick={() => setShowProductForm(true)} className="w-full lg:w-auto">
                 <Plus className="mr-2 h-4 w-4" />
                 Add Product
               </Button>
             </div>
             
             <Card>
-              <CardContent className="p-6">
+              <CardContent className="p-4 lg:p-6">
                 {productsLoading ? (
                   <div className="text-center py-8">Loading products...</div>
                 ) : products && products.length > 0 ? (
                   <div className="space-y-4">
                     {products.map((product) => (
-                      <div key={product.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div key={product.id} className="flex flex-col lg:flex-row lg:items-center justify-between p-4 border rounded-lg gap-4">
                         <div className="flex-1">
-                          <div className="flex items-center gap-4">
+                          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
                             {product.image_url && (
                               <img 
                                 src={product.image_url} 
                                 alt={product.name}
-                                className="w-16 h-16 object-cover rounded"
+                                className="w-16 h-16 object-cover rounded mx-auto lg:mx-0"
                               />
                             )}
-                            <div>
+                            <div className="text-center lg:text-left">
                               <h3 className="font-medium">{product.name}</h3>
                               <p className="text-sm text-gray-600">{product.category}</p>
                               <p className="text-sm font-medium">KES {Number(product.price).toLocaleString()}</p>
@@ -461,7 +462,7 @@ const Admin = () => {
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-4">
+                        <div className="flex flex-col lg:flex-row items-center gap-4">
                           <Badge variant={product.stock > 10 ? "default" : product.stock > 0 ? "secondary" : "destructive"}>
                             {product.stock} in stock
                           </Badge>
@@ -497,10 +498,10 @@ const Admin = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="users" className="space-y-6">
+          <TabsContent value="users" className="space-y-4 lg:space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>User Management</CardTitle>
+                <CardTitle className="text-lg lg:text-xl">User Management</CardTitle>
               </CardHeader>
               <CardContent>
                 {usersLoading ? (
@@ -508,10 +509,10 @@ const Admin = () => {
                 ) : users && users.length > 0 ? (
                   <div className="space-y-4">
                     {users.map((user) => (
-                      <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div key={user.id} className="flex flex-col lg:flex-row lg:items-center justify-between p-4 border rounded-lg gap-4">
                         <div className="flex-1">
-                          <div className="flex items-center gap-4">
-                            <div>
+                          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                            <div className="text-center lg:text-left">
                               <h3 className="font-medium">{user.full_name}</h3>
                               <p className="text-sm text-gray-600">{user.email}</p>
                               <p className="text-sm text-gray-500">
@@ -520,7 +521,7 @@ const Admin = () => {
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-4">
+                        <div className="flex flex-col lg:flex-row items-center gap-4">
                           <Badge variant={user.role === 'admin' ? "default" : "secondary"}>
                             {user.role}
                           </Badge>
@@ -543,12 +544,17 @@ const Admin = () => {
       </div>
 
       {showProductForm && (
-        <ProductForm
+        <ProductFormModal
+          isOpen={showProductForm}
           onClose={() => {
             setShowProductForm(false);
             setEditingProduct(null);
           }}
           product={editingProduct}
+          onSuccess={() => {
+            fetchProducts();
+            fetchStats();
+          }}
         />
       )}
 

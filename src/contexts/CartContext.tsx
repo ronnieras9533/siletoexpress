@@ -1,30 +1,102 @@
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { useToast } from '@/components/ui/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import React, { createContext, useContext, useEffect, useReducer } from 'react';
 
 interface CartItem {
   id: string;
   name: string;
   price: number;
   quantity: number;
-  prescription_required: boolean;
   image_url?: string;
-  stock: number;
+  prescription_required?: boolean;
 }
+
+interface CartState {
+  items: CartItem[];
+  total: number;
+}
+
+type CartAction =
+  | { type: 'ADD_ITEM'; payload: CartItem }
+  | { type: 'REMOVE_ITEM'; payload: string }
+  | { type: 'UPDATE_QUANTITY'; payload: { id: string; quantity: number } }
+  | { type: 'CLEAR_CART' }
+  | { type: 'LOAD_CART'; payload: CartItem[] };
+
+const cartReducer = (state: CartState, action: CartAction): CartState => {
+  switch (action.type) {
+    case 'ADD_ITEM': {
+      const existingItem = state.items.find(item => item.id === action.payload.id);
+      let newItems;
+      
+      if (existingItem) {
+        newItems = state.items.map(item =>
+          item.id === action.payload.id
+            ? { ...item, quantity: item.quantity + action.payload.quantity }
+            : item
+        );
+      } else {
+        newItems = [...state.items, action.payload];
+      }
+      
+      const newTotal = newItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const newState = { items: newItems, total: newTotal };
+      
+      // Save to localStorage
+      localStorage.setItem('cart', JSON.stringify(newItems));
+      
+      return newState;
+    }
+    
+    case 'REMOVE_ITEM': {
+      const newItems = state.items.filter(item => item.id !== action.payload);
+      const newTotal = newItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const newState = { items: newItems, total: newTotal };
+      
+      // Save to localStorage
+      localStorage.setItem('cart', JSON.stringify(newItems));
+      
+      return newState;
+    }
+    
+    case 'UPDATE_QUANTITY': {
+      const newItems = state.items.map(item =>
+        item.id === action.payload.id
+          ? { ...item, quantity: action.payload.quantity }
+          : item
+      ).filter(item => item.quantity > 0);
+      
+      const newTotal = newItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const newState = { items: newItems, total: newTotal };
+      
+      // Save to localStorage
+      localStorage.setItem('cart', JSON.stringify(newItems));
+      
+      return newState;
+    }
+    
+    case 'CLEAR_CART': {
+      localStorage.removeItem('cart');
+      return { items: [], total: 0 };
+    }
+    
+    case 'LOAD_CART': {
+      const newTotal = action.payload.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      return { items: action.payload, total: newTotal };
+    }
+    
+    default:
+      return state;
+  }
+};
 
 interface CartContextType {
   items: CartItem[];
-  addToCart: (product: Omit<CartItem, 'quantity'>) => void;
-  removeFromCart: (id: string) => void;
+  total: number;
+  addItem: (item: CartItem) => void;
+  removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   clearCart: () => void;
-  getTotalPrice: () => number;
-  getTotalItems: () => number;
-  hasPrescriptionItems: () => boolean;
-  showLoginModal: boolean;
-  setShowLoginModal: (show: boolean) => void;
+  itemCount: number;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -38,136 +110,49 @@ export const useCart = () => {
 };
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [items, setItems] = useState<CartItem[]>([]);
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  const { toast } = useToast();
-  const { user } = useAuth();
-  const navigate = useNavigate();
+  const [state, dispatch] = useReducer(cartReducer, { items: [], total: 0 });
 
+  // Load cart from localStorage on component mount
   useEffect(() => {
-    if (user) {
-      // Load cart for authenticated user
-      const savedCart = localStorage.getItem(`siletoRx-cart-${user.id}`);
-      if (savedCart) {
-        setItems(JSON.parse(savedCart));
+    const savedCart = localStorage.getItem('cart');
+    if (savedCart) {
+      try {
+        const parsedCart = JSON.parse(savedCart);
+        dispatch({ type: 'LOAD_CART', payload: parsedCart });
+      } catch (error) {
+        console.error('Error loading cart from localStorage:', error);
+        localStorage.removeItem('cart');
       }
-    } else {
-      // Clear cart when user logs out and remove from localStorage
-      setItems([]);
-      // Clear all cart data from localStorage
-      Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('siletoRx-cart-')) {
-          localStorage.removeItem(key);
-        }
-      });
     }
-  }, [user]);
+  }, []);
 
-  useEffect(() => {
-    if (user && items.length > 0) {
-      localStorage.setItem(`siletoRx-cart-${user.id}`, JSON.stringify(items));
-    }
-  }, [items, user]);
-
-  const addToCart = (product: Omit<CartItem, 'quantity'>) => {
-    // Immediately redirect to auth page if user is not logged in
-    if (!user) {
-      navigate('/auth');
-      toast({
-        title: "Sign In Required",
-        description: "Please sign in to add items to your cart",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setItems(prev => {
-      const existingItem = prev.find(item => item.id === product.id);
-      if (existingItem) {
-        if (existingItem.quantity + 1 > product.stock) {
-          toast({
-            title: "Out of Stock",
-            description: `Only ${product.stock} items available`,
-            variant: "destructive"
-          });
-          return prev;
-        }
-        return prev.map(item =>
-          item.id === product.id 
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
-      }
-      return [...prev, { ...product, quantity: 1 }];
-    });
-    
-    toast({
-      title: "Added to Cart",
-      description: `${product.name} has been added to your cart`,
-    });
+  const addItem = (item: CartItem) => {
+    dispatch({ type: 'ADD_ITEM', payload: item });
   };
 
-  const removeFromCart = (id: string) => {
-    setItems(prev => prev.filter(item => item.id !== id));
-    toast({
-      title: "Removed from Cart",
-      description: "Item has been removed from your cart",
-    });
+  const removeItem = (id: string) => {
+    dispatch({ type: 'REMOVE_ITEM', payload: id });
   };
 
   const updateQuantity = (id: string, quantity: number) => {
-    if (quantity <= 0) {
-      removeFromCart(id);
-      return;
-    }
-    
-    setItems(prev => prev.map(item => {
-      if (item.id === id) {
-        if (quantity > item.stock) {
-          toast({
-            title: "Out of Stock",
-            description: `Only ${item.stock} items available`,
-            variant: "destructive"
-          });
-          return item;
-        }
-        return { ...item, quantity };
-      }
-      return item;
-    }));
+    dispatch({ type: 'UPDATE_QUANTITY', payload: { id, quantity } });
   };
 
   const clearCart = () => {
-    setItems([]);
-    if (user) {
-      localStorage.removeItem(`siletoRx-cart-${user.id}`);
-    }
+    dispatch({ type: 'CLEAR_CART' });
   };
 
-  const getTotalPrice = () => {
-    return items.reduce((total, item) => total + (item.price * item.quantity), 0);
-  };
-
-  const getTotalItems = () => {
-    return items.reduce((total, item) => total + item.quantity, 0);
-  };
-
-  const hasPrescriptionItems = () => {
-    return items.some(item => item.prescription_required);
-  };
+  const itemCount = state.items.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
     <CartContext.Provider value={{
-      items,
-      addToCart,
-      removeFromCart,
+      items: state.items,
+      total: state.total,
+      addItem,
+      removeItem,
       updateQuantity,
       clearCart,
-      getTotalPrice,
-      getTotalItems,
-      hasPrescriptionItems,
-      showLoginModal,
-      setShowLoginModal
+      itemCount
     }}>
       {children}
     </CartContext.Provider>
