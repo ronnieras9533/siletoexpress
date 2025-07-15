@@ -68,6 +68,7 @@ const ProductDetail = () => {
         name: product.name,
         price: product.price,
         prescription_required: product.prescription_required,
+        quantity: 1,
         image_url: product.image_url,
         stock: product.stock
       });

@@ -73,6 +73,7 @@ const Products = () => {
       id: product.id,
       name: product.name,
       price: product.price,
+      quantity: 1,
       prescription_required: product.prescription_required,
       image_url: product.image_url,
       stock: product.stock

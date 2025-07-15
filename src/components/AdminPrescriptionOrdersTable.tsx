@@ -88,8 +88,10 @@ const AdminPrescriptionOrdersTable: React.FC<AdminPrescriptionOrdersTableProps> 
       // Transform the data to ensure proper typing
       const transformedData = (data || []).map(order => ({
         ...order,
-        profiles: order.profiles || { full_name: 'Unknown', email: 'unknown@example.com' }
-      }));
+        profiles: Array.isArray(order.profiles) && order.profiles.length > 0 
+          ? order.profiles[0] 
+          : { full_name: 'Unknown', email: 'unknown@example.com' }
+      })) as Order[];
       
       setOrders(transformedData);
     } catch (error) {
