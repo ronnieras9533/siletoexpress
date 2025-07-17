@@ -1,6 +1,16 @@
 
-import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+// @deno-types="https://deno.land/std@0.190.0/http/server.ts"
+// @deno-types="https://deno.land/std@0.190.0/http/server.d.ts"
+// If running in Deno, ensure your editor supports remote imports and Deno types.
+// If running in Node.js, use a Node.js HTTP server instead:
+import { createServer } from "http";
+// import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+
+// Replace Deno's serve usage with Node.js createServer below if needed.
+//import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+// ...existing code...
+import { createClient } from '@supabase/supabase-js';
+// ...existing code...
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,97 +26,102 @@ interface DeliveryNotificationRequest {
   delivery_address: string;
 }
 
-serve(async (req) => {
+// Node.js HTTP server implementation
+createServer(async (req, res) => {
+  // Enable CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    res.writeHead(204, corsHeaders);
+    res.end();
+    return;
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk;
+    });
 
-    const { order_id, user_id, phone_number, total_amount, county, delivery_address }: DeliveryNotificationRequest = await req.json();
+    req.on('end', async () => {
+      const supabase = createClient(
+        process.env.SUPABASE_URL ?? '',
+        process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+      );
 
-    console.log('Processing delivery notification for order:', order_id);
+      const { order_id, user_id, phone_number, total_amount, county, delivery_address }: DeliveryNotificationRequest = JSON.parse(body);
 
-    // Get user profile for full name and email
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('full_name, email')
-      .eq('id', user_id)
-      .single();
+      console.log('Processing delivery notification for order:', order_id);
 
-    if (profileError) {
-      console.error('Error fetching user profile:', profileError);
-      throw new Error('Failed to fetch user profile');
-    }
+      // Get user profile for full name and email
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', user_id)
+        .single();
 
-    const userName = profile.full_name || 'Customer';
-    const userEmail = profile.email;
-
-    // Create notification in database
-    await supabase
-      .from('notifications')
-      .insert({
-        user_id,
-        title: 'Order Delivered Successfully',
-        message: `Your order #${order_id} has been successfully delivered to ${delivery_address}, ${county}. Thank you for shopping with SiletoExpress!`,
-        type: 'order_status',
-        order_id
-      });
-
-    // Send SMS if phone number exists
-    if (phone_number) {
-      const smsMessage = `Hello ${userName}, your order #${order_id} has been successfully delivered. Thank you for shopping with SiletoExpress!`;
-      
-      // Note: SMS integration would require Africa's Talking or Twilio API
-      // For now, we'll log the SMS that would be sent
-      console.log('SMS to send:', {
-        to: phone_number,
-        message: smsMessage
-      });
-    }
-
-    // Send email if email exists
-    if (userEmail) {
-      const emailSubject = 'Order Delivered Successfully - SiletoExpress';
-      const emailBody = `
-        <h2>Order Delivered Successfully!</h2>
-        <p>Dear ${userName},</p>
-        <p>Your order #${order_id} has been successfully delivered to:</p>
-        <p><strong>${delivery_address}, ${county}</strong></p>
-        <p>Order Total: KES ${total_amount.toLocaleString()}</p>
-        <p>Thank you for shopping with SiletoExpress!</p>
-        <p>Best regards,<br>The SiletoExpress Team</p>
-      `;
-
-      // Note: Email integration would require Resend or similar service
-      // For now, we'll log the email that would be sent
-      console.log('Email to send:', {
-        to: userEmail,
-        subject: emailSubject,
-        html: emailBody
-      });
-    }
-
-    return new Response(
-      JSON.stringify({ success: true, message: 'Delivery notification processed' }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200 
+      if (profileError) {
+        console.error('Error fetching user profile:', profileError);
+        res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to fetch user profile' }));
+        return;
       }
-    );
 
-  } catch (error) {
+      const userName = profile.full_name || 'Customer';
+      const userEmail = profile.email;
+
+      // Create notification in database
+      await supabase
+        .from('notifications')
+        .insert({
+          user_id,
+          title: 'Order Delivered Successfully',
+          message: `Your order #${order_id} has been successfully delivered to ${delivery_address}, ${county}. Thank you for shopping with SiletoExpress!`,
+          type: 'order_status',
+          order_id
+        });
+
+      // Send SMS if phone number exists
+      if (phone_number) {
+        const smsMessage = `Hello ${userName}, your order #${order_id} has been successfully delivered. Thank you for shopping with SiletoExpress!`;
+        
+        // Note: SMS integration would require Africa's Talking or Twilio API
+        // For now, we'll log the SMS that would be sent
+        console.log('SMS to send:', {
+          to: phone_number,
+          message: smsMessage
+        });
+      }
+
+      // Send email if email exists
+      if (userEmail) {
+        const emailSubject = 'Order Delivered Successfully - SiletoExpress';
+        const emailBody = `
+          <h2>Order Delivered Successfully!</h2>
+          <p>Dear ${userName},</p>
+          <p>Your order #${order_id} has been successfully delivered to:</p>
+          <p><strong>${delivery_address}, ${county}</strong></p>
+          <p>Order Total: KES ${total_amount.toLocaleString()}</p>
+          <p>Thank you for shopping with SiletoExpress!</p>
+          <p>Best regards,<br>The SiletoExpress Team</p>
+        `;
+
+        // Note: Email integration would require Resend or similar service
+        // For now, we'll log the email that would be sent
+        console.log('Email to send:', {
+          to: userEmail,
+          subject: emailSubject,
+          html: emailBody
+        });
+      }
+
+      res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, message: 'Delivery notification processed' }));
+    });
+
+  } catch (error: any) {
     console.error('Error in delivery notification:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500 
-      }
-    );
+    res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: error.message }));
   }
+}).listen(process.env.PORT || 3000, () => {
+  console.log('Server running on port', process.env.PORT || 3000);
 });
