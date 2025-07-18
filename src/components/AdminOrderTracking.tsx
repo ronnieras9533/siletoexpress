@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -6,8 +5,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Truck, MapPin } from 'lucide-react';
 
@@ -16,7 +27,20 @@ interface AdminOrderTrackingProps {
   currentStatus: string;
 }
 
-const AdminOrderTracking: React.FC<AdminOrderTrackingProps> = ({ orderId, currentStatus }) => {
+const statusOptions = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'confirmed', label: 'Confirmed' },
+  { value: 'processing', label: 'Processing' },
+  { value: 'shipped', label: 'Shipped' },
+  { value: 'out_for_delivery', label: 'Out for Delivery' },
+  { value: 'delivered', label: 'Delivered' },
+  { value: 'cancelled', label: 'Cancelled' },
+];
+
+const AdminOrderTracking: React.FC<AdminOrderTrackingProps> = ({
+  orderId,
+  currentStatus,
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const [status, setStatus] = useState(currentStatus);
   const [note, setNote] = useState('');
@@ -26,30 +50,40 @@ const AdminOrderTracking: React.FC<AdminOrderTrackingProps> = ({ orderId, curren
 
   const updateOrderMutation = useMutation({
     mutationFn: async () => {
-      // Update order status
+      if (!status) throw new Error('Status is required');
+
+      // 1. Update order status
       const { error: orderError } = await supabase
         .from('orders')
-        .update({ status: status as any })
+        .update({ status })
         .eq('id', orderId);
 
       if (orderError) throw orderError;
 
-      // Add tracking entry
-      const { error: trackingError } = await supabase
-        .from('order_tracking')
-        .insert({
-          order_id: orderId,
-          status: status as any,
-          note: note || 'Status updated by admin',
-          location: location || null,
-        });
+      // 2. Add tracking entry
+      const { error: trackingError } = await supabase.from('order_tracking').insert({
+        order_id: orderId,
+        status,
+        note: note || 'Status updated by admin',
+        location: location || null,
+        // updated_by: currentUser.email, // optional: track who updated
+      });
 
       if (trackingError) throw trackingError;
+
+      // 3. Optional: Trigger email/SMS notification
+      if (['confirmed', 'shipped'].includes(status)) {
+        await fetch('/api/send-notification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId, status }),
+        });
+      }
     },
     onSuccess: () => {
       toast({
-        title: "Order Updated",
-        description: "Order status has been updated successfully.",
+        title: 'Order Updated',
+        description: 'Order status updated successfully.',
       });
       queryClient.invalidateQueries({ queryKey: ['adminOrders'] });
       queryClient.invalidateQueries({ queryKey: ['trackOrder'] });
@@ -59,22 +93,13 @@ const AdminOrderTracking: React.FC<AdminOrderTrackingProps> = ({ orderId, curren
     },
     onError: (error) => {
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update order",
-        variant: "destructive",
+        title: 'Update Failed',
+        description:
+          error instanceof Error ? error.message : 'Could not update order',
+        variant: 'destructive',
       });
     },
   });
-
-  const statusOptions = [
-    { value: 'pending', label: 'Pending' },
-    { value: 'confirmed', label: 'Confirmed' },
-    { value: 'processing', label: 'Processing' },
-    { value: 'shipped', label: 'Shipped' },
-    { value: 'out_for_delivery', label: 'Out for Delivery' },
-    { value: 'delivered', label: 'Delivered' },
-    { value: 'cancelled', label: 'Cancelled' },
-  ];
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -88,7 +113,9 @@ const AdminOrderTracking: React.FC<AdminOrderTrackingProps> = ({ orderId, curren
         <DialogHeader>
           <DialogTitle>Update Order Status</DialogTitle>
         </DialogHeader>
+
         <div className="space-y-4">
+          {/* Status Select */}
           <div>
             <Label htmlFor="status">Order Status</Label>
             <Select value={status} onValueChange={setStatus}>
@@ -105,6 +132,7 @@ const AdminOrderTracking: React.FC<AdminOrderTrackingProps> = ({ orderId, curren
             </Select>
           </div>
 
+          {/* Location Input */}
           <div>
             <Label htmlFor="location">Location (Optional)</Label>
             <div className="relative">
@@ -113,28 +141,34 @@ const AdminOrderTracking: React.FC<AdminOrderTrackingProps> = ({ orderId, curren
                 id="location"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                placeholder="Current location of the package"
+                placeholder="Current package location"
                 className="pl-10"
               />
             </div>
           </div>
 
+          {/* Note Input */}
           <div>
-            <Label htmlFor="note">Update Note (Optional)</Label>
+            <Label htmlFor="note">Note (Optional)</Label>
             <Textarea
               id="note"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Add any additional notes about this status update..."
+              placeholder="Add any additional notes..."
               rows={3}
             />
           </div>
 
+          {/* Buttons */}
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setIsOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setIsOpen(false)}
+              disabled={updateOrderMutation.isPending}
+            >
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={() => updateOrderMutation.mutate()}
               disabled={updateOrderMutation.isPending}
             >
