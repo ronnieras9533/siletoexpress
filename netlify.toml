@@ -1,0 +1,5 @@
+[[redirects]]
+  from = "/.netlify/functions/pesapal-ipn"
+  to = "https://siletoexpress.netlify.app/.netlify/functions/pesapal-ipn"
+  status = 200
+  force = true
