@@ -1,3 +1,7 @@
+[build]
+  publish = "dist" # or "build" or "out" depending on your framework
+  functions = "netlify/functions"
+
 [[redirects]]
   from = "/.netlify/functions/pesapal-ipn"
   to = "https://siletoexpress.netlify.app/.netlify/functions/pesapal-ipn"
