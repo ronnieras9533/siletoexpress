@@ -1,61 +1,41 @@
-// utils/createOrder.ts
+// supabase/functions/create-order/index.ts
+import { serve } from "https://deno.land/std@0.203.0/http/server.ts";
+import { supabase } from "./lib/supabaseClient.ts";
 
-import { supabase } from "@/lib/supabaseClient"; // adjust if using a different path
-
-interface CreateOrderParams {
-  method: string;
-  amount: number;
-  phone: string;
-}
-
-interface CreateOrderResponse {
-  order_id: string;
-  [key: string]: any; // extendable for any extra fields
-}
-
-export async function createOrder({
-  method,
-  amount,
-  phone,
-}: CreateOrderParams): Promise<CreateOrderResponse> {
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    throw new Error("User not authenticated.");
-  }
-
-  const payload = {
-    user_id: user.id,
-    email: user.email,
-    phone,
-    method,
-    amount,
-  };
-
-  const response = await fetch(
-    "https://hevbjzdahldvijwqtqcx.supabase.co/functions/v1/create-order",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    }
-  );
-
-  let data;
+serve(async (req) => {
   try {
-    data = await response.json();
+    const { user_id, email, phone, method, amount } = await req.json();
+
+    if (!user_id || !email || !phone || !method || !amount) {
+      return new Response(JSON.stringify({ error: "Missing fields" }), { status: 400 });
+    }
+
+    const { data, error } = await supabase
+      .from("orders")
+      .insert([
+        {
+          user_id,
+          email,
+          phone,
+          payment_method: method,
+          amount,
+          status: "pending",
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Insert error:", error);
+      return new Response(JSON.stringify({ error: "Failed to create order" }), { status: 500 });
+    }
+
+    return new Response(JSON.stringify({ order_id: data.id, ...data }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
   } catch (err) {
-    throw new Error("Invalid JSON response from server.");
+    console.error("Unexpected error:", err);
+    return new Response(JSON.stringify({ error: "Internal server error" }), { status: 500 });
   }
-
-  if (!response.ok) {
-    throw new Error(data?.error || "Failed to create order.");
-  }
-
-  return data;
-}
+});
