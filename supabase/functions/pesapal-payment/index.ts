@@ -1,108 +1,74 @@
-// supabase/functions/pesapal-payment/index.ts
+const BASE_URL = "https://pay.pesapal.com/v3/api";
+const CONSUMER_KEY = Deno.env.get("PESAPAL_CONSUMER_KEY")!;
+const CONSUMER_SECRET = Deno.env.get("PESAPAL_CONSUMER_SECRET")!;
+const CALLBACK_URL = Deno.env.get("PESAPAL_CALLBACK_URL")!;
+const REDIRECT_URL = "https://siletoexpress.netlify.app/pesapal-callback";
 
-import { serve } from "https://deno.land/std@0.192.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_ANON_KEY")!
-);
-
-serve(async (req) => {
+export async function getAccessToken() {
   try {
-    const { order_id } = await req.json();
-
-    if (!order_id) {
-      return new Response(JSON.stringify({ error: "Missing order_id" }), { status: 400 });
-    }
-
-    // Fetch order details from your orders table
-    const { data: order, error: orderError } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("id", order_id)
-      .single();
-
-    if (orderError || !order) {
-      return new Response(JSON.stringify({ error: "Order not found" }), { status: 404 });
-    }
-
-    const consumer = {
-      first_name: "Customer",
-      last_name: "User",
-      email_address: order.email || "test@example.com",
-      phone_number: order.phone || "+254712345678",
-      country_code: "KE"
-    };
-
-    // Get IPN ID from env
-    const ipnId = Deno.env.get("PESAPAL_IPN_ID");
-    if (!ipnId) {
-      return new Response(JSON.stringify({ error: "Missing PESAPAL_IPN_ID env variable" }), { status: 500 });
-    }
-
-    const callback_url = `${Deno.env.get("PESAPAL_CALLBACK_URL")}/order/${order_id}/status`;
-
-    // Get access token
-    const tokenResponse = await fetch("https://pay.pesapal.com/v3/api/Auth/RequestToken", {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${Deno.env.get("PESAPAL_API_TOKEN")}`,
-        "Content-Type": "application/json"
-      }
+    const res = await fetch(`${BASE_URL}/Auth/RequestToken`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        consumer_key: CONSUMER_KEY,
+        consumer_secret: CONSUMER_SECRET,
+      }),
     });
 
-    const tokenData = await tokenResponse.json();
-    const token = tokenData.token;
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    console.error("Error during Pesapal auth:", err);
+    return null;
+  }
+}
 
-    if (!token) {
-      return new Response(JSON.stringify({ error: "Failed to get access token" }), { status: 500 });
-    }
+export async function createPesapalPaymentOrder({
+  orderId,
+  amount,
+  currency,
+  email,
+  phone,
+  token,
+}: {
+  orderId: string;
+  amount: number;
+  currency: string;
+  email: string;
+  phone: string;
+  token: string;
+}) {
+  const formattedPhone = formatPhone(phone);
 
-    // Create payment
-    const paymentPayload = {
-      id: order.id,
-      currency: "KES",
-      amount: order.amount,
-      description: "Order payment",
-      callback_url,
-      notification_id: ipnId,
-      billing_address: {
-        email_address: consumer.email_address,
-        phone_number: consumer.phone_number,
-        country_code: "KE",
-        first_name: consumer.first_name,
-        last_name: consumer.last_name,
-        line_1: "Address Line 1",
-        city: "Nairobi",
-        state: "Nairobi",
-        postal_code: "00100",
-        zip_code: "00100"
-      }
-    };
+  const body = {
+    id: orderId,
+    currency,
+    amount,
+    email,
+    phone: formattedPhone,
+    callback_url: CALLBACK_URL,
+    redirect_mode: "PARENT_WINDOW",
+    notification_id: Deno.env.get("PESAPAL_IPN_ID")!, // This must be valid
+  };
 
-    const pesapalRes = await fetch("https://pay.pesapal.com/v3/api/Transactions/SubmitOrderRequest", {
+  try {
+    const res = await fetch(`${BASE_URL}/Transactions/SubmitOrderRequest`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify(paymentPayload)
+      body: JSON.stringify(body),
     });
 
-    const paymentData = await pesapalRes.json();
-
-    if (!pesapalRes.ok) {
-      return new Response(JSON.stringify({ error: paymentData.message || "Pesapal error" }), { status: 500 });
-    }
-
-    return new Response(JSON.stringify({ status: "success", paymentData }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" }
-    });
-
+    const data = await res.json();
+    return data;
   } catch (err) {
-    console.error("Error:", err);
-    return new Response(JSON.stringify({ error: err.message || "Unexpected error" }), { status: 500 });
+    console.error("Failed to create Pesapal order", err);
+    return { error: "Order creation failed" };
   }
-});
+}
+
+function formatPhone(phone: string): string {
+  return phone.startsWith("0") ? `254${phone.slice(1)}` : phone;
+}
