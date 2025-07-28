@@ -29,6 +29,7 @@ const Checkout = () => {
   const [prescriptionFile, setPrescriptionFile] = useState(null);
   const [uploadingPrescription, setUploadingPrescription] = useState(false);
   const [formData, setFormData] = useState({
+    email: user?.email || '',
     phone: '',
     address: '',
     city: '',
@@ -496,6 +497,22 @@ Please assist me with completing this order.`;
                 )}
                 
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  <div>
+                    <Label htmlFor="email">Email Address</Label>
+                    <Input
+                      id="email"
+                      name="email"
+                      type="email"
+                      placeholder="e.g. john@example.com"
+                      value={formData.email || ''}
+                      onChange={handleInputChange}
+                      required
+                    />
+                    <p className="text-sm text-gray-600 mt-1">
+                      We'll send your order confirmation here.
+                    </p>
+                  </div>
+
                   <div>
                     <Label htmlFor="phone">Phone Number</Label>
                     <Input
