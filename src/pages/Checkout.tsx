@@ -223,7 +223,7 @@ const Checkout = () => {
                       <OrderPrescriptionUpload 
                         onPrescriptionUploaded={handlePrescriptionUploaded}
                         onCancel={() => {}}
-                        prescriptionItems={items.filter(item => item.requires_prescription).map(item => ({ id: item.id, name: item.name }))}
+                        prescriptionItems={items.filter(item => item.prescription_required).map(item => ({ id: item.id, name: item.name }))}
                       />
                     </CardContent>
                   </Card>
