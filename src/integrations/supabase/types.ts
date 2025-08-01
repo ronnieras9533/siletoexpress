@@ -65,6 +65,24 @@ export type Database = {
           },
         ]
       }
+      debug_log: {
+        Row: {
+          id: number
+          log_time: string | null
+          message: string | null
+        }
+        Insert: {
+          id?: number
+          log_time?: string | null
+          message?: string | null
+        }
+        Update: {
+          id?: number
+          log_time?: string | null
+          message?: string | null
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
@@ -198,17 +216,21 @@ export type Database = {
       }
       orders: {
         Row: {
+          amount: number | null
           county: string | null
           created_at: string
           currency: string | null
           delivery_address: string | null
           delivery_fee: number | null
           delivery_instructions: string | null
+          description: string | null
+          email: string | null
           id: string
           location_point: unknown | null
           mpesa_receipt_number: string | null
           payment_initiated: boolean | null
           payment_method: string | null
+          phone: string | null
           phone_number: string | null
           prescription_approved: boolean | null
           requires_prescription: boolean | null
@@ -217,17 +239,21 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          amount?: number | null
           county?: string | null
           created_at?: string
           currency?: string | null
           delivery_address?: string | null
           delivery_fee?: number | null
           delivery_instructions?: string | null
+          description?: string | null
+          email?: string | null
           id?: string
           location_point?: unknown | null
           mpesa_receipt_number?: string | null
           payment_initiated?: boolean | null
           payment_method?: string | null
+          phone?: string | null
           phone_number?: string | null
           prescription_approved?: boolean | null
           requires_prescription?: boolean | null
@@ -236,17 +262,21 @@ export type Database = {
           user_id: string
         }
         Update: {
+          amount?: number | null
           county?: string | null
           created_at?: string
           currency?: string | null
           delivery_address?: string | null
           delivery_fee?: number | null
           delivery_instructions?: string | null
+          description?: string | null
+          email?: string | null
           id?: string
           location_point?: unknown | null
           mpesa_receipt_number?: string | null
           payment_initiated?: boolean | null
           payment_method?: string | null
+          phone?: string | null
           phone_number?: string | null
           prescription_approved?: boolean | null
           requires_prescription?: boolean | null
@@ -314,6 +344,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pending_webhooks: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          id: number
+          name: string | null
+          order_id: string | null
+          processed: boolean | null
+          status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          id?: number
+          name?: string | null
+          order_id?: string | null
+          processed?: boolean | null
+          status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          id?: number
+          name?: string | null
+          order_id?: string | null
+          processed?: boolean | null
+          status?: string | null
+        }
+        Relationships: []
       }
       prescriptions: {
         Row: {
@@ -430,13 +490,76 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      bytea_to_text: {
+        Args: { data: string }
+        Returns: string
+      }
       calculate_delivery_fee: {
         Args: { county_name: string; order_total: number }
         Returns: number
       }
+      http: {
+        Args: { request: Database["public"]["CompositeTypes"]["http_request"] }
+        Returns: Database["public"]["CompositeTypes"]["http_response"]
+      }
+      http_delete: {
+        Args:
+          | { uri: string }
+          | { uri: string; content: string; content_type: string }
+        Returns: Database["public"]["CompositeTypes"]["http_response"]
+      }
+      http_get: {
+        Args: { uri: string } | { uri: string; data: Json }
+        Returns: Database["public"]["CompositeTypes"]["http_response"]
+      }
+      http_head: {
+        Args: { uri: string }
+        Returns: Database["public"]["CompositeTypes"]["http_response"]
+      }
+      http_header: {
+        Args: { field: string; value: string }
+        Returns: Database["public"]["CompositeTypes"]["http_header"]
+      }
+      http_list_curlopt: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          curlopt: string
+          value: string
+        }[]
+      }
+      http_patch: {
+        Args: { uri: string; content: string; content_type: string }
+        Returns: Database["public"]["CompositeTypes"]["http_response"]
+      }
+      http_post: {
+        Args:
+          | { uri: string; content: string; content_type: string }
+          | { uri: string; data: Json }
+        Returns: Database["public"]["CompositeTypes"]["http_response"]
+      }
+      http_put: {
+        Args: { uri: string; content: string; content_type: string }
+        Returns: Database["public"]["CompositeTypes"]["http_response"]
+      }
+      http_reset_curlopt: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      http_set_curlopt: {
+        Args: { curlopt: string; value: string }
+        Returns: boolean
+      }
       is_admin: {
         Args: { user_id?: string }
         Returns: boolean
+      }
+      text_to_bytea: {
+        Args: { data: string }
+        Returns: string
+      }
+      urlencode: {
+        Args: { data: Json } | { string: string } | { string: string }
+        Returns: string
       }
     }
     Enums: {
@@ -458,7 +581,23 @@ export type Database = {
       user_role: "user" | "admin"
     }
     CompositeTypes: {
-      [_ in never]: never
+      http_header: {
+        field: string | null
+        value: string | null
+      }
+      http_request: {
+        method: unknown | null
+        uri: string | null
+        headers: Database["public"]["CompositeTypes"]["http_header"][] | null
+        content_type: string | null
+        content: string | null
+      }
+      http_response: {
+        status: number | null
+        content_type: string | null
+        headers: Database["public"]["CompositeTypes"]["http_header"][] | null
+        content: string | null
+      }
     }
   }
 }

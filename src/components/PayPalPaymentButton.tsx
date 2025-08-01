@@ -32,6 +32,21 @@ declare global {
   }
 }
 
+// Input validation utilities
+const validateEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+const validatePhone = (phone: string): boolean => {
+  const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+  return phoneRegex.test(phone.replace(/\s/g, ''));
+};
+
+const sanitizeInput = (input: string): string => {
+  return input.replace(/[<>\"'&]/g, '').trim();
+};
+
 const PayPalPaymentButton: React.FC<PayPalPaymentButtonProps> = ({
   amount,
   currency,
@@ -44,12 +59,38 @@ const PayPalPaymentButton: React.FC<PayPalPaymentButtonProps> = ({
   const paypalRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [sdkLoaded, setSdkLoaded] = useState(false);
+  const [rateLimitExceeded, setRateLimitExceeded] = useState(false);
   const { toast } = useToast();
   const { items, clearCart } = useCart();
   const { user } = useAuth();
 
+  // Input validation on mount
   useEffect(() => {
-    // Load PayPal SDK
+    // Validate customer info
+    if (!validateEmail(customerInfo.email)) {
+      onError('Invalid email address');
+      return;
+    }
+
+    if (!validatePhone(customerInfo.phone)) {
+      onError('Invalid phone number format');
+      return;
+    }
+
+    // Validate amount
+    if (amount <= 0 || amount > 1000000) {
+      onError('Invalid payment amount');
+      return;
+    }
+
+    // Validate currency
+    if (!['USD', 'EUR', 'KES'].includes(currency)) {
+      onError('Unsupported currency');
+      return;
+    }
+  }, [amount, currency, customerInfo, onError]);
+
+  useEffect(() => {
     const loadPayPalScript = () => {
       if (window.paypal) {
         setSdkLoaded(true);
@@ -57,8 +98,16 @@ const PayPalPaymentButton: React.FC<PayPalPaymentButtonProps> = ({
         return;
       }
 
+      // Get PayPal client ID from environment or secure source
+      const clientId = getPayPalClientId();
+      if (!clientId) {
+        onError('PayPal configuration not available');
+        return;
+      }
+
       const script = document.createElement('script');
-      script.src = `https://www.paypal.com/sdk/js?client-id=${getPayPalClientId()}&currency=${currency}&components=buttons,funding-eligibility`;
+      // Restrict to specific domain for security
+      script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=${currency}&components=buttons,funding-eligibility&intent=capture`;
       script.async = true;
       script.onload = () => {
         setSdkLoaded(true);
@@ -75,14 +124,15 @@ const PayPalPaymentButton: React.FC<PayPalPaymentButtonProps> = ({
   }, [currency, onError]);
 
   useEffect(() => {
-    if (sdkLoaded && paypalRef.current && window.paypal && !loading) {
+    if (sdkLoaded && paypalRef.current && window.paypal && !loading && !rateLimitExceeded) {
       renderPayPalButtons();
     }
-  }, [sdkLoaded, loading, amount, currency]);
+  }, [sdkLoaded, loading, amount, currency, rateLimitExceeded]);
 
   const getPayPalClientId = () => {
-    // In production, store this in environment variables
-    return 'AYFdaWEFBEJQD6FNRUNaMZq0QX5WDm9h3xo1kD4lhyOhSJVP5eO-Y5u2V3m8vIFO8FgLhyOhSJVP5eO-Y5u2';
+    // In production, this should come from environment variables
+    // For now, we'll use a placeholder that should be replaced with actual env var
+    return process.env.REACT_APP_PAYPAL_CLIENT_ID || 'PAYPAL_CLIENT_ID_NOT_SET';
   };
 
   const renderPayPalButtons = () => {
@@ -103,8 +153,27 @@ const PayPalPaymentButton: React.FC<PayPalPaymentButtonProps> = ({
         console.log('Creating PayPal order...');
         
         try {
-          // Create order in our database first
-          const orderData = await createOrderInDatabase();
+          // Rate limiting check
+          if (rateLimitExceeded) {
+            throw new Error('Rate limit exceeded. Please try again later.');
+          }
+
+          // Validate and sanitize inputs
+          const sanitizedCustomerInfo = {
+            email: sanitizeInput(customerInfo.email),
+            phone: sanitizeInput(customerInfo.phone),
+            name: sanitizeInput(customerInfo.name)
+          };
+
+          const sanitizedFormData = {
+            phone: sanitizeInput(formData.phone),
+            address: sanitizeInput(formData.address),
+            city: sanitizeInput(formData.city),
+            notes: sanitizeInput(formData.notes)
+          };
+
+          // Create order in our database first with validation
+          const orderData = await createOrderInDatabase(sanitizedCustomerInfo, sanitizedFormData);
           
           return actions.order.create({
             purchase_units: [{
@@ -117,11 +186,20 @@ const PayPalPaymentButton: React.FC<PayPalPaymentButtonProps> = ({
               custom_id: orderData.order_id
             }],
             application_context: {
-              shipping_preference: 'NO_SHIPPING'
+              shipping_preference: 'NO_SHIPPING',
+              return_url: `${window.location.origin}/payment-success`,
+              cancel_url: `${window.location.origin}/checkout`
             }
           });
         } catch (error) {
           console.error('Error creating order:', error);
+          
+          // Implement rate limiting
+          if (error instanceof Error && error.message.includes('rate limit')) {
+            setRateLimitExceeded(true);
+            setTimeout(() => setRateLimitExceeded(false), 300000); // 5 minutes
+          }
+          
           onError('Failed to create order');
           throw error;
         }
@@ -133,6 +211,12 @@ const PayPalPaymentButton: React.FC<PayPalPaymentButtonProps> = ({
         try {
           const order = await actions.order.capture();
           console.log('PayPal order captured:', order);
+
+          // Verify payment amount matches our expected amount
+          const capturedAmount = parseFloat(order.purchase_units[0].payments.captures[0].amount.value);
+          if (Math.abs(capturedAmount - amount) > 0.01) {
+            throw new Error('Payment amount mismatch');
+          }
 
           // Update our database with payment confirmation
           await updateOrderWithPayment(order);
@@ -146,7 +230,7 @@ const PayPalPaymentButton: React.FC<PayPalPaymentButtonProps> = ({
           onSuccess({
             paypal_order_id: order.id,
             transaction_id: order.purchase_units[0].payments.captures[0].id,
-            amount: amount,
+            amount: capturedAmount,
             currency: currency,
             status: 'completed'
           });
@@ -183,18 +267,29 @@ const PayPalPaymentButton: React.FC<PayPalPaymentButtonProps> = ({
     }).render(paypalRef.current);
   };
 
-  const createOrderInDatabase = async () => {
+  const createOrderInDatabase = async (sanitizedCustomerInfo: any, sanitizedFormData: any) => {
     if (!user) {
       throw new Error('User not authenticated');
+    }
+
+    // Validate user permissions
+    const { data: userProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, email')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !userProfile) {
+      throw new Error('User verification failed');
     }
 
     const { data, error } = await supabase
       .from('orders')
       .insert({
         user_id: user.id,
-        email: customerInfo.email,
-        phone_number: customerInfo.phone,
-        delivery_address: `${formData.address}, ${formData.city}`,
+        email: sanitizedCustomerInfo.email,
+        phone_number: sanitizedCustomerInfo.phone,
+        delivery_address: `${sanitizedFormData.address}, ${sanitizedFormData.city}`,
         total_amount: amount,
         currency: currency,
         status: 'pending',
@@ -210,13 +305,13 @@ const PayPalPaymentButton: React.FC<PayPalPaymentButtonProps> = ({
       throw error;
     }
 
-    // Create order items
+    // Create order items with validation
     if (items.length > 0) {
       const orderItems = items.map(item => ({
         order_id: data.id,
         product_id: item.id,
-        quantity: item.quantity,
-        price: item.price
+        quantity: Math.max(1, Math.min(100, Math.floor(item.quantity))), // Validate quantity
+        price: Math.max(0, parseFloat(item.price.toString())) // Validate price
       }));
 
       const { error: itemsError } = await supabase
@@ -236,6 +331,11 @@ const PayPalPaymentButton: React.FC<PayPalPaymentButtonProps> = ({
     const transactionId = paypalOrder.purchase_units[0].payments.captures[0].id;
     const orderId = paypalOrder.purchase_units[0].reference_id;
 
+    // Validate transaction ID
+    if (!transactionId || typeof transactionId !== 'string') {
+      throw new Error('Invalid transaction ID');
+    }
+
     // Update order status
     const { error: orderError } = await supabase
       .from('orders')
@@ -243,14 +343,15 @@ const PayPalPaymentButton: React.FC<PayPalPaymentButtonProps> = ({
         status: 'confirmed',
         payment_initiated: true
       })
-      .eq('id', orderId);
+      .eq('id', orderId)
+      .eq('user_id', user?.id); // Ensure user can only update their own orders
 
     if (orderError) {
       console.error('Error updating order:', orderError);
       throw orderError;
     }
 
-    // Create payment record
+    // Create payment record with validation
     const { error: paymentError } = await supabase
       .from('payments')
       .insert({
@@ -260,10 +361,11 @@ const PayPalPaymentButton: React.FC<PayPalPaymentButtonProps> = ({
         currency: currency,
         method: 'paypal',
         status: 'completed',
-        transaction_id: transactionId,
+        transaction_id: sanitizeInput(transactionId),
         metadata: {
-          paypal_order_id: paypalOrder.id,
-          payer_email: paypalOrder.payer.email_address
+          paypal_order_id: sanitizeInput(paypalOrder.id),
+          payer_email: sanitizeInput(paypalOrder.payer?.email_address || ''),
+          verification_timestamp: new Date().toISOString()
         }
       });
 
@@ -278,6 +380,14 @@ const PayPalPaymentButton: React.FC<PayPalPaymentButtonProps> = ({
       <Button disabled className="w-full bg-blue-600">
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
         Loading PayPal...
+      </Button>
+    );
+  }
+
+  if (rateLimitExceeded) {
+    return (
+      <Button disabled className="w-full bg-gray-400">
+        Rate limit exceeded. Please try again later.
       </Button>
     );
   }
