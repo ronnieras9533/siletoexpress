@@ -17,6 +17,7 @@ import PesapalPaymentButton from '@/components/PesapalPaymentButton';
 import PayPalPaymentButton from '@/components/PayPalPaymentButton';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import { supabase } from '@/integrations/supabase/client';
 
 const Checkout = () => {
   const { items, total, clearCart, hasPrescriptionItems } = useCart();
@@ -38,6 +39,7 @@ const Checkout = () => {
   const [deliveryFee, setDeliveryFee] = useState(0);
   const [prescriptionId, setPrescriptionId] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'pesapal' | 'paypal'>('pesapal');
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -102,7 +104,7 @@ const Checkout = () => {
     e.preventDefault();
   };
 
-  const handlePrescriptionUpload = (id: string) => {
+  const handlePrescriptionUploaded = (id: string) => {
     setPrescriptionId(id);
   };
 
@@ -218,7 +220,11 @@ const Checkout = () => {
                       <p className="text-sm text-gray-600 mb-4">
                         Your cart contains prescription items. Please upload a valid prescription to proceed.
                       </p>
-                      <OrderPrescriptionUpload onUploadComplete={handlePrescriptionUpload} />
+                      <OrderPrescriptionUpload 
+                        onPrescriptionUploaded={handlePrescriptionUploaded}
+                        onCancel={() => {}}
+                        prescriptionItems={items.filter(item => item.requires_prescription).map(item => ({ id: item.id, name: item.name }))}
+                      />
                     </CardContent>
                   </Card>
                 )}
@@ -237,7 +243,8 @@ const Checkout = () => {
                     {!user ? (
                       <div className="text-center py-4">
                         <p className="text-gray-600 mb-4">Please log in to continue with checkout</p>
-                        <LoginModal />
+                        <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} />
+                        <Button onClick={() => setShowLoginModal(true)}>Login</Button>
                       </div>
                     ) : (
                       <form onSubmit={handleSubmit} className="space-y-4">
