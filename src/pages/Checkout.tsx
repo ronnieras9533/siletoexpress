@@ -1,96 +1,111 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import { ShoppingBag, User, CreditCard, Smartphone, AlertTriangle } from 'lucide-react';
-import { useToast } from '@/components/ui/use-toast';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
-import KenyaCountiesSelect from '@/components/KenyaCountiesSelect';
-import OrderPrescriptionUpload from '@/components/OrderPrescriptionUpload';
-import LoginModal from '@/components/LoginModal';
 import PesapalPaymentButton from '@/components/PesapalPaymentButton';
 import PayPalPaymentButton from '@/components/PayPalPaymentButton';
+import { useToast } from '@/hooks/use-toast';
+import { ArrowLeft, CreditCard, Smartphone } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import { supabase } from '@/integrations/supabase/client';
+import LoginModal from '@/components/LoginModal';
+import { useDeliveryFee } from '@/hooks/useDeliveryFee';
+
+// Kenyan counties for delivery
+const kenyanCounties = [
+  'Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret', 'Kehancha', 'Malindi', 'Kitale', 'Garissa', 'Kakamega',
+  'Meru', 'Nyeri', 'Machakos', 'Kericho', 'Embu', 'Migori', 'Homa Bay', 'Narok', 'Voi', 'Bungoma',
+  'Thika', 'Kilifi', 'Isiolo', 'Nanyuki', 'Marsabit', 'Mumias', 'Wajir', 'Busia', 'Siaya', 'Kitui',
+  'Keroka', 'Otwani', 'Mwingi', 'Nyahururu', 'Kiambu', 'Kajiado', 'Murang\'a', 'Kirinyaga', 'Nyandarua',
+  'Laikipia', 'Samburu', 'Trans Nzoia', 'Uasin Gishu', 'Elgeyo-Marakwet', 'Nandi', 'Baringo', 'Kericho',
+  'Bomet', 'Nyamira', 'Kisii', 'Migori', 'Homa Bay', 'Siaya', 'Vihiga', 'Busia', 'Bungoma', 'Kakamega'
+];
 
 const Checkout = () => {
-  const { items, total, clearCart, hasPrescriptionItems } = useCart();
-  const { user } = useAuth();
   const navigate = useNavigate();
+  const { items, clearCart, getTotalAmount, showLoginModal, setShowLoginModal } = useCart();
+  const { user } = useAuth();
   const { toast } = useToast();
   
-  const [loading, setLoading] = useState(false);
-  const [prescriptionFile, setPrescriptionFile] = useState(null);
-  const [uploadingPrescription, setUploadingPrescription] = useState(false);
   const [formData, setFormData] = useState({
-    email: user?.email || '',
     phone: '',
     address: '',
     city: '',
+    county: '',
     notes: ''
   });
-  const [selectedCounty, setSelectedCounty] = useState('');
-  const [deliveryFee, setDeliveryFee] = useState(0);
-  const [prescriptionId, setPrescriptionId] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<'pesapal' | 'paypal'>('pesapal');
-  const [showLoginModal, setShowLoginModal] = useState(false);
 
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'mobile'>('mobile');
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
+  const subtotal = getTotalAmount();
+  const { deliveryFee, isCalculating } = useDeliveryFee({
+    county: formData.county,
+    orderTotal: subtotal
+  });
+  const total = subtotal + deliveryFee;
+
+  // Scroll to top and set page title
   useEffect(() => {
-    if (!user) {
-      return;
+    document.title = "Checkout - SiletoExpress";
+    window.scrollTo(0, 0);
+  }, []);
+
+  // Redirect if cart is empty
+  useEffect(() => {
+    if (items.length === 0) {
+      navigate('/cart');
     }
-    setFormData(prev => ({
-      ...prev,
-      email: user.email || '',
-    }));
+  }, [items, navigate]);
+
+  // Load user profile data
+  useEffect(() => {
+    if (user) {
+      // Pre-fill form with user data if available
+      setFormData(prev => ({
+        ...prev,
+        phone: user.phone || prev.phone
+      }));
+    }
   }, [user]);
 
-  useEffect(() => {
-    const calculateDelivery = async () => {
-      if (selectedCounty && total > 0) {
-        try {
-          const { data, error } = await supabase.functions.invoke('calculate-delivery', {
-            body: {
-              county_name: selectedCounty,
-              order_total: total
-            }
-          });
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="container mx-auto px-4 py-8 text-center">
+          <h1 className="text-2xl font-bold mb-4">Please Sign In</h1>
+          <p className="text-gray-600 mb-4">You need to be signed in to proceed with checkout.</p>
+          <Button onClick={() => navigate('/auth')}>
+            Sign In
+          </Button>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
-          if (error) {
-            console.error("Function error:", error);
-            toast({
-              title: "Delivery Error",
-              description: "Failed to calculate delivery fee.",
-              variant: "destructive"
-            });
-            setDeliveryFee(0);
-          } else {
-            setDeliveryFee(data);
-          }
-        } catch (err) {
-          console.error("Unexpected error:", err);
-          toast({
-            title: "Delivery Error",
-            description: "Unexpected error calculating delivery.",
-            variant: "destructive"
-          });
-          setDeliveryFee(0);
-        }
-      } else {
-        setDeliveryFee(0);
-      }
-    };
-
-    calculateDelivery();
-  }, [selectedCounty, total, toast]);
-
-  const grandTotal = total + deliveryFee;
+  if (items.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="container mx-auto px-4 py-8 text-center">
+          <h1 className="text-2xl font-bold mb-4">Your cart is empty</h1>
+          <Button onClick={() => navigate('/products')}>
+            Continue Shopping
+          </Button>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -100,29 +115,65 @@ const Checkout = () => {
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCountyChange = (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      county: value
+    }));
   };
 
-  const handlePrescriptionUploaded = (id: string) => {
-    setPrescriptionId(id);
+  const validateForm = () => {
+    if (!formData.phone.trim()) {
+      toast({
+        title: "Phone number required",
+        description: "Please enter your phone number.",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    if (!formData.address.trim()) {
+      toast({
+        title: "Address required",
+        description: "Please enter your delivery address.",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    if (!formData.city.trim()) {
+      toast({
+        title: "City required",
+        description: "Please enter your city.",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    if (!formData.county) {
+      toast({
+        title: "County required",
+        description: "Please select your county.",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    return true;
   };
 
   const handlePaymentSuccess = (transactionData: any) => {
     console.log('Payment successful:', transactionData);
-    navigate('/order-success', {
-      state: {
-        orderData: {
-          items,
-          total: grandTotal,
-          transactionId: transactionData.transaction_id || transactionData.trackingId,
-          paymentMethod: paymentMethod,
-          customerInfo: {
-            email: formData.email,
-            phone: formData.phone,
-            name: user?.user_metadata?.full_name || 'Customer'
-          }
-        }
+    toast({
+      title: "Payment Successful!",
+      description: "Your order has been confirmed and will be processed shortly.",
+    });
+    clearCart();
+    navigate('/payment-success', { 
+      state: { 
+        transactionData,
+        orderTotal: total,
+        deliveryInfo: formData
       }
     });
   };
@@ -130,10 +181,17 @@ const Checkout = () => {
   const handlePaymentError = (error: string) => {
     console.error('Payment error:', error);
     toast({
-      title: "Payment Error",
-      description: error,
+      title: "Payment Failed",
+      description: error || "There was an error processing your payment. Please try again.",
       variant: "destructive"
     });
+    setIsProcessingPayment(false);
+  };
+
+  const customerInfo = {
+    email: user?.email || '',
+    phone: formData.phone,
+    name: user?.user_metadata?.full_name || user?.email || ''
   };
 
   return (
@@ -141,309 +199,221 @@ const Checkout = () => {
       <Header />
       
       <div className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold text-gray-900">Checkout</h1>
-            <p className="text-gray-600">Complete your order details</p>
-          </div>
+        <div className="mb-6">
+          <Button 
+            variant="ghost" 
+            onClick={() => navigate('/cart')}
+            className="mb-4"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Cart
+          </Button>
+          <h1 className="text-3xl font-bold text-gray-900">Checkout</h1>
+        </div>
 
-          {items.length === 0 ? (
+        <div className="grid lg:grid-cols-3 gap-8">
+          {/* Order Form */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Customer Information */}
             <Card>
-              <CardContent className="text-center py-8">
-                <ShoppingBag className="mx-auto h-16 w-16 text-gray-400 mb-4" />
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">Your cart is empty</h2>
-                <p className="text-gray-600 mb-4">Add some products to get started</p>
-                <Button onClick={() => navigate('/products')}>
-                  Continue Shopping
-                </Button>
+              <CardHeader>
+                <CardTitle>Customer Information</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={user?.email || ''}
+                    disabled
+                    className="bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="phone">Phone Number *</Label>
+                  <Input
+                    id="phone"
+                    name="phone"
+                    type="tel"
+                    placeholder="0712345678 or +254712345678"
+                    value={formData.phone}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
               </CardContent>
             </Card>
-          ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="space-y-6">
-                {/* Order Summary */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <ShoppingBag className="mr-2 h-5 w-5" />
-                      Order Summary ({items.length} items)
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {items.map((item) => (
-                        <div key={item.id} className="flex items-center space-x-4 py-2">
-                          <img
-                            src={item.image_url || '/placeholder.svg'}
-                            alt={item.name}
-                            className="h-16 w-16 rounded-lg object-cover"
-                          />
-                          <div className="flex-1">
-                            <h3 className="font-medium">{item.name}</h3>
-                            <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
-                          </div>
-                          <p className="font-semibold">KES {(item.price * item.quantity).toLocaleString()}</p>
-                        </div>
-                      ))}
-                    </div>
+
+            {/* Delivery Information */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Delivery Information</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="address">Delivery Address *</Label>
+                  <Input
+                    id="address"
+                    name="address"
+                    placeholder="Street address, building, apartment"
+                    value={formData.address}
+                    onChange={handleInputChange}
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="city">City *</Label>
+                    <Input
+                      id="city"
+                      name="city"
+                      placeholder="Enter your city"
+                      value={formData.city}
+                      onChange={handleInputChange}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="county">County *</Label>
+                    <Select value={formData.county} onValueChange={handleCountyChange} required>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select county" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {kenyanCounties.map((county) => (
+                          <SelectItem key={county} value={county}>
+                            {county}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="notes">Delivery Notes (Optional)</Label>
+                  <Textarea
+                    id="notes"
+                    name="notes"
+                    placeholder="Any special delivery instructions..."
+                    value={formData.notes}
+                    onChange={handleInputChange}
+                    rows={3}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Payment Method */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Payment Method</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <Button
+                    variant={selectedPaymentMethod === 'mobile' ? 'default' : 'outline'}
+                    onClick={() => setSelectedPaymentMethod('mobile')}
+                    className="flex items-center justify-center"
+                  >
+                    <Smartphone className="mr-2 h-4 w-4" />
+                    Mobile Money
+                  </Button>
+                  <Button
+                    variant={selectedPaymentMethod === 'card' ? 'default' : 'outline'}
+                    onClick={() => setSelectedPaymentMethod('card')}
+                    className="flex items-center justify-center"
+                  >
+                    <CreditCard className="mr-2 h-4 w-4" />
+                    Card Payment
+                  </Button>
+                </div>
+
+                {validateForm() && (
+                  <div className="space-y-4">
+                    <PesapalPaymentButton
+                      amount={total}
+                      currency="KES"
+                      customerInfo={customerInfo}
+                      formData={formData}
+                      onSuccess={handlePaymentSuccess}
+                      onError={handlePaymentError}
+                      paymentType={selectedPaymentMethod}
+                    />
                     
-                    <Separator className="my-4" />
-                    
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span>Subtotal</span>
-                        <span>KES {total.toLocaleString()}</span>
+                    {selectedPaymentMethod === 'card' && (
+                      <div className="border-t pt-4">
+                        <p className="text-sm text-gray-600 mb-2">Alternative: PayPal Payment</p>
+                        <PayPalPaymentButton
+                          amount={total}
+                          currency="USD" // PayPal typically uses USD
+                          customerInfo={customerInfo}
+                          formData={formData}
+                          onSuccess={handlePaymentSuccess}
+                          onError={handlePaymentError}
+                        />
                       </div>
-                      <div className="flex justify-between">
-                        <span>Delivery Fee</span>
-                        <span>KES {deliveryFee.toLocaleString()}</span>
-                      </div>
-                      <Separator />
-                      <div className="flex justify-between text-lg font-semibold">
-                        <span>Total</span>
-                        <span>KES {grandTotal.toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Prescription Upload */}
-                {hasPrescriptionItems() && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center text-orange-600">
-                        <AlertTriangle className="mr-2 h-5 w-5" />
-                        Prescription Required
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-gray-600 mb-4">
-                        Your cart contains prescription items. Please upload a valid prescription to proceed.
-                      </p>
-                      <OrderPrescriptionUpload 
-                        onPrescriptionUploaded={handlePrescriptionUploaded}
-                        onCancel={() => {}}
-                        prescriptionItems={items.filter(item => item.prescription_required).map(item => ({ id: item.id, name: item.name }))}
-                      />
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-
-              <div className="space-y-6">
-                {/* Customer Information */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <User className="mr-2 h-5 w-5" />
-                      Customer Information
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {!user ? (
-                      <div className="text-center py-4">
-                        <p className="text-gray-600 mb-4">Please log in to continue with checkout</p>
-                        <LoginModal isOpen={showLoginModal} onClose={() => setShowLoginModal(false)} />
-                        <Button onClick={() => setShowLoginModal(true)}>Login</Button>
-                      </div>
-                    ) : (
-                      <form onSubmit={handleSubmit} className="space-y-4">
-                        <div>
-                          <Label htmlFor="email">Email Address</Label>
-                          <Input
-                            id="email"
-                            name="email"
-                            type="email"
-                            placeholder="e.g. john@example.com"
-                            value={formData.email || ''}
-                            onChange={handleInputChange}
-                            required
-                          />
-                          <p className="text-sm text-gray-600 mt-1">
-                            We'll send your order confirmation here.
-                          </p>
-                        </div>
-
-                        <div>
-                          <Label htmlFor="phone">Phone Number</Label>
-                          <Input
-                            id="phone"
-                            name="phone"
-                            type="tel"
-                            placeholder="e.g. 0712345678"
-                            value={formData.phone}
-                            onChange={handleInputChange}
-                            required
-                          />
-                          <p className="text-sm text-gray-600 mt-1">
-                            For delivery updates via SMS.
-                          </p>
-                        </div>
-
-                        <div>
-                          <Label htmlFor="county">County</Label>
-                          <KenyaCountiesSelect
-                            value={selectedCounty}
-                            onValueChange={setSelectedCounty}
-                            required
-                          />
-                          <p className="text-sm text-gray-600 mt-1">
-                            Delivery fee: KES {deliveryFee.toLocaleString()}
-                            {deliveryFee === 0 && total >= 2000 && " (Free delivery for orders over KES 2,000)"}
-                          </p>
-                        </div>
-
-                        <div>
-                          <Label htmlFor="address">Delivery Address</Label>
-                          <Textarea
-                            id="address"
-                            name="address"
-                            placeholder="Enter your full delivery address including building/house number, street, and any landmarks"
-                            value={formData.address}
-                            onChange={handleInputChange}
-                            required
-                            rows={3}
-                          />
-                        </div>
-
-                        <div>
-                          <Label htmlFor="city">City/Town</Label>
-                          <Input
-                            id="city"
-                            name="city"
-                            placeholder="e.g. Nairobi"
-                            value={formData.city}
-                            onChange={handleInputChange}
-                            required
-                          />
-                        </div>
-
-                        <div>
-                          <Label htmlFor="notes">Additional Notes (Optional)</Label>
-                          <Textarea
-                            id="notes"
-                            name="notes"
-                            placeholder="Any special delivery instructions or notes"
-                            value={formData.notes}
-                            onChange={handleInputChange}
-                            rows={2}
-                          />
-                        </div>
-                      </form>
                     )}
-                  </CardContent>
-                </Card>
-
-                {/* Payment Methods */}
-                {user && (!hasPrescriptionItems() || prescriptionId) && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center">
-                        <CreditCard className="mr-2 h-5 w-5" />
-                        Payment Method
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {/* Payment Method Selection */}
-                      <div className="space-y-3">
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="radio"
-                            id="pesapal"
-                            name="paymentMethod"
-                            value="pesapal"
-                            checked={paymentMethod === 'pesapal'}
-                            onChange={(e) => setPaymentMethod(e.target.value as 'pesapal' | 'paypal')}
-                            className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                          />
-                          <Label htmlFor="pesapal" className="flex items-center cursor-pointer">
-                            <Smartphone className="mr-2 h-4 w-4" />
-                            M-Pesa & Card (via Pesapal)
-                          </Label>
-                        </div>
-                        
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="radio"
-                            id="paypal"
-                            name="paymentMethod"
-                            value="paypal"
-                            checked={paymentMethod === 'paypal'}
-                            onChange={(e) => setPaymentMethod(e.target.value as 'pesapal' | 'paypal')}
-                            className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                          />
-                          <Label htmlFor="paypal" className="flex items-center cursor-pointer">
-                            <CreditCard className="mr-2 h-4 w-4" />
-                            PayPal & International Cards
-                          </Label>
-                        </div>
-                      </div>
-
-                      <Separator />
-
-                      {/* Payment Buttons */}
-                      <div className="space-y-3">
-                        {paymentMethod === 'pesapal' ? (
-                          <div className="space-y-3">
-                            <PesapalPaymentButton
-                              amount={grandTotal}
-                              currency="KES"
-                              customerInfo={{
-                                email: formData.email,
-                                phone: formData.phone,
-                                name: user?.user_metadata?.full_name || 'Customer'
-                              }}
-                              formData={formData}
-                              prescriptionId={prescriptionId}
-                              onSuccess={handlePaymentSuccess}
-                              onError={handlePaymentError}
-                              paymentType="card"
-                            />
-                            <PesapalPaymentButton
-                              amount={grandTotal}
-                              currency="KES"
-                              customerInfo={{
-                                email: formData.email,
-                                phone: formData.phone,
-                                name: user?.user_metadata?.full_name || 'Customer'
-                              }}
-                              formData={formData}
-                              prescriptionId={prescriptionId}
-                              onSuccess={handlePaymentSuccess}
-                              onError={handlePaymentError}
-                              paymentType="mobile"
-                            />
-                          </div>
-                        ) : (
-                          <PayPalPaymentButton
-                            amount={grandTotal}
-                            currency="USD"
-                            customerInfo={{
-                              email: formData.email,
-                              phone: formData.phone,
-                              name: user?.user_metadata?.full_name || 'Customer'
-                            }}
-                            formData={formData}
-                            prescriptionId={prescriptionId}
-                            onSuccess={handlePaymentSuccess}
-                            onError={handlePaymentError}
-                          />
-                        )}
-                      </div>
-
-                      <div className="text-xs text-gray-500 mt-4">
-                        <p>🔒 Your payment information is secure and encrypted.</p>
-                        <p>💳 We support major credit cards, M-Pesa, and PayPal.</p>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  </div>
                 )}
-              </div>
-            </div>
-          )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Order Summary */}
+          <div className="lg:col-span-1">
+            <Card className="sticky top-4">
+              <CardHeader>
+                <CardTitle>Order Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Cart Items */}
+                <div className="space-y-2">
+                  {items.map((item) => (
+                    <div key={item.id} className="flex justify-between text-sm">
+                      <span className="flex-1">{item.name} x {item.quantity}</span>
+                      <span>KES {(item.price * item.quantity).toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t pt-4 space-y-2">
+                  <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span>KES {subtotal.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Delivery Fee:</span>
+                    <span>
+                      {isCalculating ? 'Calculating...' : 
+                       deliveryFee === 0 ? 'FREE' : `KES ${deliveryFee.toLocaleString()}`}
+                    </span>
+                  </div>
+                  {deliveryFee === 0 && subtotal >= 2000 && (
+                    <p className="text-xs text-green-600">Free delivery for orders over KES 2,000!</p>
+                  )}
+                  <div className="flex justify-between font-bold text-lg border-t pt-2">
+                    <span>Total:</span>
+                    <span>KES {total.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {!validateForm() && (
+                  <div className="text-center text-sm text-gray-500 mt-4">
+                    Please fill in all required fields to proceed with payment
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
-      
+
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+      />
+
       <Footer />
     </div>
   );

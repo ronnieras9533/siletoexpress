@@ -49,15 +49,22 @@ const ProductSearch: React.FC<ProductSearchProps> = ({
   const filteredProducts = useMemo(() => {
     let filtered = products;
 
-    // Text search
+    // Text search - improved search functionality
     if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(product =>
-        product.name.toLowerCase().includes(term) ||
-        product.description?.toLowerCase().includes(term) ||
-        product.category?.toLowerCase().includes(term) ||
-        product.brand?.toLowerCase().includes(term)
-      );
+      const term = searchTerm.toLowerCase().trim();
+      filtered = filtered.filter(product => {
+        const searchableText = [
+          product.name,
+          product.description,
+          product.category,
+          product.brand
+        ].filter(Boolean).join(' ').toLowerCase();
+        
+        // Split search term into words for better matching
+        const searchWords = term.split(/\s+/).filter(word => word.length > 0);
+        
+        return searchWords.every(word => searchableText.includes(word));
+      });
     }
 
     // Category filter
@@ -101,19 +108,36 @@ const ProductSearch: React.FC<ProductSearchProps> = ({
 
   const hasActiveFilters = searchTerm || selectedCategory || selectedBrand || priceRange.min || priceRange.max || showPrescriptionOnly;
 
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Search is already handled by the useMemo effect, but we can add any additional logic here
+    console.log('Search triggered for:', searchTerm);
+  };
+
   return (
     <div className="space-y-4">
       {/* Search Bar */}
-      <div className="relative">
+      <form onSubmit={handleSearch} className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
         <Input
           type="text"
           placeholder="Search medicines, symptoms, or brands..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10"
+          className="pl-10 pr-4"
         />
-      </div>
+        {searchTerm && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1"
+            onClick={() => setSearchTerm('')}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+      </form>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-4 items-center">

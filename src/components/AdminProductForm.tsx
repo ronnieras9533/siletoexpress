@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { X, Upload } from 'lucide-react';
 
@@ -69,17 +69,64 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ product, onClose, o
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please select an image file.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validate file size (5MB limit)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please select an image smaller than 5MB.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setUploading(true);
     try {
+      // Create a unique filename
       const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
       
+      // Check if bucket exists, if not create it
+      const { data: buckets } = await supabase.storage.listBuckets();
+      const productImagesBucket = buckets?.find(bucket => bucket.name === 'product-images');
+      
+      if (!productImagesBucket) {
+        // Create bucket if it doesn't exist
+        const { error: createBucketError } = await supabase.storage.createBucket('product-images', {
+          public: true,
+          fileSizeLimit: 5242880, // 5MB
+          allowedMimeTypes: ['image/*']
+        });
+        
+        if (createBucketError) {
+          console.error('Error creating bucket:', createBucketError);
+          throw new Error('Failed to create storage bucket');
+        }
+      }
+      
+      // Upload the file
       const { error: uploadError } = await supabase.storage
         .from('product-images')
-        .upload(fileName, file);
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw uploadError;
+      }
 
+      // Get the public URL
       const { data: { publicUrl } } = supabase.storage
         .from('product-images')
         .getPublicUrl(fileName);
@@ -90,11 +137,11 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ product, onClose, o
         title: "Image uploaded successfully!",
         description: "Product image has been uploaded.",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading image:', error);
       toast({
         title: "Upload failed",
-        description: "Failed to upload image. Please try again.",
+        description: error.message || "Failed to upload image. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -107,15 +154,28 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ product, onClose, o
     setLoading(true);
 
     try {
+      // Validate required fields
+      if (!formData.name.trim()) {
+        throw new Error('Product name is required');
+      }
+      
+      if (!formData.price || parseFloat(formData.price) <= 0) {
+        throw new Error('Valid price is required');
+      }
+      
+      if (!formData.stock || parseInt(formData.stock) < 0) {
+        throw new Error('Valid stock quantity is required');
+      }
+
       const productData = {
-        name: formData.name,
-        description: formData.description,
+        name: formData.name.trim(),
+        description: formData.description?.trim() || null,
         price: parseFloat(formData.price),
         stock: parseInt(formData.stock),
-        category: formData.category,
-        brand: formData.brand,
+        category: formData.category || null,
+        brand: formData.brand?.trim() || null,
         prescription_required: formData.prescription_required,
-        image_url: formData.image_url
+        image_url: formData.image_url || null
       };
 
       let error;
@@ -134,7 +194,10 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ product, onClose, o
         error = result.error;
       }
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        throw error;
+      }
 
       toast({
         title: "Success!",
@@ -142,11 +205,11 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ product, onClose, o
       });
 
       onSuccess();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving product:', error);
       toast({
         title: "Error",
-        description: "Failed to save product. Please try again.",
+        description: error.message || "Failed to save product. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -170,13 +233,14 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ product, onClose, o
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="name">Product Name</Label>
+                <Label htmlFor="name">Product Name *</Label>
                 <Input
                   id="name"
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
                   required
+                  placeholder="Enter product name"
                 />
               </div>
               <div>
@@ -186,6 +250,7 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ product, onClose, o
                   name="brand"
                   value={formData.brand}
                   onChange={handleInputChange}
+                  placeholder="Enter brand name"
                 />
               </div>
             </div>
@@ -198,31 +263,36 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ product, onClose, o
                 value={formData.description}
                 onChange={handleInputChange}
                 rows={3}
+                placeholder="Enter product description"
               />
             </div>
 
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <Label htmlFor="price">Price (KES)</Label>
+                <Label htmlFor="price">Price (KES) *</Label>
                 <Input
                   id="price"
                   name="price"
                   type="number"
                   step="0.01"
+                  min="0"
                   value={formData.price}
                   onChange={handleInputChange}
                   required
+                  placeholder="0.00"
                 />
               </div>
               <div>
-                <Label htmlFor="stock">Stock Quantity</Label>
+                <Label htmlFor="stock">Stock Quantity *</Label>
                 <Input
                   id="stock"
                   name="stock"
                   type="number"
+                  min="0"
                   value={formData.stock}
                   onChange={handleInputChange}
                   required
+                  placeholder="0"
                 />
               </div>
               <div>
@@ -261,12 +331,26 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ product, onClose, o
                   onChange={handleImageUpload}
                   disabled={uploading}
                 />
+                {uploading && (
+                  <p className="text-sm text-gray-500">Uploading image...</p>
+                )}
                 {formData.image_url && (
-                  <img 
-                    src={formData.image_url} 
-                    alt="Product preview"
-                    className="w-32 h-32 object-cover rounded border"
-                  />
+                  <div className="relative">
+                    <img 
+                      src={formData.image_url} 
+                      alt="Product preview"
+                      className="w-32 h-32 object-cover rounded border"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      className="absolute -top-2 -right-2"
+                      onClick={() => setFormData(prev => ({ ...prev, image_url: '' }))}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
                 )}
               </div>
             </div>
@@ -275,7 +359,7 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ product, onClose, o
               <Button type="submit" disabled={loading || uploading} className="flex-1">
                 {loading ? 'Saving...' : product ? 'Update Product' : 'Create Product'}
               </Button>
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
                 Cancel
               </Button>
             </div>

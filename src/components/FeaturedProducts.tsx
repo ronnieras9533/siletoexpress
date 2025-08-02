@@ -6,10 +6,12 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCart } from "@/contexts/CartContext";
 import { ShoppingCart, AlertCircle, MessageCircle, Package } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const FeaturedProducts = () => {
   const navigate = useNavigate();
   const { addToCart } = useCart();
+  const { toast } = useToast();
 
   console.log('FeaturedProducts: Component rendering');
 
@@ -18,10 +20,12 @@ const FeaturedProducts = () => {
     queryFn: async () => {
       console.log('FeaturedProducts: Starting products query');
       try {
+        // Filter out prescription-required products from featured section
         const { data, error } = await supabase
           .from('products')
           .select('*')
           .gt('stock', 0)
+          .eq('prescription_required', false) // Only show non-prescription products
           .limit(6)
           .order('created_at', { ascending: false });
         
@@ -57,13 +61,24 @@ const FeaturedProducts = () => {
         stock: product.stock
       };
       addToCart(cartItem);
+      
+      // Show success toast notification
+      toast({
+        title: "Added to Cart!",
+        description: `${product.name} has been added to your cart.`,
+      });
     } catch (err) {
       console.error('FeaturedProducts: Error adding to cart:', err);
+      toast({
+        title: "Error",
+        description: "Failed to add item to cart. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
   const handleOrderViaWhatsApp = (e: React.MouseEvent, product: any) => {
-    e.stopPropagation(); // Prevent card click when clicking button
+    e.stopPropagation();
     const phoneNumber = '+254718925368';
     const message = `Hi! I would like to order:
 
@@ -83,8 +98,6 @@ Please let me know about availability and delivery details.`;
   const handleCardClick = (productId: string) => {
     navigate(`/product/${productId}`);
   };
-
-  console.log('FeaturedProducts: Render state:', { isLoading, error: !!error, productsCount: products?.length });
 
   if (isLoading) {
     console.log('FeaturedProducts: Rendering loading state');
@@ -138,16 +151,6 @@ Please let me know about availability and delivery details.`;
                 Browse All Products
               </Button>
             </div>
-            {process.env.NODE_ENV === 'development' && (
-              <details className="mt-4 max-w-md mx-auto">
-                <summary className="cursor-pointer text-sm text-gray-500">
-                  Error Details (Development)
-                </summary>
-                <pre className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded text-left">
-                  {error instanceof Error ? error.message : String(error)}
-                </pre>
-              </details>
-            )}
           </div>
         </div>
       </section>
@@ -181,7 +184,7 @@ Please let me know about availability and delivery details.`;
         <div className="text-center mb-8 md:mb-12">
           <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4">Featured Products</h2>
           <p className="text-gray-600 max-w-2xl mx-auto text-sm md:text-base">
-            Discover quality medicines and health products from verified sellers
+            Discover quality over-the-counter medicines and health products
           </p>
         </div>
 
@@ -189,7 +192,7 @@ Please let me know about availability and delivery details.`;
           {products.map((product) => (
             <Card 
               key={product.id} 
-              className="group hover:shadow-lg transition-shadow duration-300 flex flex-col cursor-pointer"
+              className="group hover:shadow-lg transition-shadow duration-300 flex flex-col cursor-pointer overflow-hidden"
               onClick={() => handleCardClick(product.id)}
             >
               <CardHeader className="pb-3">
@@ -200,11 +203,6 @@ Please let me know about availability and delivery details.`;
                     </CardTitle>
                     <p className="text-xs md:text-sm text-gray-600 mt-1 truncate">{product.brand || 'No Brand'}</p>
                   </div>
-                  {product.prescription_required && (
-                    <Badge variant="secondary" className="bg-red-100 text-red-800 text-xs flex-shrink-0">
-                      Prescription Required
-                    </Badge>
-                  )}
                 </div>
               </CardHeader>
               
