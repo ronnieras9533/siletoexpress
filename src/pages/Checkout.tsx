@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -59,6 +59,16 @@ const Checkout = () => {
   const subtotal = getTotalAmount();
   const deliveryFee = formData.county ? calculateDeliveryFee(formData.county, subtotal) : 200;
   const total = subtotal + deliveryFee;
+
+  // Memoize form validation to prevent re-render loops
+  const isFormValid = useMemo(() => {
+    return Boolean(
+      formData.phone.trim() &&
+      formData.address.trim() &&
+      formData.city.trim() &&
+      formData.county
+    );
+  }, [formData]);
 
   // Scroll to top and set page title
   useEffect(() => {
@@ -336,7 +346,7 @@ const Checkout = () => {
                   </Button>
                 </div>
 
-                {validateForm() && (
+                {isFormValid && (
                   <div className="space-y-4">
                     <PesapalPaymentButton
                       amount={total}
@@ -404,7 +414,7 @@ const Checkout = () => {
                   </div>
                 </div>
 
-                {!validateForm() && (
+                {!isFormValid && (
                   <div className="text-center text-sm text-gray-500 mt-4">
                     Please fill in all required fields to proceed with payment
                   </div>
