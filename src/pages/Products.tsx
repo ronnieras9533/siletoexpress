@@ -403,11 +403,25 @@ const Products = () => {
                             {product.stock <= 0 ? 'Out of Stock' : 'Add to Cart'}
                           </Button>
                           
-                          <WhatsAppRestoreButton
-                            productName={product.name}
-                            productId={product.id}
-                            className="w-full"
-                          />
+                          <Button
+                            onClick={() => {
+                              const message = `Hello! I would like to restore my order for:
+
+*${product.name}*
+Price: KES ${product.price.toLocaleString()}
+
+Product Link: ${window.location.origin}/products/${product.id}
+
+Please help me complete this order.`;
+                              
+                              const whatsappUrl = `https://wa.me/254718925368?text=${encodeURIComponent(message)}`;
+                              window.open(whatsappUrl, '_blank');
+                            }}
+                            variant="outline"
+                            className="w-full bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
+                          >
+                            🟢 Restore Order via WhatsApp
+                          </Button>
                         </div>
                         
                         {product.stock > 0 && product.stock <= 10 && (

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Toaster } from '@/components/ui/toaster';
@@ -6,14 +7,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { CartProvider } from '@/contexts/CartContext';
 import Products from '@/pages/Products';
-import ProductDetails from '@/pages/ProductDetails';
+import ProductDetail from '@/pages/ProductDetail';
 import Cart from '@/pages/Cart';
 import Checkout from '@/pages/Checkout';
 import PaymentSuccess from '@/pages/PaymentSuccess';
-import PaymentFailed from '@/pages/PaymentFailed';
 import TrackOrder from '@/pages/TrackOrder';
-import ContactUs from '@/pages/ContactUs';
-import AboutUs from '@/pages/AboutUs';
 import NotFound from '@/pages/NotFound';
 import SellerDashboard from '@/pages/SellerDashboard';
 import PrescriptionUpload from '@/pages/PrescriptionUpload';
@@ -38,14 +36,11 @@ function App() {
                 <Routes>
                   <Route path="/" element={<Products />} />
                   <Route path="/products" element={<Products />} />
-                  <Route path="/products/:id" element={<ProductDetails />} />
+                  <Route path="/products/:id" element={<ProductDetail />} />
                   <Route path="/cart" element={<Cart />} />
                   <Route path="/checkout" element={<Checkout />} />
                   <Route path="/payment-success" element={<PaymentSuccess />} />
-                  <Route path="/payment-failed" element={<PaymentFailed />} />
                   <Route path="/track-order" element={<TrackOrder />} />
-                  <Route path="/contact-us" element={<ContactUs />} />
-                  <Route path="/about-us" element={<AboutUs />} />
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/seller-dashboard" element={<SellerDashboard />} />
                   <Route path="/prescription-upload" element={<PrescriptionUpload />} />
