@@ -33,8 +33,7 @@ const Footer = () => {
             <h4 className="text-lg font-semibold">Contact Us</h4>
             <div className="space-y-2 text-sm text-gray-300">
               <p>Email: info@siletoexpress.com</p>
-              <p>Working Hours: Mon - Fri, 8AM - 6PM</p>
-              <p>Saturday: 9AM - 2PM</p>
+              <p>Working Hours: Every Day 8AM - 9PM</p>
             </div>
           </div>
 
@@ -89,7 +88,7 @@ const Footer = () => {
 
         <div className="border-t border-gray-800 mt-8 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center text-sm text-gray-400">
-            <p>&copy; 2024 SiletoExpress. All rights reserved.</p>
+            <p>&copy; 2025 SiletoExpress. All rights reserved.</p>
             <div className="flex space-x-6 mt-4 md:mt-0">
               <Link to="/privacy-policy" className="hover:text-white transition-colors">Privacy Policy</Link>
               <Link to="/terms-of-service" className="hover:text-white transition-colors">Terms of Service</Link>

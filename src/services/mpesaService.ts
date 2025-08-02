@@ -24,16 +24,23 @@ class MPESAService {
 
   async initiateSTKPush(paymentData: MPESAPaymentData): Promise<MPESAResponse> {
     try {
+      console.log('Initiating M-PESA STK Push:', paymentData);
+      
       const { data: session } = await supabase.auth.getSession();
       
+      if (!session.session?.access_token) {
+        throw new Error('User not authenticated');
+      }
+
       const response = await fetch(`${this.baseUrl}/mpesa-stk-push`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.session?.access_token}`
+          'Authorization': `Bearer ${session.session.access_token}`
         },
         body: JSON.stringify({
           ...paymentData,
+          phoneNumber: this.formatPhoneNumber(paymentData.phoneNumber),
           accountReference: paymentData.accountReference || paymentData.orderId,
           transactionDesc: paymentData.transactionDesc || `Payment for order ${paymentData.orderId}`
         })
@@ -41,23 +48,25 @@ class MPESAService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+        console.error('M-PESA API Error:', errorText);
+        throw new Error(`Payment service error: ${response.status}`);
       }
 
       const result = await response.json();
+      console.log('M-PESA STK Response:', result);
+      
       return result;
     } catch (error) {
       console.error('M-PESA STK Push error:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred'
+        error: error instanceof Error ? error.message : 'Payment processing failed'
       };
     }
   }
 
   async checkPaymentStatus(checkoutRequestID: string): Promise<any> {
     try {
-      // Check payment status from database
       const { data: payment, error } = await supabase
         .from('payments')
         .select('*')

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -16,15 +15,17 @@ import { ArrowLeft, CreditCard, Smartphone } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import LoginModal from '@/components/LoginModal';
+import BrevoPaymentButton from '@/components/BrevoPaymentButton';
 
 // Kenyan counties for delivery
 const kenyanCounties = [
-  'Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret', 'Kehancha', 'Malindi', 'Kitale', 'Garissa', 'Kakamega',
-  'Meru', 'Nyeri', 'Machakos', 'Kericho', 'Embu', 'Migori', 'Homa Bay', 'Narok', 'Voi', 'Bungoma',
-  'Thika', 'Kilifi', 'Isiolo', 'Nanyuki', 'Marsabit', 'Mumias', 'Wajir', 'Busia', 'Siaya', 'Kitui',
-  'Keroka', 'Otwani', 'Mwingi', 'Nyahururu', 'Kiambu', 'Kajiado', 'Murang\'a', 'Kirinyaga', 'Nyandarua',
-  'Laikipia', 'Samburu', 'Trans Nzoia', 'Uasin Gishu', 'Elgeyo-Marakwet', 'Nandi', 'Baringo', 'Kericho',
-  'Bomet', 'Nyamira', 'Kisii', 'Migori', 'Homa Bay', 'Siaya', 'Vihiga', 'Busia', 'Bungoma', 'Kakamega'
+  'Baringo', 'Bomet', 'Bungoma', 'Busia', 'Elgeyo-Marakwet', 'Embu', 'Garissa',
+  'Homa Bay', 'Isiolo', 'Kajiado', 'Kakamega', 'Kericho', 'Kiambu', 'Kilifi',
+  'Kirinyaga', 'Kisii', 'Kisumu', 'Kitui', 'Kwale', 'Laikipia', 'Lamu', 'Machakos',
+  'Makueni', 'Mandera', 'Marsabit', 'Meru', 'Migori', 'Mombasa', 'Murang\'a',
+  'Nairobi', 'Nakuru', 'Nandi', 'Narok', 'Nyamira', 'Nyandarua', 'Nyeri',
+  'Samburu', 'Siaya', 'Taita-Taveta', 'Tana River', 'Tharaka-Nithi', 'Trans Nzoia',
+  'Turkana', 'Uasin Gishu', 'Vihiga', 'Wajir', 'West Pokot'
 ];
 
 // Calculate delivery fee based on county and order total
@@ -124,6 +125,12 @@ const Checkout = () => {
     );
   }
 
+  // Add phone number validation helper
+  const validateKenyanPhone = (phone: string): boolean => {
+    const cleaned = phone.replace(/\D/g, '');
+    return /^(254|0)[0-9]{9}$/.test(cleaned) || /^[0-9]{10}$/.test(cleaned);
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -144,6 +151,15 @@ const Checkout = () => {
       toast({
         title: "Phone number required",
         description: "Please enter your phone number.",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    if (!validateKenyanPhone(formData.phone)) {
+      toast({
+        title: "Invalid phone number",
+        description: "Please enter a valid Kenyan phone number (e.g., 0712345678 or +254712345678).",
         variant: "destructive"
       });
       return false;
@@ -248,7 +264,7 @@ const Checkout = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="phone">Phone Number *</Label>
+                  <Label htmlFor="phone">Phone Number <span className="text-red-500">*</span></Label>
                   <Input
                     id="phone"
                     name="phone"
@@ -257,7 +273,11 @@ const Checkout = () => {
                     value={formData.phone}
                     onChange={handleInputChange}
                     required
+                    className={!validateKenyanPhone(formData.phone) && formData.phone ? 'border-red-300' : ''}
                   />
+                  {formData.phone && !validateKenyanPhone(formData.phone) && (
+                    <p className="text-sm text-red-600 mt-1">Please enter a valid Kenyan phone number</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -269,7 +289,7 @@ const Checkout = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <Label htmlFor="address">Delivery Address *</Label>
+                  <Label htmlFor="address">Delivery Address <span className="text-red-500">*</span></Label>
                   <Input
                     id="address"
                     name="address"
@@ -281,7 +301,7 @@ const Checkout = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="city">City *</Label>
+                    <Label htmlFor="city">City <span className="text-red-500">*</span></Label>
                     <Input
                       id="city"
                       name="city"
@@ -292,14 +312,18 @@ const Checkout = () => {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="county">County *</Label>
+                    <Label htmlFor="county">County <span className="text-red-500">*</span></Label>
                     <Select value={formData.county} onValueChange={handleCountyChange} required>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select county" />
+                        <SelectValue placeholder="Select your county" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-white border border-gray-200 shadow-lg z-50 max-h-60 overflow-y-auto">
                         {kenyanCounties.map((county) => (
-                          <SelectItem key={county} value={county}>
+                          <SelectItem 
+                            key={county} 
+                            value={county}
+                            className="hover:bg-gray-100 cursor-pointer px-3 py-2"
+                          >
                             {county}
                           </SelectItem>
                         ))}
@@ -334,7 +358,7 @@ const Checkout = () => {
                     className="flex items-center justify-center"
                   >
                     <Smartphone className="mr-2 h-4 w-4" />
-                    Mobile Money
+                    M-PESA
                   </Button>
                   <Button
                     variant={selectedPaymentMethod === 'card' ? 'default' : 'outline'}
@@ -342,34 +366,31 @@ const Checkout = () => {
                     className="flex items-center justify-center"
                   >
                     <CreditCard className="mr-2 h-4 w-4" />
-                    Card Payment
+                    Card Payment (Brevo)
                   </Button>
                 </div>
 
                 {isFormValid && (
                   <div className="space-y-4">
-                    <PesapalPaymentButton
-                      amount={total}
-                      currency="KES"
-                      customerInfo={customerInfo}
-                      formData={formData}
-                      onSuccess={handlePaymentSuccess}
-                      onError={handlePaymentError}
-                      paymentType={selectedPaymentMethod}
-                    />
-                    
-                    {selectedPaymentMethod === 'card' && (
-                      <div className="border-t pt-4">
-                        <p className="text-sm text-gray-600 mb-2">Alternative: PayPal Payment</p>
-                        <PayPalPaymentButton
-                          amount={total}
-                          currency="USD"
-                          customerInfo={customerInfo}
-                          formData={formData}
-                          onSuccess={handlePaymentSuccess}
-                          onError={handlePaymentError}
-                        />
-                      </div>
+                    {selectedPaymentMethod === 'mobile' ? (
+                      <PesapalPaymentButton
+                        amount={total}
+                        currency="KES"
+                        customerInfo={customerInfo}
+                        formData={formData}
+                        onSuccess={handlePaymentSuccess}
+                        onError={handlePaymentError}
+                        paymentType="mobile"
+                      />
+                    ) : (
+                      <BrevoPaymentButton
+                        amount={total}
+                        currency="KES"
+                        customerInfo={customerInfo}
+                        formData={formData}
+                        onSuccess={handlePaymentSuccess}
+                        onError={handlePaymentError}
+                      />
                     )}
                   </div>
                 )}

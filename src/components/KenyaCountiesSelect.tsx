@@ -27,9 +27,13 @@ const KenyaCountiesSelect: React.FC<KenyaCountiesSelectProps> = ({ value, onValu
         <SelectTrigger>
           <SelectValue placeholder="Select your county" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="bg-white border border-gray-200 shadow-lg z-50 max-h-60 overflow-y-auto">
           {KENYA_COUNTIES.map((county) => (
-            <SelectItem key={county} value={county.toLowerCase()}>
+            <SelectItem 
+              key={county} 
+              value={county.toLowerCase()}
+              className="hover:bg-gray-100 cursor-pointer px-3 py-2"
+            >
               {county}
             </SelectItem>
           ))}
