@@ -1,72 +1,78 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { X, Upload } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, Loader2 } from 'lucide-react';
+
+interface Product {
+  id?: string;
+  name: string;
+  description: string;
+  price: number;
+  stock: number;
+  category: string;
+  brand: string;
+  prescription_required: boolean;
+  image_url?: string;
+}
+
+interface AdminProductFormProps {
+  product?: Product;
+  onSave: () => void;
+  onCancel: () => void;
+}
 
 const categories = [
   'Pain Relief',
-  'Chronic Care',
+  'Antibiotics',
+  'Vitamins & Supplements',
+  'Heart & Blood Pressure',
+  'Diabetes Care',
+  'Digestive Health',
+  'Respiratory',
+  'Skin Care',
   'General Medicine',
-  'Supplements',
   'First Aid',
-  'Personal Care',
-  'Baby Care',
-  'Vitamins'
+  'Baby & Child Care',
+  'Supplements',
+  'Other'
 ];
 
-interface AdminProductFormProps {
-  product?: any;
-  onClose: () => void;
-  onSuccess: () => void;
-}
-
-const AdminProductForm: React.FC<AdminProductFormProps> = ({ product, onClose, onSuccess }) => {
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    price: '',
-    stock: '',
-    category: '',
-    brand: '',
-    prescription_required: false,
-    image_url: ''
+const AdminProductForm: React.FC<AdminProductFormProps> = ({ product, onSave, onCancel }) => {
+  const [formData, setFormData] = useState<Product>({
+    name: product?.name || '',
+    description: product?.description || '',
+    price: product?.price || 0,
+    stock: product?.stock || 0,
+    category: product?.category || '',
+    brand: product?.brand || '',
+    prescription_required: product?.prescription_required || false,
+    image_url: product?.image_url || ''
   });
-  const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string>(product?.image_url || '');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (product) {
-      setFormData({
-        name: product.name || '',
-        description: product.description || '',
-        price: product.price?.toString() || '',
-        stock: product.stock?.toString() || '',
-        category: product.category || '',
-        brand: product.brand || '',
-        prescription_required: product.prescription_required || false,
-        image_url: product.image_url || ''
-      });
-    }
-  }, [product]);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (field: keyof Product, value: string | number | boolean) => {
     setFormData(prev => ({
       ...prev,
-      [e.target.name]: e.target.value
+      [field]: value
     }));
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
 
     // Validate file type
@@ -79,7 +85,7 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ product, onClose, o
       return;
     }
 
-    // Validate file size (5MB limit)
+    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       toast({
         title: "File too large",
@@ -89,32 +95,18 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ product, onClose, o
       return;
     }
 
-    setUploading(true);
+    setIsUploading(true);
+    
     try {
       // Create a unique filename
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-      
-      // Check if bucket exists, if not create it
-      const { data: buckets } = await supabase.storage.listBuckets();
-      const productImagesBucket = buckets?.find(bucket => bucket.name === 'product-images');
-      
-      if (!productImagesBucket) {
-        // Create bucket if it doesn't exist
-        const { error: createBucketError } = await supabase.storage.createBucket('product-images', {
-          public: true,
-          fileSizeLimit: 5242880, // 5MB
-          allowedMimeTypes: ['image/*']
-        });
-        
-        if (createBucketError) {
-          console.error('Error creating bucket:', createBucketError);
-          throw new Error('Failed to create storage bucket');
-        }
-      }
-      
-      // Upload the file
-      const { error: uploadError } = await supabase.storage
+      const timestamp = Date.now();
+      const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const fileName = `product-images/${timestamp}_${sanitizedFileName}`;
+
+      console.log('Uploading image to:', fileName);
+
+      // Upload to Supabase storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
         .from('product-images')
         .upload(fileName, file, {
           cacheControl: '3600',
@@ -123,250 +115,346 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ product, onClose, o
 
       if (uploadError) {
         console.error('Upload error:', uploadError);
-        throw uploadError;
+        throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
-      // Get the public URL
-      const { data: { publicUrl } } = supabase.storage
+      console.log('Upload successful:', uploadData);
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
         .from('product-images')
         .getPublicUrl(fileName);
 
-      setFormData(prev => ({ ...prev, image_url: publicUrl }));
-      
+      if (!urlData.publicUrl) {
+        throw new Error('Failed to get public URL');
+      }
+
+      console.log('Public URL:', urlData.publicUrl);
+
+      // Update form data and preview
+      setImagePreview(urlData.publicUrl);
+      setFormData(prev => ({
+        ...prev,
+        image_url: urlData.publicUrl
+      }));
+
       toast({
         title: "Image uploaded successfully!",
-        description: "Product image has been uploaded.",
+        description: "The product image has been uploaded."
       });
-    } catch (error: any) {
-      console.error('Error uploading image:', error);
+
+    } catch (error) {
+      console.error('Image upload error:', error);
       toast({
         title: "Upload failed",
-        description: error.message || "Failed to upload image. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to upload image. Please try again.",
         variant: "destructive"
       });
     } finally {
-      setUploading(false);
+      setIsUploading(false);
+      // Clear the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
+  };
+
+  const removeImage = () => {
+    setImagePreview('');
+    setFormData(prev => ({
+      ...prev,
+      image_url: ''
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    
+    // Validation
+    if (!formData.name.trim()) {
+      toast({
+        title: "Name required",
+        description: "Please enter a product name.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!formData.category) {
+      toast({
+        title: "Category required",
+        description: "Please select a category.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (formData.price <= 0) {
+      toast({
+        title: "Invalid price",
+        description: "Please enter a valid price.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (formData.stock < 0) {
+      toast({
+        title: "Invalid stock",
+        description: "Stock cannot be negative.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsLoading(true);
 
     try {
-      // Validate required fields
-      if (!formData.name.trim()) {
-        throw new Error('Product name is required');
-      }
-      
-      if (!formData.price || parseFloat(formData.price) <= 0) {
-        throw new Error('Valid price is required');
-      }
-      
-      if (!formData.stock || parseInt(formData.stock) < 0) {
-        throw new Error('Valid stock quantity is required');
-      }
-
       const productData = {
         name: formData.name.trim(),
-        description: formData.description?.trim() || null,
-        price: parseFloat(formData.price),
-        stock: parseInt(formData.stock),
-        category: formData.category || null,
-        brand: formData.brand?.trim() || null,
+        description: formData.description.trim(),
+        price: Number(formData.price),
+        stock: Number(formData.stock),
+        category: formData.category,
+        brand: formData.brand.trim(),
         prescription_required: formData.prescription_required,
         image_url: formData.image_url || null
       };
 
-      let error;
-      if (product) {
+      let result;
+      if (product?.id) {
         // Update existing product
-        const result = await supabase
+        result = await supabase
           .from('products')
           .update(productData)
-          .eq('id', product.id);
-        error = result.error;
+          .eq('id', product.id)
+          .select()
+          .single();
       } else {
         // Create new product
-        const result = await supabase
+        result = await supabase
           .from('products')
-          .insert(productData);
-        error = result.error;
+          .insert(productData)
+          .select()
+          .single();
       }
 
-      if (error) {
-        console.error('Database error:', error);
-        throw error;
+      if (result.error) {
+        console.error('Database error:', result.error);
+        throw new Error(result.error.message);
       }
 
       toast({
         title: "Success!",
-        description: `Product ${product ? 'updated' : 'created'} successfully.`,
+        description: `Product ${product?.id ? 'updated' : 'created'} successfully.`
       });
 
-      onSuccess();
-    } catch (error: any) {
-      console.error('Error saving product:', error);
+      onSave();
+
+    } catch (error) {
+      console.error('Save error:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to save product. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to save product. Please try again.",
         variant: "destructive"
       });
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>{product ? 'Edit Product' : 'Add New Product'}</CardTitle>
-            <Button variant="ghost" size="sm" onClick={onClose}>
-              <X className="h-4 w-4" />
+    <Card className="w-full max-w-2xl mx-auto">
+      <CardHeader>
+        <CardTitle>{product?.id ? 'Edit Product' : 'Add New Product'}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Image Upload */}
+          <div className="space-y-4">
+            <Label>Product Image</Label>
+            
+            {imagePreview ? (
+              <div className="relative inline-block">
+                <img
+                  src={imagePreview}
+                  alt="Product preview"
+                  className="w-32 h-32 object-cover rounded-lg border"
+                />
+                <button
+                  type="button"
+                  onClick={removeImage}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <div className="w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center">
+                <ImageIcon className="h-8 w-8 text-gray-400" />
+              </div>
+            )}
+
+            <div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+                id="image-upload"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="w-full sm:w-auto"
+              >
+                {isUploading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="mr-2 h-4 w-4" />
+                    Upload Image
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {/* Product Details */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Product Name *</Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => handleInputChange('name', e.target.value)}
+                placeholder="Enter product name"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="brand">Brand</Label>
+              <Input
+                id="brand"
+                value={formData.brand}
+                onChange={(e) => handleInputChange('brand', e.target.value)}
+                placeholder="Enter brand name"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="description">Description</Label>
+            <Textarea
+              id="description"
+              value={formData.description}
+              onChange={(e) => handleInputChange('description', e.target.value)}
+              placeholder="Enter product description"
+              rows={4}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="price">Price (KES) *</Label>
+              <Input
+                id="price"
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.price}
+                onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || 0)}
+                placeholder="0.00"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="stock">Stock Quantity *</Label>
+              <Input
+                id="stock"
+                type="number"
+                min="0"
+                value={formData.stock}
+                onChange={(e) => handleInputChange('stock', parseInt(e.target.value) || 0)}
+                placeholder="0"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="category">Category *</Label>
+              <Select 
+                value={formData.category} 
+                onValueChange={(value) => handleInputChange('category', value)}
+                required
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map(category => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="prescription"
+              checked={formData.prescription_required}
+              onCheckedChange={(checked) => handleInputChange('prescription_required', checked)}
+            />
+            <Label htmlFor="prescription" className="flex items-center space-x-2">
+              <span>Prescription Required</span>
+              {formData.prescription_required && (
+                <Badge variant="destructive" className="text-xs">
+                  Rx Required
+                </Badge>
+              )}
+            </Label>
+          </div>
+
+          <div className="flex gap-4 pt-4">
+            <Button
+              type="submit"
+              disabled={isLoading || isUploading}
+              className="flex-1"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                `${product?.id ? 'Update' : 'Create'} Product`
+              )}
+            </Button>
+            
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCancel}
+              disabled={isLoading}
+              className="flex-1"
+            >
+              Cancel
             </Button>
           </div>
-        </CardHeader>
-        
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="name">Product Name *</Label>
-                <Input
-                  id="name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  required
-                  placeholder="Enter product name"
-                />
-              </div>
-              <div>
-                <Label htmlFor="brand">Brand</Label>
-                <Input
-                  id="brand"
-                  name="brand"
-                  value={formData.brand}
-                  onChange={handleInputChange}
-                  placeholder="Enter brand name"
-                />
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                rows={3}
-                placeholder="Enter product description"
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="price">Price (KES) *</Label>
-                <Input
-                  id="price"
-                  name="price"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.price}
-                  onChange={handleInputChange}
-                  required
-                  placeholder="0.00"
-                />
-              </div>
-              <div>
-                <Label htmlFor="stock">Stock Quantity *</Label>
-                <Input
-                  id="stock"
-                  name="stock"
-                  type="number"
-                  min="0"
-                  value={formData.stock}
-                  onChange={handleInputChange}
-                  required
-                  placeholder="0"
-                />
-              </div>
-              <div>
-                <Label htmlFor="category">Category</Label>
-                <Select value={formData.category} onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map(category => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="prescription_required"
-                checked={formData.prescription_required}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, prescription_required: checked }))}
-              />
-              <Label htmlFor="prescription_required">Prescription Required</Label>
-            </div>
-
-            <div>
-              <Label htmlFor="image">Product Image</Label>
-              <div className="space-y-2">
-                <Input
-                  id="image"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  disabled={uploading}
-                />
-                {uploading && (
-                  <p className="text-sm text-gray-500">Uploading image...</p>
-                )}
-                {formData.image_url && (
-                  <div className="relative">
-                    <img 
-                      src={formData.image_url} 
-                      alt="Product preview"
-                      className="w-32 h-32 object-cover rounded border"
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      className="absolute -top-2 -right-2"
-                      onClick={() => setFormData(prev => ({ ...prev, image_url: '' }))}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex gap-4 pt-4">
-              <Button type="submit" disabled={loading || uploading} className="flex-1">
-                {loading ? 'Saving...' : product ? 'Update Product' : 'Create Product'}
-              </Button>
-              <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
-                Cancel
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 };
 

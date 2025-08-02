@@ -16,7 +16,6 @@ import { ArrowLeft, CreditCard, Smartphone } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import LoginModal from '@/components/LoginModal';
-import { useDeliveryFee } from '@/hooks/useDeliveryFee';
 
 // Kenyan counties for delivery
 const kenyanCounties = [
@@ -27,6 +26,18 @@ const kenyanCounties = [
   'Laikipia', 'Samburu', 'Trans Nzoia', 'Uasin Gishu', 'Elgeyo-Marakwet', 'Nandi', 'Baringo', 'Kericho',
   'Bomet', 'Nyamira', 'Kisii', 'Migori', 'Homa Bay', 'Siaya', 'Vihiga', 'Busia', 'Bungoma', 'Kakamega'
 ];
+
+// Calculate delivery fee based on county and order total
+const calculateDeliveryFee = (county: string, orderTotal: number): number => {
+  if (orderTotal >= 2000) return 0; // Free delivery for orders over 2000
+  
+  const nairobi = ['Nairobi', 'Kiambu', 'Kajiado', 'Murang\'a', 'Machakos'];
+  const majorTowns = ['Mombasa', 'Kisumu', 'Nakuru', 'Eldoret', 'Thika', 'Nyeri', 'Meru'];
+  
+  if (nairobi.includes(county)) return 200;
+  if (majorTowns.includes(county)) return 300;
+  return 400; // Remote areas
+};
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -46,10 +57,7 @@ const Checkout = () => {
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   const subtotal = getTotalAmount();
-  const { deliveryFee, isCalculating } = useDeliveryFee({
-    county: formData.county,
-    orderTotal: subtotal
-  });
+  const deliveryFee = formData.county ? calculateDeliveryFee(formData.county, subtotal) : 200;
   const total = subtotal + deliveryFee;
 
   // Scroll to top and set page title
@@ -68,7 +76,6 @@ const Checkout = () => {
   // Load user profile data
   useEffect(() => {
     if (user) {
-      // Pre-fill form with user data if available
       setFormData(prev => ({
         ...prev,
         phone: user.phone || prev.phone
@@ -346,7 +353,7 @@ const Checkout = () => {
                         <p className="text-sm text-gray-600 mb-2">Alternative: PayPal Payment</p>
                         <PayPalPaymentButton
                           amount={total}
-                          currency="USD" // PayPal typically uses USD
+                          currency="USD"
                           customerInfo={customerInfo}
                           formData={formData}
                           onSuccess={handlePaymentSuccess}
@@ -385,8 +392,7 @@ const Checkout = () => {
                   <div className="flex justify-between">
                     <span>Delivery Fee:</span>
                     <span>
-                      {isCalculating ? 'Calculating...' : 
-                       deliveryFee === 0 ? 'FREE' : `KES ${deliveryFee.toLocaleString()}`}
+                      {deliveryFee === 0 ? 'FREE' : `KES ${deliveryFee.toLocaleString()}`}
                     </span>
                   </div>
                   {deliveryFee === 0 && subtotal >= 2000 && (
@@ -409,10 +415,12 @@ const Checkout = () => {
         </div>
       </div>
 
-      <LoginModal
-        isOpen={showLoginModal}
-        onClose={() => setShowLoginModal(false)}
-      />
+      {showLoginModal && setShowLoginModal && (
+        <LoginModal
+          isOpen={showLoginModal}
+          onClose={() => setShowLoginModal(false)}
+        />
+      )}
 
       <Footer />
     </div>
