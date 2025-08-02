@@ -37,13 +37,8 @@ export const useSecurityHardening = () => {
       }
     };
 
-    // Input sanitization helper
-    const sanitizeInput = (input: string): string => {
-      return input.replace(/[<>\"'&]/g, '').trim();
-    };
-
     // CSP violation handler
-    const handleCSPViolation = (event: SecurityPolicyViolationEvent) => {
+    const handleCSPViolation = async (event: SecurityPolicyViolationEvent) => {
       console.warn('CSP Violation:', {
         violatedDirective: event.violatedDirective,
         blockedURI: event.blockedURI,
@@ -52,12 +47,19 @@ export const useSecurityHardening = () => {
       
       // Log CSP violations to monitoring service
       if (user) {
-        supabase
-          .from('debug_log')
-          .insert({
-            message: `CSP Violation: ${event.violatedDirective} - ${event.blockedURI}`
-          })
-          .catch(error => console.error('Failed to log CSP violation:', error));
+        try {
+          const { error } = await supabase
+            .from('debug_log')
+            .insert({
+              message: `CSP Violation: ${event.violatedDirective} - ${event.blockedURI}`
+            });
+          
+          if (error) {
+            console.error('Failed to log CSP violation:', error);
+          }
+        } catch (error) {
+          console.error('Failed to log CSP violation:', error);
+        }
       }
     };
 

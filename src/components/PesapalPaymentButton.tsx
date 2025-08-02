@@ -31,7 +31,7 @@ interface PesapalPaymentButtonProps {
 // Input validation utilities
 const validateEmail = (email: string): boolean => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
+  return emailRegex.test(email) && email.length <= 254;
 };
 
 const validateKenyanPhone = (phone: string): boolean => {
@@ -59,6 +59,25 @@ const formatKenyanPhone = (phone: string): string => {
   return cleaned;
 };
 
+// Rate limiting helper
+const isRateLimited = (key: string, maxAttempts: number = 3, windowMs: number = 15 * 60 * 1000): boolean => {
+  const now = Date.now();
+  const attempts = JSON.parse(localStorage.getItem(`rate_limit_${key}`) || '[]');
+  
+  // Clean old attempts
+  const validAttempts = attempts.filter((timestamp: number) => now - timestamp < windowMs);
+  
+  if (validAttempts.length >= maxAttempts) {
+    return true;
+  }
+  
+  // Add current attempt
+  validAttempts.push(now);
+  localStorage.setItem(`rate_limit_${key}`, JSON.stringify(validAttempts));
+  
+  return false;
+};
+
 const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
   amount,
   currency,
@@ -83,8 +102,10 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
     }
 
     // Rate limiting check
-    if (rateLimitExceeded) {
-      onError('Rate limit exceeded. Please try again later.');
+    const rateLimitKey = `pesapal_${user.id}`;
+    if (isRateLimited(rateLimitKey, 3, 15 * 60 * 1000)) {
+      setRateLimitExceeded(true);
+      onError('Too many payment attempts. Please try again in 15 minutes.');
       return;
     }
 
@@ -139,8 +160,8 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
         notes: sanitizeInput(formData.notes)
       };
 
-      // Prepare payment data for Pesapal
-      const paymentData = {
+      // Prepare payment request data for Pesapal
+      const pesapalPaymentRequest = {
         amount: Math.floor(amount * 100) / 100, // Ensure 2 decimal places
         currency,
         userId: user.id,
@@ -155,26 +176,26 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
         paymentType
       };
 
-      console.log('Initiating Pesapal payment:', paymentData);
+      console.log('Initiating Pesapal payment:', pesapalPaymentRequest);
 
       // Generate unique order ID with timestamp
       const uniqueOrderId = `ORDER_${user.id.substring(0, 8)}_${Date.now()}`;
 
       // Call Pesapal edge function with proper payment structure
-      const pesapalPaymentData = {
+      const pesapalRequestData = {
         orderId: uniqueOrderId,
-        amount: paymentData.amount,
+        amount: pesapalPaymentRequest.amount,
         currency: currency,
         email: sanitizedCustomerInfo.email,
         phone: sanitizedCustomerInfo.phone,
-        description: `SiletoExpress Order - ${paymentData.amount} ${currency}`,
+        description: `SiletoExpress Order - ${pesapalPaymentRequest.amount} ${currency}`,
         callback_url: `${window.location.origin}/pesapal-callback`,
         notification_id: process.env.REACT_APP_PESAPAL_IPN_ID || ''
       };
 
       const { data: pesapalResponse, error: pesapalError } = await supabase.functions
         .invoke('pesapal-payment', {
-          body: pesapalPaymentData,
+          body: pesapalRequestData,
           headers: {
             'Content-Type': 'application/json',
             'X-Client-Origin': window.location.origin
@@ -202,17 +223,17 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
       console.log('Pesapal payment initiated successfully:', pesapalResponse);
 
       // Store payment tracking info securely in localStorage with expiration
-      const paymentData = {
+      const trackingData = {
         trackingId: pesapalResponse.order_tracking_id,
         merchantReference: pesapalResponse.merchant_reference,
-        amount: paymentData.amount,
+        amount: pesapalPaymentRequest.amount,
         currency: currency,
         userId: user.id,
         timestamp: Date.now(),
         expiresAt: Date.now() + (30 * 60 * 1000) // 30 minutes expiry
       };
 
-      localStorage.setItem('pesapal_payment', JSON.stringify(paymentData));
+      localStorage.setItem('pesapal_payment', JSON.stringify(trackingData));
 
       // Clear cart since payment intent is created
       clearCart();
