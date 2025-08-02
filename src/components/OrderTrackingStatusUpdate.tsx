@@ -15,20 +15,26 @@ interface OrderTrackingStatusUpdateProps {
   onUpdate: () => void;
 }
 
+// Updated status options to match database schema
 const statusOptions = [
   { value: 'pending', label: 'Pending', icon: Clock, color: 'text-yellow-600' },
+  { value: 'approved', label: 'Approved', icon: CheckCircle, color: 'text-green-600' },
   { value: 'confirmed', label: 'Confirmed', icon: CheckCircle, color: 'text-blue-600' },
   { value: 'processing', label: 'Processing', icon: Package, color: 'text-orange-600' },
   { value: 'shipped', label: 'Shipped', icon: Truck, color: 'text-purple-600' },
+  { value: 'out_for_delivery', label: 'Out for Delivery', icon: Truck, color: 'text-indigo-600' },
   { value: 'delivered', label: 'Delivered', icon: CheckCircle, color: 'text-green-600' },
+  { value: 'cancelled', label: 'Cancelled', icon: Clock, color: 'text-red-600' },
 ];
+
+type OrderStatus = 'pending' | 'approved' | 'confirmed' | 'processing' | 'shipped' | 'out_for_delivery' | 'delivered' | 'cancelled';
 
 const OrderTrackingStatusUpdate: React.FC<OrderTrackingStatusUpdateProps> = ({
   orderId,
   currentStatus,
   onUpdate
 }) => {
-  const [selectedStatus, setSelectedStatus] = useState(currentStatus);
+  const [selectedStatus, setSelectedStatus] = useState<OrderStatus>(currentStatus as OrderStatus);
   const [note, setNote] = useState('');
   const [location, setLocation] = useState('');
   const [loading, setLoading] = useState(false);
@@ -56,7 +62,7 @@ const OrderTrackingStatusUpdate: React.FC<OrderTrackingStatusUpdateProps> = ({
         throw orderError;
       }
 
-      // Add tracking entry
+      // Add tracking entry - fix the insert call
       const { error: trackingError } = await supabase
         .from('order_tracking')
         .insert({
@@ -119,7 +125,7 @@ const OrderTrackingStatusUpdate: React.FC<OrderTrackingStatusUpdateProps> = ({
       <CardContent className="space-y-4">
         <div>
           <Label htmlFor="status">New Status</Label>
-          <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+          <Select value={selectedStatus} onValueChange={(value: OrderStatus) => setSelectedStatus(value)}>
             <SelectTrigger>
               <SelectValue placeholder="Select new status" />
             </SelectTrigger>

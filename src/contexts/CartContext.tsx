@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useReducer } from 'react';
 
 interface CartItem {
@@ -102,6 +101,7 @@ interface CartContextType {
   itemCount: number;
   getTotalItems: () => number;
   getTotalPrice: () => number;
+  getTotalAmount: () => number;
   hasPrescriptionItems: () => boolean;
   showLoginModal?: boolean;
   setShowLoginModal?: (show: boolean) => void;
@@ -168,6 +168,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return state.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   };
 
+  const getTotalAmount = () => {
+    return state.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  };
+
   const hasPrescriptionItems = () => {
     return state.items.some(item => item.prescription_required);
   };
@@ -185,6 +189,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       itemCount,
       getTotalItems,
       getTotalPrice,
+      getTotalAmount,
       hasPrescriptionItems
     }}>
       {children}
