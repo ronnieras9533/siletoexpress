@@ -11,7 +11,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { Search, Filter, ShoppingCart, Star } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import WhatsAppRestoreButton from '@/components/WhatsAppRestoreButton';
 
 interface Product {
   id: string;
