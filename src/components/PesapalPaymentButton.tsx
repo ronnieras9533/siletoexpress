@@ -39,10 +39,6 @@ const validateKenyanPhone = (phone: string): boolean => {
   return kenyanPhoneRegex.test(phone.replace(/\s/g, ''));
 };
 
-const sanitizeInput = (input: string): string => {
-  return input.replace(/[<>\"'&]/g, '').trim();
-};
-
 const formatKenyanPhone = (phone: string): string => {
   // Remove all non-digits
   const cleaned = phone.replace(/\D/g, '');
@@ -106,20 +102,8 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
     setLoading(true);
     
     try {
-      // Sanitize inputs
-      const sanitizedCustomerInfo = {
-        email: sanitizeInput(customerInfo.email.toLowerCase()),
-        phone: formatKenyanPhone(sanitizeInput(customerInfo.phone)),
-        name: sanitizeInput(customerInfo.name)
-      };
-
-      const sanitizedFormData = {
-        phone: formatKenyanPhone(sanitizeInput(formData.phone)),
-        address: sanitizeInput(formData.address),
-        city: sanitizeInput(formData.city),
-        county: sanitizeInput(formData.county),
-        notes: sanitizeInput(formData.notes)
-      };
+      // Format phone number properly
+      const formattedPhone = formatKenyanPhone(customerInfo.phone);
 
       // Generate unique order ID with timestamp
       const uniqueOrderId = `ORDER_${user.id.substring(0, 8)}_${Date.now()}`;
@@ -128,32 +112,54 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
         orderId: uniqueOrderId,
         amount,
         currency,
-        paymentType
+        paymentType,
+        itemCount: items.length
       });
+
+      // Prepare cart items data
+      const cartItems = items.map(item => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        total: item.price * item.quantity
+      }));
+
+      // Prepare delivery info
+      const deliveryInfo = {
+        phone: formatKenyanPhone(formData.phone),
+        address: formData.address,
+        city: formData.city,
+        county: formData.county,
+        notes: formData.notes
+      };
 
       // Call Pesapal edge function with proper payment structure
       const pesapalRequestData = {
         orderId: uniqueOrderId,
         amount: Math.floor(amount * 100) / 100, // Ensure 2 decimal places
         currency: currency,
-        email: sanitizedCustomerInfo.email,
-        phone: sanitizedCustomerInfo.phone,
-        description: `SiletoExpress Order - ${amount} ${currency}`,
+        email: customerInfo.email.toLowerCase(),
+        phone: formattedPhone,
+        description: `SiletoExpress Order - ${items.length} items - ${amount} ${currency}`,
         callback_url: `${window.location.origin}/pesapal-callback`,
-        notification_id: '' // Will be set by the edge function
+        notification_id: '', // Will be set by the edge function
+        cartItems: cartItems,
+        deliveryInfo: deliveryInfo,
+        prescriptionId: prescriptionId
       };
+
+      console.log('Sending payment request to Pesapal...');
 
       const { data: pesapalResponse, error: pesapalError } = await supabase.functions
         .invoke('pesapal-payment', {
           body: pesapalRequestData,
           headers: {
-            'Content-Type': 'application/json',
-            'X-Client-Origin': window.location.origin
+            'Content-Type': 'application/json'
           }
         });
 
       console.log('Pesapal response:', pesapalResponse);
-      console.log('Pesapal error:', pesapalError);
 
       if (pesapalError) {
         console.error('Pesapal function error:', pesapalError);
@@ -167,7 +173,7 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
 
       console.log('Pesapal payment initiated successfully:', pesapalResponse);
 
-      // Store payment tracking info securely in localStorage with expiration
+      // Store payment tracking info in localStorage
       const trackingData = {
         trackingId: pesapalResponse.order_tracking_id,
         merchantReference: pesapalResponse.merchant_reference,
@@ -175,8 +181,7 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
         currency: currency,
         userId: user.id,
         orderId: uniqueOrderId,
-        timestamp: Date.now(),
-        expiresAt: Date.now() + (30 * 60 * 1000) // 30 minutes expiry
+        timestamp: Date.now()
       };
 
       localStorage.setItem('pesapal_payment', JSON.stringify(trackingData));
@@ -184,14 +189,15 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
       // Clear cart since payment intent is created
       clearCart();
 
-      // Validate redirect URL before redirecting
-      const redirectUrl = new URL(pesapalResponse.redirect_url);
-      if (!redirectUrl.hostname.includes('pesapal.com')) {
-        throw new Error('Invalid payment redirect URL');
-      }
+      toast({
+        title: "Redirecting to Payment",
+        description: "You will be redirected to complete your payment...",
+      });
 
-      // Redirect to Pesapal payment page
-      window.location.href = pesapalResponse.redirect_url;
+      // Small delay to show the toast, then redirect
+      setTimeout(() => {
+        window.location.href = pesapalResponse.redirect_url;
+      }, 1000);
 
     } catch (error) {
       console.error('Pesapal payment error:', error);
@@ -209,7 +215,7 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
 
   const buttonText = paymentType === 'card' 
     ? `Pay with Card - ${currency} ${amount.toLocaleString()}`
-    : `Pay with Mobile Money - ${currency} ${amount.toLocaleString()}`;
+    : `Pay with M-PESA - ${currency} ${amount.toLocaleString()}`;
 
   const ButtonIcon = paymentType === 'card' ? CreditCard : Smartphone;
 

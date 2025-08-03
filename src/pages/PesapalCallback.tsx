@@ -1,8 +1,9 @@
+
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, Home, ShoppingBag } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useCart } from '@/contexts/CartContext';
 import Header from '@/components/Header';
@@ -13,7 +14,7 @@ const PesapalCallback: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { clearCart } = useCart();
-  const [status, setStatus] = useState<'loading' | 'success' | 'failed'>('loading');
+  const [status, setStatus] = useState<'loading' | 'success' | 'failed' | 'cancelled'>('loading');
   const [paymentData, setPaymentData] = useState<any>(null);
 
   useEffect(() => {
@@ -24,9 +25,7 @@ const PesapalCallback: React.FC = () => {
         if (storedPayment) {
           const paymentInfo = JSON.parse(storedPayment);
           setPaymentData(paymentInfo);
-          
-          // Clear the stored payment info
-          localStorage.removeItem('pesapal_payment');
+          console.log('Retrieved stored payment info:', paymentInfo);
         }
 
         // Check URL parameters for payment status
@@ -36,34 +35,49 @@ const PesapalCallback: React.FC = () => {
         console.log('Pesapal callback params:', { orderTrackingId, merchantReference });
 
         if (orderTrackingId && merchantReference) {
-          // Payment was processed, show success (IPN will handle verification)
+          // Payment was processed successfully
           setStatus('success');
+          
+          // Clear cart and stored payment info
           clearCart();
+          localStorage.removeItem('pesapal_payment');
           
           toast({
-            title: "Payment Submitted!",
-            description: "Your payment is being processed. You will receive confirmation shortly.",
+            title: "Payment Successful!",
+            description: "Your payment has been processed successfully. Your order is being prepared.",
           });
 
           // Redirect to order success after a delay
           setTimeout(() => {
             navigate('/order-success', {
               state: {
-                orderId: paymentData?.orderId || 'unknown',
+                orderId: paymentData?.orderId || merchantReference,
                 paymentMethod: 'pesapal',
                 amount: paymentData?.amount || 0,
-                currency: paymentData?.currency || 'KES'
+                currency: paymentData?.currency || 'KES',
+                orderTrackingId: orderTrackingId
               }
             });
           }, 3000);
         } else {
-          // No tracking ID means payment failed or was cancelled
-          setStatus('failed');
-          toast({
-            title: "Payment Failed",
-            description: "Your payment could not be processed. Please try again.",
-            variant: "destructive"
-          });
+          // Check if it's a cancelled payment
+          const cancelled = searchParams.get('cancelled');
+          if (cancelled === 'true') {
+            setStatus('cancelled');
+            toast({
+              title: "Payment Cancelled",
+              description: "Your payment was cancelled. You can try again.",
+              variant: "destructive"
+            });
+          } else {
+            // No tracking ID means payment failed
+            setStatus('failed');
+            toast({
+              title: "Payment Failed",
+              description: "Your payment could not be processed. Please try again.",
+              variant: "destructive"
+            });
+          }
         }
       } catch (error) {
         console.error('Callback handling error:', error);
@@ -77,7 +91,7 @@ const PesapalCallback: React.FC = () => {
     };
 
     handleCallback();
-  }, [searchParams, navigate, toast, clearCart, paymentData]);
+  }, [searchParams, navigate, toast, clearCart, paymentData?.orderId, paymentData?.amount, paymentData?.currency]);
 
   const handleRetry = () => {
     navigate('/checkout');
@@ -87,81 +101,117 @@ const PesapalCallback: React.FC = () => {
     navigate('/dashboard');
   };
 
+  const handleContinueShopping = () => {
+    navigate('/products');
+  };
+
+  const renderContent = () => {
+    switch (status) {
+      case 'loading':
+        return (
+          <div className="text-center space-y-4">
+            <Loader2 className="h-16 w-16 animate-spin text-blue-600 mx-auto" />
+            <h2 className="text-2xl font-bold text-gray-900">Processing Payment</h2>
+            <p className="text-gray-600">
+              Please wait while we process your payment...
+            </p>
+          </div>
+        );
+
+      case 'success':
+        return (
+          <div className="text-center space-y-6">
+            <CheckCircle className="h-16 w-16 text-green-500 mx-auto" />
+            <div>
+              <h2 className="text-2xl font-bold text-green-700 mb-2">Payment Successful!</h2>
+              <p className="text-gray-600 mb-4">
+                Your payment has been processed successfully. Your order is being prepared.
+              </p>
+              {paymentData && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                  <p className="text-sm text-green-800">
+                    <strong>Amount:</strong> {paymentData.currency} {paymentData.amount?.toLocaleString()}
+                  </p>
+                  <p className="text-sm text-green-800">
+                    <strong>Order ID:</strong> {paymentData.orderId}
+                  </p>
+                </div>
+              )}
+              <p className="text-sm text-gray-500">
+                Redirecting to order confirmation...
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button onClick={handleViewOrders}>
+                View My Orders
+              </Button>
+              <Button variant="outline" onClick={handleContinueShopping}>
+                <ShoppingBag className="mr-2 h-4 w-4" />
+                Continue Shopping
+              </Button>
+            </div>
+          </div>
+        );
+
+      case 'cancelled':
+        return (
+          <div className="text-center space-y-6">
+            <XCircle className="h-16 w-16 text-yellow-500 mx-auto" />
+            <div>
+              <h2 className="text-2xl font-bold text-yellow-700 mb-2">Payment Cancelled</h2>
+              <p className="text-gray-600">
+                Your payment was cancelled. No charges were made to your account.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button onClick={handleRetry}>
+                Try Again
+              </Button>
+              <Button variant="outline" onClick={() => navigate('/')}>
+                <Home className="mr-2 h-4 w-4" />
+                Back to Home
+              </Button>
+            </div>
+          </div>
+        );
+
+      case 'failed':
+      default:
+        return (
+          <div className="text-center space-y-6">
+            <XCircle className="h-16 w-16 text-red-500 mx-auto" />
+            <div>
+              <h2 className="text-2xl font-bold text-red-700 mb-2">Payment Failed</h2>
+              <p className="text-gray-600">
+                Your payment could not be processed. This could be due to insufficient funds, network issues, or other technical problems.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button onClick={handleRetry}>
+                Try Again
+              </Button>
+              <Button variant="outline" onClick={() => navigate('/')}>
+                <Home className="mr-2 h-4 w-4" />
+                Back to Home
+              </Button>
+            </div>
+          </div>
+        );
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
       
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-16">
         <div className="max-w-md mx-auto">
           <Card>
             <CardHeader className="text-center">
-              <CardTitle className="flex items-center justify-center gap-2">
-                {status === 'loading' && (
-                  <>
-                    <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-                    Processing Payment
-                  </>
-                )}
-                {status === 'success' && (
-                  <>
-                    <CheckCircle className="h-6 w-6 text-green-600" />
-                    Payment Successful
-                  </>
-                )}
-                {status === 'failed' && (
-                  <>
-                    <XCircle className="h-6 w-6 text-red-600" />
-                    Payment Failed
-                  </>
-                )}
-              </CardTitle>
+              <CardTitle>Payment Status</CardTitle>
             </CardHeader>
-            <CardContent className="text-center space-y-4">
-              {status === 'loading' && (
-                <p className="text-gray-600">
-                  Please wait while we process your payment...
-                </p>
-              )}
-              
-              {status === 'success' && (
-                <>
-                  <p className="text-green-600">
-                    Your payment has been submitted successfully!
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    You will receive a confirmation message shortly. 
-                    Redirecting to order confirmation...
-                  </p>
-                  {paymentData && (
-                    <div className="bg-gray-50 p-4 rounded-lg text-sm">
-                      <p><strong>Amount:</strong> {paymentData.currency} {paymentData.amount?.toLocaleString()}</p>
-                      <p><strong>Order ID:</strong> {paymentData.orderId}</p>
-                    </div>
-                  )}
-                  <Button onClick={handleViewOrders} className="w-full">
-                    View My Orders
-                  </Button>
-                </>
-              )}
-              
-              {status === 'failed' && (
-                <>
-                  <p className="text-red-600">
-                    Your payment could not be processed.
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    This could be due to insufficient funds, cancelled payment, or network issues.
-                  </p>
-                  <div className="space-y-2">
-                    <Button onClick={handleRetry} className="w-full">
-                      Try Again
-                    </Button>
-                    <Button onClick={() => navigate('/')} variant="outline" className="w-full">
-                      Return to Homepage
-                    </Button>
-                  </div>
-                </>
-              )}
+            <CardContent>
+              {renderContent()}
             </CardContent>
           </Card>
         </div>

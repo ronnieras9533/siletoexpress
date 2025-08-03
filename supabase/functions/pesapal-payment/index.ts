@@ -3,7 +3,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': 'https://hevbjzdahldvijwqtqcx.netlify.app',
+  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-client-origin',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
@@ -28,6 +28,8 @@ function sanitizeInput(input: string): string {
 }
 
 serve(async (req) => {
+  console.log('Pesapal payment function called:', req.method);
+
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -35,28 +37,16 @@ serve(async (req) => {
 
   try {
     // Verify origin
-    const origin = req.headers.get('x-client-origin') || req.headers.get('origin') || '';
-    const allowedOrigins = [
-      'https://hevbjzdahldvijwqtqcx.netlify.app',
-      'http://localhost:5173',
-      'http://localhost:3000'
-    ];
+    const origin = req.headers.get('origin') || '';
+    console.log('Request origin:', origin);
     
-    if (!allowedOrigins.includes(origin)) {
-      console.error('Invalid origin:', origin);
-      return new Response(
-        JSON.stringify({ error: 'Invalid origin' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Rate limiting check (simple in-memory store for demo)
-    const rateLimitKey = req.headers.get('x-forwarded-for') || 'unknown';
+    const { orderId, amount, currency, email, phone, description, callback_url, notification_id, cartItems, deliveryInfo, prescriptionId } = await req.json()
     
-    const { orderId, amount, currency, email, phone, description, callback_url, notification_id } = await req.json()
+    console.log('Payment request data:', { orderId, amount, currency, email, phone });
 
     // Input validation
     if (!orderId || typeof orderId !== 'string' || orderId.length > 50) {
+      console.error('Invalid order ID:', orderId);
       return new Response(
         JSON.stringify({ error: 'Invalid order ID' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -64,6 +54,7 @@ serve(async (req) => {
     }
 
     if (!validateAmount(amount)) {
+      console.error('Invalid amount:', amount);
       return new Response(
         JSON.stringify({ error: 'Invalid amount' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -71,6 +62,7 @@ serve(async (req) => {
     }
 
     if (currency !== 'KES') {
+      console.error('Invalid currency:', currency);
       return new Response(
         JSON.stringify({ error: 'Only KES currency supported' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -78,6 +70,7 @@ serve(async (req) => {
     }
 
     if (!validateEmail(email)) {
+      console.error('Invalid email:', email);
       return new Response(
         JSON.stringify({ error: 'Invalid email format' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -85,6 +78,7 @@ serve(async (req) => {
     }
 
     if (!validateKenyanPhone(phone)) {
+      console.error('Invalid phone:', phone);
       return new Response(
         JSON.stringify({ error: 'Invalid Kenyan phone number format' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -100,8 +94,14 @@ serve(async (req) => {
     // Get Pesapal credentials from environment
     const consumerKey = Deno.env.get('PESAPAL_CONSUMER_KEY')
     const consumerSecret = Deno.env.get('PESAPAL_CONSUMER_SECRET')
-    const baseUrl = Deno.env.get('PESAPAL_BASE_URL') || 'https://cybqa.pesapal.com/pesapalv3'
+    const baseUrl = 'https://pay.pesapal.com/v3'
     const ipnId = Deno.env.get('PESAPAL_IPN_ID')
+
+    console.log('Pesapal config check:', {
+      hasConsumerKey: !!consumerKey,
+      hasConsumerSecret: !!consumerSecret,
+      hasIpnId: !!ipnId
+    });
 
     if (!consumerKey || !consumerSecret) {
       console.error('Missing Pesapal credentials')
@@ -127,6 +127,8 @@ serve(async (req) => {
 
     if (!authResponse.ok) {
       console.error('Failed to get Pesapal access token:', authResponse.status, authResponse.statusText)
+      const errorText = await authResponse.text()
+      console.error('Auth error response:', errorText)
       return new Response(
         JSON.stringify({ error: 'Failed to authenticate with payment service' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -144,15 +146,17 @@ serve(async (req) => {
       );
     }
 
-    // Create payment order with enhanced security
+    console.log('Pesapal access token obtained successfully');
+
+    // Create payment order
     console.log('Creating Pesapal payment order...')
     const orderData = {
       id: sanitizedOrderId,
       currency: currency,
-      amount: Math.round(amount * 100) / 100, // Ensure 2 decimal places
+      amount: Math.round(amount * 100) / 100,
       description: sanitizedDescription,
       callback_url: callback_url || `${origin}/pesapal-callback`,
-      notification_id: notification_id || ipnId,
+      notification_id: ipnId,
       branch: "SiletoExpress",
       billing_address: {
         email_address: sanitizedEmail,
@@ -162,6 +166,8 @@ serve(async (req) => {
         last_name: "SiletoExpress"
       }
     }
+
+    console.log('Pesapal order data:', JSON.stringify(orderData, null, 2));
 
     const orderResponse = await fetch(`${baseUrl}/api/Transactions/SubmitOrderRequest`, {
       method: 'POST',
@@ -173,18 +179,20 @@ serve(async (req) => {
       body: JSON.stringify(orderData)
     })
 
+    console.log('Pesapal order response status:', orderResponse.status);
+
     if (!orderResponse.ok) {
       console.error('Failed to create Pesapal order:', orderResponse.status, orderResponse.statusText)
       const errorText = await orderResponse.text()
-      console.error('Error response:', errorText)
+      console.error('Order error response:', errorText)
       return new Response(
-        JSON.stringify({ error: 'Failed to create payment order' }),
+        JSON.stringify({ error: 'Failed to create payment order', details: errorText }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const orderResult = await orderResponse.json()
-    console.log('Pesapal order created:', orderResult)
+    console.log('Pesapal order created successfully:', orderResult)
 
     // Validate redirect URL
     if (!orderResult.redirect_url || !orderResult.redirect_url.includes('pesapal.com')) {
@@ -195,20 +203,36 @@ serve(async (req) => {
       );
     }
 
-    // Initialize Supabase client for logging
+    // Initialize Supabase client and create payment record
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    // Log payment initiation for security monitoring
-    try {
-      await supabase
-        .from('debug_log')
-        .insert({
-          message: `Payment initiated: ${sanitizedOrderId} - Amount: ${amount} ${currency} - Email: ${sanitizedEmail}`
-        });
-    } catch (error) {
-      console.warn('Failed to log payment initiation:', error);
+    // Create payment record with all necessary metadata
+    const { error: paymentError } = await supabase
+      .from('payments')
+      .insert({
+        user_id: orderResult.merchant_reference || sanitizedOrderId,
+        amount: amount,
+        currency: currency,
+        status: 'pending',
+        payment_method: 'pesapal',
+        pesapal_tracking_id: orderResult.order_tracking_id,
+        transaction_id: orderResult.merchant_reference,
+        metadata: {
+          cart_items: cartItems || [],
+          delivery_info: deliveryInfo || {},
+          prescription_id: prescriptionId,
+          pesapal_order_id: sanitizedOrderId,
+          email: sanitizedEmail,
+          phone: sanitizedPhone
+        }
+      });
+
+    if (paymentError) {
+      console.error('Failed to create payment record:', paymentError);
+    } else {
+      console.log('Payment record created successfully');
     }
 
     return new Response(
@@ -236,7 +260,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         error: 'Internal server error',
-        message: 'An unexpected error occurred while processing your payment' 
+        message: 'An unexpected error occurred while processing your payment',
+        details: error.message 
       }),
       { 
         status: 500, 
