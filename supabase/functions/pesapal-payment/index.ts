@@ -40,7 +40,32 @@ serve(async (req) => {
     const origin = req.headers.get('origin') || '';
     console.log('Request origin:', origin);
     
-    const { orderId, amount, currency, email, phone, description, callback_url, notification_id, cartItems, deliveryInfo, prescriptionId } = await req.json()
+    // Parse request body with better error handling
+    let requestBody: string = '';
+    try {
+      requestBody = await req.text();
+      console.log('Raw request body:', requestBody);
+    } catch (error) {
+      console.error('Failed to read request body:', error);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Failed to read request body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Parse JSON with error handling
+    let parsedData: any;
+    try {
+      parsedData = JSON.parse(requestBody);
+    } catch (error) {
+      console.error('Failed to parse JSON:', error);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid JSON in request body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    const { orderId, amount, currency, email, phone, description, callback_url, notification_id, cartItems, deliveryInfo, prescriptionId } = parsedData;
     
     console.log('Payment request data:', { orderId, amount, currency, email, phone });
 
@@ -48,7 +73,7 @@ serve(async (req) => {
     if (!orderId || typeof orderId !== 'string' || orderId.length > 50) {
       console.error('Invalid order ID:', orderId);
       return new Response(
-        JSON.stringify({ error: 'Invalid order ID' }),
+        JSON.stringify({ success: false, error: 'Invalid order ID' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -56,7 +81,7 @@ serve(async (req) => {
     if (!validateAmount(amount)) {
       console.error('Invalid amount:', amount);
       return new Response(
-        JSON.stringify({ error: 'Invalid amount' }),
+        JSON.stringify({ success: false, error: 'Invalid amount' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -64,7 +89,7 @@ serve(async (req) => {
     if (currency !== 'KES') {
       console.error('Invalid currency:', currency);
       return new Response(
-        JSON.stringify({ error: 'Only KES currency supported' }),
+        JSON.stringify({ success: false, error: 'Only KES currency supported' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -72,7 +97,7 @@ serve(async (req) => {
     if (!validateEmail(email)) {
       console.error('Invalid email:', email);
       return new Response(
-        JSON.stringify({ error: 'Invalid email format' }),
+        JSON.stringify({ success: false, error: 'Invalid email format' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -80,7 +105,7 @@ serve(async (req) => {
     if (!validateKenyanPhone(phone)) {
       console.error('Invalid phone:', phone);
       return new Response(
-        JSON.stringify({ error: 'Invalid Kenyan phone number format' }),
+        JSON.stringify({ success: false, error: 'Invalid Kenyan phone number format' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -106,7 +131,7 @@ serve(async (req) => {
     if (!consumerKey || !consumerSecret) {
       console.error('Missing Pesapal credentials')
       return new Response(
-        JSON.stringify({ error: 'Payment service configuration error' }),
+        JSON.stringify({ success: false, error: 'Payment service configuration error' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -130,7 +155,7 @@ serve(async (req) => {
       const errorText = await authResponse.text()
       console.error('Auth error response:', errorText)
       return new Response(
-        JSON.stringify({ error: 'Failed to authenticate with payment service' }),
+        JSON.stringify({ success: false, error: 'Failed to authenticate with payment service' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -141,7 +166,7 @@ serve(async (req) => {
     if (!accessToken) {
       console.error('No access token received from Pesapal')
       return new Response(
-        JSON.stringify({ error: 'Authentication failed with payment service' }),
+        JSON.stringify({ success: false, error: 'Authentication failed with payment service' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -186,7 +211,7 @@ serve(async (req) => {
       const errorText = await orderResponse.text()
       console.error('Order error response:', errorText)
       return new Response(
-        JSON.stringify({ error: 'Failed to create payment order', details: errorText }),
+        JSON.stringify({ success: false, error: 'Failed to create payment order', details: errorText }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -198,7 +223,7 @@ serve(async (req) => {
     if (!orderResult.redirect_url || !orderResult.redirect_url.includes('pesapal.com')) {
       console.error('Invalid redirect URL received:', orderResult.redirect_url)
       return new Response(
-        JSON.stringify({ error: 'Invalid payment redirect URL' }),
+        JSON.stringify({ success: false, error: 'Invalid payment redirect URL' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -209,6 +234,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey)
 
     // Create payment record with all necessary metadata
+    console.log('Creating payment record...');
     const { error: paymentError } = await supabase
       .from('payments')
       .insert({
@@ -259,6 +285,7 @@ serve(async (req) => {
     console.error('Error in Pesapal payment function:', error)
     return new Response(
       JSON.stringify({ 
+        success: false,
         error: 'Internal server error',
         message: 'An unexpected error occurred while processing your payment',
         details: error.message 
