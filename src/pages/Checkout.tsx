@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -9,13 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import PesapalPaymentButton from '@/components/PesapalPaymentButton';
-import PayPalPaymentButton from '@/components/PayPalPaymentButton';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, CreditCard, Smartphone } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import LoginModal from '@/components/LoginModal';
-import BrevoPaymentButton from '@/components/BrevoPaymentButton';
 
 // Kenyan counties for delivery
 const kenyanCounties = [
@@ -366,32 +365,21 @@ const Checkout = () => {
                     className="flex items-center justify-center"
                   >
                     <CreditCard className="mr-2 h-4 w-4" />
-                    Card Payment (Brevo)
+                    Card Payment
                   </Button>
                 </div>
 
                 {isFormValid && (
                   <div className="space-y-4">
-                    {selectedPaymentMethod === 'mobile' ? (
-                      <PesapalPaymentButton
-                        amount={total}
-                        currency="KES"
-                        customerInfo={customerInfo}
-                        formData={formData}
-                        onSuccess={handlePaymentSuccess}
-                        onError={handlePaymentError}
-                        paymentType="mobile"
-                      />
-                    ) : (
-                      <BrevoPaymentButton
-                        amount={total}
-                        currency="KES"
-                        customerInfo={customerInfo}
-                        formData={formData}
-                        onSuccess={handlePaymentSuccess}
-                        onError={handlePaymentError}
-                      />
-                    )}
+                    <PesapalPaymentButton
+                      amount={total}
+                      currency="KES"
+                      customerInfo={customerInfo}
+                      formData={formData}
+                      onSuccess={handlePaymentSuccess}
+                      onError={handlePaymentError}
+                      paymentType={selectedPaymentMethod}
+                    />
                   </div>
                 )}
               </CardContent>

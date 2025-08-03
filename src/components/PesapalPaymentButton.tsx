@@ -6,7 +6,6 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
 
 interface PesapalPaymentButtonProps {
   amount: number;
@@ -20,6 +19,7 @@ interface PesapalPaymentButtonProps {
     phone: string;
     address: string;
     city: string;
+    county: string;
     notes: string;
   };
   prescriptionId?: string | null;
@@ -59,25 +59,6 @@ const formatKenyanPhone = (phone: string): string => {
   return cleaned;
 };
 
-// Rate limiting helper
-const isRateLimited = (key: string, maxAttempts: number = 3, windowMs: number = 15 * 60 * 1000): boolean => {
-  const now = Date.now();
-  const attempts = JSON.parse(localStorage.getItem(`rate_limit_${key}`) || '[]');
-  
-  // Clean old attempts
-  const validAttempts = attempts.filter((timestamp: number) => now - timestamp < windowMs);
-  
-  if (validAttempts.length >= maxAttempts) {
-    return true;
-  }
-  
-  // Add current attempt
-  validAttempts.push(now);
-  localStorage.setItem(`rate_limit_${key}`, JSON.stringify(validAttempts));
-  
-  return false;
-};
-
 const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
   amount,
   currency,
@@ -89,23 +70,13 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
   paymentType
 }) => {
   const [loading, setLoading] = useState(false);
-  const [rateLimitExceeded, setRateLimitExceeded] = useState(false);
   const { toast } = useToast();
   const { items, clearCart } = useCart();
   const { user } = useAuth();
-  const navigate = useNavigate();
 
   const handlePesapalPayment = async () => {
     if (!user) {
       onError('User not authenticated');
-      return;
-    }
-
-    // Rate limiting check
-    const rateLimitKey = `pesapal_${user.id}`;
-    if (isRateLimited(rateLimitKey, 3, 15 * 60 * 1000)) {
-      setRateLimitExceeded(true);
-      onError('Too many payment attempts. Please try again in 15 minutes.');
       return;
     }
 
@@ -135,17 +106,6 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
     setLoading(true);
     
     try {
-      // Verify user permissions
-      const { data: userProfile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, email')
-        .eq('id', user.id)
-        .single();
-
-      if (profileError || !userProfile) {
-        throw new Error('User verification failed');
-      }
-
       // Sanitize inputs
       const sanitizedCustomerInfo = {
         email: sanitizeInput(customerInfo.email.toLowerCase()),
@@ -157,40 +117,30 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
         phone: formatKenyanPhone(sanitizeInput(formData.phone)),
         address: sanitizeInput(formData.address),
         city: sanitizeInput(formData.city),
+        county: sanitizeInput(formData.county),
         notes: sanitizeInput(formData.notes)
       };
-
-      // Prepare payment request data for Pesapal
-      const pesapalPaymentRequest = {
-        amount: Math.floor(amount * 100) / 100, // Ensure 2 decimal places
-        currency,
-        userId: user.id,
-        customerInfo: sanitizedCustomerInfo,
-        formData: sanitizedFormData,
-        prescriptionId,
-        cartItems: items.map(item => ({
-          id: sanitizeInput(item.id),
-          quantity: Math.max(1, Math.min(100, Math.floor(item.quantity))),
-          price: Math.max(0, parseFloat(item.price.toString()))
-        })),
-        paymentType
-      };
-
-      console.log('Initiating Pesapal payment:', pesapalPaymentRequest);
 
       // Generate unique order ID with timestamp
       const uniqueOrderId = `ORDER_${user.id.substring(0, 8)}_${Date.now()}`;
 
+      console.log('Initiating Pesapal payment:', {
+        orderId: uniqueOrderId,
+        amount,
+        currency,
+        paymentType
+      });
+
       // Call Pesapal edge function with proper payment structure
       const pesapalRequestData = {
         orderId: uniqueOrderId,
-        amount: pesapalPaymentRequest.amount,
+        amount: Math.floor(amount * 100) / 100, // Ensure 2 decimal places
         currency: currency,
         email: sanitizedCustomerInfo.email,
         phone: sanitizedCustomerInfo.phone,
-        description: `SiletoExpress Order - ${pesapalPaymentRequest.amount} ${currency}`,
+        description: `SiletoExpress Order - ${amount} ${currency}`,
         callback_url: `${window.location.origin}/pesapal-callback`,
-        notification_id: process.env.REACT_APP_PESAPAL_IPN_ID || ''
+        notification_id: '' // Will be set by the edge function
       };
 
       const { data: pesapalResponse, error: pesapalError } = await supabase.functions
@@ -202,16 +152,11 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
           }
         });
 
+      console.log('Pesapal response:', pesapalResponse);
+      console.log('Pesapal error:', pesapalError);
+
       if (pesapalError) {
         console.error('Pesapal function error:', pesapalError);
-        
-        // Implement rate limiting on errors
-        if (pesapalError.message?.includes('rate limit') || pesapalError.status === 429) {
-          setRateLimitExceeded(true);
-          setTimeout(() => setRateLimitExceeded(false), 300000); // 5 minutes
-          throw new Error('Too many payment requests. Please try again in 5 minutes.');
-        }
-        
         throw new Error(pesapalError.message || 'Failed to initiate payment');
       }
 
@@ -226,9 +171,10 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
       const trackingData = {
         trackingId: pesapalResponse.order_tracking_id,
         merchantReference: pesapalResponse.merchant_reference,
-        amount: pesapalPaymentRequest.amount,
+        amount: amount,
         currency: currency,
         userId: user.id,
+        orderId: uniqueOrderId,
         timestamp: Date.now(),
         expiresAt: Date.now() + (30 * 60 * 1000) // 30 minutes expiry
       };
@@ -266,14 +212,6 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
     : `Pay with Mobile Money - ${currency} ${amount.toLocaleString()}`;
 
   const ButtonIcon = paymentType === 'card' ? CreditCard : Smartphone;
-
-  if (rateLimitExceeded) {
-    return (
-      <Button disabled className="w-full bg-gray-400">
-        Rate limit exceeded. Please try again later.
-      </Button>
-    );
-  }
 
   return (
     <Button
