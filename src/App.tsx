@@ -20,8 +20,12 @@ import AdminDashboard from '@/pages/AdminDashboard';
 import Auth from '@/pages/Auth';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import PesapalCallback from '@/pages/PesapalCallback';
+import MpesaCallback from '@/pages/MpesaCallback';
 import PrivacyPolicy from '@/pages/PrivacyPolicy';
 import TermsOfService from '@/pages/TermsOfService';
+import WhyChooseUs from '@/pages/WhyChooseUs';
+import Dashboard from '@/pages/Dashboard';
+import MyOrdersAndPrescriptions from '@/pages/MyOrdersAndPrescriptions';
 
 function App() {
   const queryClient = new QueryClient();
@@ -47,8 +51,12 @@ function App() {
                   <Route path="/prescription-upload" element={<PrescriptionUpload />} />
                   <Route path="/admin-dashboard" element={<AdminDashboard />} />
                   <Route path="/pesapal-callback" element={<PesapalCallback />} />
+                  <Route path="/mpesa-callback" element={<MpesaCallback />} />
                   <Route path="/privacy-policy" element={<PrivacyPolicy />} />
                   <Route path="/terms-of-service" element={<TermsOfService />} />
+                  <Route path="/why-choose-us" element={<WhyChooseUs />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/my-orders-prescriptions" element={<MyOrdersAndPrescriptions />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </CartProvider>

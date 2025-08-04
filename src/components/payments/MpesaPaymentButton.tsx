@@ -39,8 +39,10 @@ const MpesaPaymentButton: React.FC<MpesaPaymentButtonProps> = ({
       if (response.success) {
         toast({
           title: "STK Push Sent",
-          description: "Check your phone to complete the payment",
+          description: "Check your phone to complete the payment. Please wait for confirmation...",
         });
+        
+        // Don't show success immediately - wait for callback confirmation
         onSuccess(response);
       } else {
         onError(response.error || 'Payment failed');
