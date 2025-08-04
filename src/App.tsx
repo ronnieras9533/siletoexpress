@@ -42,6 +42,7 @@ function App() {
                   <Route path="/" element={<Index />} />
                   <Route path="/products" element={<Products />} />
                   <Route path="/products/:id" element={<ProductDetail />} />
+                  <Route path="/product/:id" element={<ProductDetail />} />
                   <Route path="/cart" element={<Cart />} />
                   <Route path="/checkout" element={<Checkout />} />
                   <Route path="/payment-success" element={<PaymentSuccess />} />
@@ -50,6 +51,7 @@ function App() {
                   <Route path="/seller-dashboard" element={<SellerDashboard />} />
                   <Route path="/prescription-upload" element={<PrescriptionUpload />} />
                   <Route path="/admin-dashboard" element={<AdminDashboard />} />
+                  <Route path="/admin" element={<AdminDashboard />} />
                   <Route path="/pesapal-callback" element={<PesapalCallback />} />
                   <Route path="/mpesa-callback" element={<MpesaCallback />} />
                   <Route path="/privacy-policy" element={<PrivacyPolicy />} />
@@ -57,6 +59,7 @@ function App() {
                   <Route path="/why-choose-us" element={<WhyChooseUs />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/my-orders-prescriptions" element={<MyOrdersAndPrescriptions />} />
+                  <Route path="/my-orders" element={<MyOrdersAndPrescriptions />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </CartProvider>
