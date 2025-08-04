@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 export interface MPESAPaymentData {
@@ -19,21 +20,18 @@ export interface MPESAResponse {
 }
 
 class MPESAService {
-  // ✅ Replace this if you ever switch Supabase project
   private baseUrl = 'https://hevbjzdahldvijwqtqcx.supabase.co/functions/v1';
 
   async initiateSTKPush(paymentData: MPESAPaymentData): Promise<MPESAResponse> {
     try {
       console.log('Initiating M-PESA STK Push:', paymentData);
 
-      // 🔐 Ensure user is authenticated
       const { data: session } = await supabase.auth.getSession();
       const token = session?.session?.access_token;
       if (!token) {
         throw new Error('User not authenticated');
       }
 
-      // 🧹 Format phone and fill defaults
       const formattedPhone = this.formatPhoneNumber(paymentData.phoneNumber);
       const payload = {
         ...paymentData,
@@ -42,7 +40,6 @@ class MPESAService {
         transactionDesc: paymentData.transactionDesc || `Payment for order ${paymentData.orderId}`
       };
 
-      // 🚀 Call Edge Function
       const response = await fetch(`${this.baseUrl}/mpesa-stk-push`, {
         method: 'POST',
         headers: {
@@ -82,6 +79,61 @@ class MPESAService {
         error: error instanceof Error ? error.message : 'Unexpected error occurred',
       };
     }
+  }
+
+  async waitForPaymentConfirmation(checkoutRequestID: string, timeoutMs: number = 120000): Promise<any> {
+    const startTime = Date.now();
+    const pollInterval = 3000; // Poll every 3 seconds
+
+    return new Promise((resolve, reject) => {
+      const poll = async () => {
+        try {
+          const { data: payment, error } = await supabase
+            .from('payments')
+            .select('*')
+            .eq('transaction_id', checkoutRequestID)
+            .single();
+
+          if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
+            console.error('Error checking payment status:', error);
+            reject(new Error('Failed to check payment status'));
+            return;
+          }
+
+          if (payment) {
+            if (payment.status === 'completed') {
+              console.log('Payment confirmed as completed:', payment);
+              resolve({ success: true, payment });
+              return;
+            } else if (payment.status === 'failed') {
+              console.log('Payment confirmed as failed:', payment);
+              resolve({ success: false, payment, error: 'Payment failed' });
+              return;
+            }
+          }
+
+          // Check timeout
+          if (Date.now() - startTime >= timeoutMs) {
+            console.log('Payment confirmation timeout');
+            resolve({ 
+              success: false, 
+              error: 'Payment verification timed out. Please check your M-PESA messages.',
+              timeout: true 
+            });
+            return;
+          }
+
+          // Continue polling
+          setTimeout(poll, pollInterval);
+        } catch (error) {
+          console.error('Error in payment polling:', error);
+          reject(error);
+        }
+      };
+
+      // Start polling
+      poll();
+    });
   }
 
   async checkPaymentStatus(checkoutRequestID: string): Promise<any> {
