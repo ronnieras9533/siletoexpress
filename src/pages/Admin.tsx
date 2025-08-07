@@ -383,26 +383,44 @@ const Admin = () => {
           </Card>
         </div>
 
-        {/* Main Content Tabs - Fixed responsive layout */}
+        {/* Main Content Tabs - Improved mobile layout */}
         <Tabs defaultValue="regular-orders" className="space-y-4 lg:space-y-6">
-          <div className="w-full overflow-x-auto">
-            <TabsList className="grid grid-cols-5 w-full min-w-[600px] h-auto">
-              <TabsTrigger value="regular-orders" className="text-xs lg:text-sm px-1 lg:px-4 whitespace-nowrap">
-                Regular Orders
-              </TabsTrigger>
-              <TabsTrigger value="prescription-orders" className="text-xs lg:text-sm px-1 lg:px-4 whitespace-nowrap">
-                Prescription Orders
-              </TabsTrigger>
-              <TabsTrigger value="prescriptions" className="text-xs lg:text-sm px-1 lg:px-4 whitespace-nowrap">
-                General Prescriptions
-              </TabsTrigger>
-              <TabsTrigger value="products" className="text-xs lg:text-sm px-1 lg:px-4 whitespace-nowrap">
-                Products
-              </TabsTrigger>
-              <TabsTrigger value="users" className="text-xs lg:text-sm px-1 lg:px-4 whitespace-nowrap">
-                Users
-              </TabsTrigger>
-            </TabsList>
+          {/* Mobile: Horizontal scroll container */}
+          <div className="w-full">
+            <div className="overflow-x-auto lg:overflow-x-visible">
+              <TabsList className="flex lg:grid lg:grid-cols-5 w-max lg:w-full min-w-full">
+                <TabsTrigger 
+                  value="regular-orders" 
+                  className="text-xs lg:text-sm px-3 lg:px-4 whitespace-nowrap flex-shrink-0"
+                >
+                  Regular Orders
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="prescription-orders" 
+                  className="text-xs lg:text-sm px-3 lg:px-4 whitespace-nowrap flex-shrink-0"
+                >
+                  Rx Orders
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="prescriptions" 
+                  className="text-xs lg:text-sm px-3 lg:px-4 whitespace-nowrap flex-shrink-0"
+                >
+                  Prescriptions
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="products" 
+                  className="text-xs lg:text-sm px-3 lg:px-4 whitespace-nowrap flex-shrink-0"
+                >
+                  Products
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="users" 
+                  className="text-xs lg:text-sm px-3 lg:px-4 whitespace-nowrap flex-shrink-0"
+                >
+                  Users
+                </TabsTrigger>
+              </TabsList>
+            </div>
           </div>
 
           <TabsContent value="regular-orders" className="space-y-4 lg:space-y-6">
