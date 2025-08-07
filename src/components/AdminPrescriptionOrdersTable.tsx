@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -7,7 +6,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Eye, CheckCircle, XCircle, FileText, Package } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import OrderStatusStepper from './OrderStatusStepper';
+import PrescriptionViewer from './PrescriptionViewer';
 
 interface Order {
   id: string;
@@ -51,7 +50,6 @@ const AdminPrescriptionOrdersTable: React.FC<AdminPrescriptionOrdersTableProps> 
 }) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [selectedPrescription, setSelectedPrescription] = useState<any>(null);
   const { toast } = useToast();
 
@@ -143,6 +141,24 @@ const AdminPrescriptionOrdersTable: React.FC<AdminPrescriptionOrdersTableProps> 
       toast({
         title: "Error",
         description: "Failed to update prescription",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleViewPrescription = (order: Order) => {
+    if (order.prescriptions && order.prescriptions.length > 0) {
+      // If there's only one prescription, open it directly
+      if (order.prescriptions.length === 1) {
+        setSelectedPrescription(order.prescriptions[0]);
+      } else {
+        // If multiple prescriptions, open the first one (could be enhanced to show a list)
+        setSelectedPrescription(order.prescriptions[0]);
+      }
+    } else {
+      toast({
+        title: "No Prescription",
+        description: "No prescription has been uploaded for this order",
         variant: "destructive"
       });
     }
@@ -310,11 +326,12 @@ const AdminPrescriptionOrdersTable: React.FC<AdminPrescriptionOrdersTableProps> 
                   <div className="flex flex-col sm:flex-row gap-4 justify-between">
                     <Button
                       variant="outline"
-                      onClick={() => setSelectedOrder(order)}
+                      onClick={() => handleViewPrescription(order)}
                       className="flex-1 sm:flex-none"
+                      disabled={!order.prescriptions || order.prescriptions.length === 0}
                     >
-                      <Eye className="h-4 w-4 mr-2" />
-                      View Details
+                      <FileText className="h-4 w-4 mr-2" />
+                      View Prescription
                     </Button>
                     
                     <div className="flex gap-2">
@@ -340,57 +357,13 @@ const AdminPrescriptionOrdersTable: React.FC<AdminPrescriptionOrdersTableProps> 
         )}
       </div>
 
-      {/* Order Details Modal */}
-      {selectedOrder && (
-        <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Order Details #{selectedOrder.id.slice(0, 8)}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-6">
-              <OrderStatusStepper currentStatus={selectedOrder.status} />
-              {/* Order details content can be expanded here */}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Prescription Image Modal */}
-      {selectedPrescription && (
-        <Dialog open={!!selectedPrescription} onOpenChange={() => setSelectedPrescription(null)}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Prescription Image</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <img 
-                src={selectedPrescription.image_url} 
-                alt="Prescription"
-                className="w-full max-h-96 object-contain rounded"
-              />
-              {selectedPrescription.status === 'pending' && (
-                <div className="flex gap-4 justify-center">
-                  <Button
-                    onClick={() => handlePrescriptionAction(selectedPrescription.id, 'approve')}
-                    className="flex-1"
-                  >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Approve Prescription
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => handlePrescriptionAction(selectedPrescription.id, 'reject')}
-                    className="flex-1"
-                  >
-                    <XCircle className="h-4 w-4 mr-2" />
-                    Reject Prescription
-                  </Button>
-                </div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Prescription Viewer Modal */}
+      <PrescriptionViewer
+        prescription={selectedPrescription}
+        isOpen={!!selectedPrescription}
+        onClose={() => setSelectedPrescription(null)}
+        onStatusUpdate={handlePrescriptionAction}
+      />
     </>
   );
 };
