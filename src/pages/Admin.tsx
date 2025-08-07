@@ -14,7 +14,7 @@ import Footer from '@/components/Footer';
 import AdminOrdersTable from '@/components/AdminOrdersTable';
 import AdminPrescriptionsTable from '@/components/AdminPrescriptionsTable';
 import AdminPrescriptionOrdersTable from '@/components/AdminPrescriptionOrdersTable';
-import ProductFormModal from '@/components/ProductFormModal';
+import AdminProductForm from '@/components/AdminProductForm';
 import OrderStatusStepper from '@/components/OrderStatusStepper';
 
 const Admin = () => {
@@ -197,6 +197,7 @@ const Admin = () => {
       });
       
       fetchProducts();
+      fetchStats();
     } catch (error) {
       console.error('Error deleting product:', error);
       toast({
@@ -231,6 +232,13 @@ const Admin = () => {
         variant: "destructive"
       });
     }
+  };
+
+  const handleProductFormSave = () => {
+    setShowProductForm(false);
+    setEditingProduct(null);
+    fetchProducts();
+    fetchStats();
   };
 
   if (loading) {
@@ -337,7 +345,7 @@ const Admin = () => {
                 className="w-full text-xs lg:text-sm"
                 onClick={() => setShowProductForm(true)}
               >
-                <Package className="h-3 w-3 lg:h-4 lg:w-4 mr-2" />
+                <Plus className="h-3 w-3 lg:h-4 lg:w-4 mr-2" />
                 Add Product
               </Button>
             </CardContent>
@@ -544,16 +552,12 @@ const Admin = () => {
       </div>
 
       {showProductForm && (
-        <ProductFormModal
-          isOpen={showProductForm}
-          onClose={() => {
+        <AdminProductForm
+          product={editingProduct}
+          onSave={handleProductFormSave}
+          onCancel={() => {
             setShowProductForm(false);
             setEditingProduct(null);
-          }}
-          product={editingProduct}
-          onSuccess={() => {
-            fetchProducts();
-            fetchStats();
           }}
         />
       )}

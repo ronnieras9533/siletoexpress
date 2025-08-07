@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -105,6 +104,24 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ product, onSave, on
 
       console.log('Uploading image to:', fileName);
 
+      // First, ensure the bucket exists and create it if it doesn't
+      const { data: buckets } = await supabase.storage.listBuckets();
+      const productImagesBucket = buckets?.find(bucket => bucket.name === 'product-images');
+      
+      if (!productImagesBucket) {
+        console.log('Creating product-images bucket...');
+        const { error: bucketError } = await supabase.storage.createBucket('product-images', {
+          public: true,
+          fileSizeLimit: 5242880, // 5MB
+          allowedMimeTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
+        });
+        
+        if (bucketError) {
+          console.error('Error creating bucket:', bucketError);
+          // Try to continue anyway, bucket might already exist
+        }
+      }
+
       // Upload to Supabase storage
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('product-images')
@@ -115,28 +132,57 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ product, onSave, on
 
       if (uploadError) {
         console.error('Upload error:', uploadError);
-        throw new Error(`Upload failed: ${uploadError.message}`);
+        // If upload fails, try using the existing prescriptions bucket
+        const fallbackFileName = `products/${timestamp}_${sanitizedFileName}`;
+        const { data: fallbackData, error: fallbackError } = await supabase.storage
+          .from('prescriptions')
+          .upload(fallbackFileName, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+          
+        if (fallbackError) {
+          throw new Error(`Upload failed: ${fallbackError.message}`);
+        }
+        
+        // Get public URL from prescriptions bucket
+        const { data: urlData } = supabase.storage
+          .from('prescriptions')
+          .getPublicUrl(fallbackFileName);
+          
+        if (!urlData.publicUrl) {
+          throw new Error('Failed to get public URL');
+        }
+
+        console.log('Fallback upload successful, Public URL:', urlData.publicUrl);
+
+        // Update form data and preview
+        setImagePreview(urlData.publicUrl);
+        setFormData(prev => ({
+          ...prev,
+          image_url: urlData.publicUrl
+        }));
+      } else {
+        console.log('Upload successful:', uploadData);
+
+        // Get public URL
+        const { data: urlData } = supabase.storage
+          .from('product-images')
+          .getPublicUrl(fileName);
+
+        if (!urlData.publicUrl) {
+          throw new Error('Failed to get public URL');
+        }
+
+        console.log('Public URL:', urlData.publicUrl);
+
+        // Update form data and preview
+        setImagePreview(urlData.publicUrl);
+        setFormData(prev => ({
+          ...prev,
+          image_url: urlData.publicUrl
+        }));
       }
-
-      console.log('Upload successful:', uploadData);
-
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('product-images')
-        .getPublicUrl(fileName);
-
-      if (!urlData.publicUrl) {
-        throw new Error('Failed to get public URL');
-      }
-
-      console.log('Public URL:', urlData.publicUrl);
-
-      // Update form data and preview
-      setImagePreview(urlData.publicUrl);
-      setFormData(prev => ({
-        ...prev,
-        image_url: urlData.publicUrl
-      }));
 
       toast({
         title: "Image uploaded successfully!",
@@ -264,197 +310,199 @@ const AdminProductForm: React.FC<AdminProductFormProps> = ({ product, onSave, on
   };
 
   return (
-    <Card className="w-full max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle>{product?.id ? 'Edit Product' : 'Add New Product'}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Image Upload */}
-          <div className="space-y-4">
-            <Label>Product Image</Label>
-            
-            {imagePreview ? (
-              <div className="relative inline-block">
-                <img
-                  src={imagePreview}
-                  alt="Product preview"
-                  className="w-32 h-32 object-cover rounded-lg border"
-                />
-                <button
-                  type="button"
-                  onClick={removeImage}
-                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            ) : (
-              <div className="w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center">
-                <ImageIcon className="h-8 w-8 text-gray-400" />
-              </div>
-            )}
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <CardHeader>
+          <CardTitle>{product?.id ? 'Edit Product' : 'Add New Product'}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Image Upload */}
+            <div className="space-y-4">
+              <Label>Product Image</Label>
+              
+              {imagePreview ? (
+                <div className="relative inline-block">
+                  <img
+                    src={imagePreview}
+                    alt="Product preview"
+                    className="w-32 h-32 object-cover rounded-lg border"
+                  />
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <div className="w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center">
+                  <ImageIcon className="h-8 w-8 text-gray-400" />
+                </div>
+              )}
 
-            <div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleImageUpload}
-                className="hidden"
-                id="image-upload"
+              <div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                  id="image-upload"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="w-full sm:w-auto"
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Upload Image
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Product Details */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Product Name *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => handleInputChange('name', e.target.value)}
+                  placeholder="Enter product name"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="brand">Brand</Label>
+                <Input
+                  id="brand"
+                  value={formData.brand}
+                  onChange={(e) => handleInputChange('brand', e.target.value)}
+                  placeholder="Enter brand name"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) => handleInputChange('description', e.target.value)}
+                placeholder="Enter product description"
+                rows={4}
               />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="price">Price (KES) *</Label>
+                <Input
+                  id="price"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.price}
+                  onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || 0)}
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="stock">Stock Quantity *</Label>
+                <Input
+                  id="stock"
+                  type="number"
+                  min="0"
+                  value={formData.stock}
+                  onChange={(e) => handleInputChange('stock', parseInt(e.target.value) || 0)}
+                  placeholder="0"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="category">Category *</Label>
+                <Select 
+                  value={formData.category} 
+                  onValueChange={(value) => handleInputChange('category', value)}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map(category => (
+                      <SelectItem key={category} value={category}>
+                        {category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="prescription"
+                checked={formData.prescription_required}
+                onCheckedChange={(checked) => handleInputChange('prescription_required', checked)}
+              />
+              <Label htmlFor="prescription" className="flex items-center space-x-2">
+                <span>Prescription Required</span>
+                {formData.prescription_required && (
+                  <Badge variant="destructive" className="text-xs">
+                    Rx Required
+                  </Badge>
+                )}
+              </Label>
+            </div>
+
+            <div className="flex gap-4 pt-4">
+              <Button
+                type="submit"
+                disabled={isLoading || isUploading}
+                className="flex-1"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  `${product?.id ? 'Update' : 'Create'} Product`
+                )}
+              </Button>
+              
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
-                className="w-full sm:w-auto"
+                onClick={onCancel}
+                disabled={isLoading}
+                className="flex-1"
               >
-                {isUploading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="mr-2 h-4 w-4" />
-                    Upload Image
-                  </>
-                )}
+                Cancel
               </Button>
             </div>
-          </div>
-
-          {/* Product Details */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Product Name *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                placeholder="Enter product name"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="brand">Brand</Label>
-              <Input
-                id="brand"
-                value={formData.brand}
-                onChange={(e) => handleInputChange('brand', e.target.value)}
-                placeholder="Enter brand name"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              value={formData.description}
-              onChange={(e) => handleInputChange('description', e.target.value)}
-              placeholder="Enter product description"
-              rows={4}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="price">Price (KES) *</Label>
-              <Input
-                id="price"
-                type="number"
-                min="0"
-                step="0.01"
-                value={formData.price}
-                onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || 0)}
-                placeholder="0.00"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="stock">Stock Quantity *</Label>
-              <Input
-                id="stock"
-                type="number"
-                min="0"
-                value={formData.stock}
-                onChange={(e) => handleInputChange('stock', parseInt(e.target.value) || 0)}
-                placeholder="0"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="category">Category *</Label>
-              <Select 
-                value={formData.category} 
-                onValueChange={(value) => handleInputChange('category', value)}
-                required
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map(category => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="prescription"
-              checked={formData.prescription_required}
-              onCheckedChange={(checked) => handleInputChange('prescription_required', checked)}
-            />
-            <Label htmlFor="prescription" className="flex items-center space-x-2">
-              <span>Prescription Required</span>
-              {formData.prescription_required && (
-                <Badge variant="destructive" className="text-xs">
-                  Rx Required
-                </Badge>
-              )}
-            </Label>
-          </div>
-
-          <div className="flex gap-4 pt-4">
-            <Button
-              type="submit"
-              disabled={isLoading || isUploading}
-              className="flex-1"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                `${product?.id ? 'Update' : 'Create'} Product`
-              )}
-            </Button>
-            
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onCancel}
-              disabled={isLoading}
-              className="flex-1"
-            >
-              Cancel
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
