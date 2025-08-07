@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -384,15 +383,27 @@ const Admin = () => {
           </Card>
         </div>
 
-        {/* Main Content Tabs */}
+        {/* Main Content Tabs - Fixed responsive layout */}
         <Tabs defaultValue="regular-orders" className="space-y-4 lg:space-y-6">
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5 h-auto">
-            <TabsTrigger value="regular-orders" className="text-xs lg:text-sm px-2 lg:px-4">Regular Orders</TabsTrigger>
-            <TabsTrigger value="prescription-orders" className="text-xs lg:text-sm px-2 lg:px-4">Orders with Prescriptions</TabsTrigger>
-            <TabsTrigger value="prescriptions" className="text-xs lg:text-sm px-2 lg:px-4">General Prescriptions</TabsTrigger>
-            <TabsTrigger value="products" className="text-xs lg:text-sm px-2 lg:px-4">Products</TabsTrigger>
-            <TabsTrigger value="users" className="text-xs lg:text-sm px-2 lg:px-4">Users</TabsTrigger>
-          </TabsList>
+          <div className="w-full overflow-x-auto">
+            <TabsList className="grid grid-cols-5 w-full min-w-[600px] h-auto">
+              <TabsTrigger value="regular-orders" className="text-xs lg:text-sm px-1 lg:px-4 whitespace-nowrap">
+                Regular Orders
+              </TabsTrigger>
+              <TabsTrigger value="prescription-orders" className="text-xs lg:text-sm px-1 lg:px-4 whitespace-nowrap">
+                Prescription Orders
+              </TabsTrigger>
+              <TabsTrigger value="prescriptions" className="text-xs lg:text-sm px-1 lg:px-4 whitespace-nowrap">
+                General Prescriptions
+              </TabsTrigger>
+              <TabsTrigger value="products" className="text-xs lg:text-sm px-1 lg:px-4 whitespace-nowrap">
+                Products
+              </TabsTrigger>
+              <TabsTrigger value="users" className="text-xs lg:text-sm px-1 lg:px-4 whitespace-nowrap">
+                Users
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="regular-orders" className="space-y-4 lg:space-y-6">
             <Card>
