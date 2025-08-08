@@ -76,7 +76,7 @@ const AdminUserManagement = () => {
     }
   };
 
-  const getRoleBadgeVariant = (role: string) => {
+  const getRoleBadgeVariant = (role: string): "default" | "secondary" | "destructive" | "outline" => {
     switch (role) {
       case 'admin':
         return 'destructive';
