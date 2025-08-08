@@ -383,39 +383,38 @@ const Admin = () => {
           </Card>
         </div>
 
-        {/* Main Content Tabs - Improved mobile layout */}
+        {/* Main Content Tabs - Fixed for mobile visibility */}
         <Tabs defaultValue="regular-orders" className="space-y-4 lg:space-y-6">
-          {/* Mobile: Horizontal scroll container */}
           <div className="w-full">
-            <div className="overflow-x-auto lg:overflow-x-visible">
-              <TabsList className="flex lg:grid lg:grid-cols-5 w-max lg:w-full min-w-full">
+            <div className="overflow-x-auto pb-2">
+              <TabsList className="flex h-auto w-max min-w-full lg:w-full lg:grid lg:grid-cols-5 p-1">
                 <TabsTrigger 
                   value="regular-orders" 
-                  className="text-xs lg:text-sm px-3 lg:px-4 whitespace-nowrap flex-shrink-0"
+                  className="text-xs lg:text-sm px-2 lg:px-4 py-2 whitespace-nowrap flex-shrink-0 min-w-[100px] lg:min-w-0"
                 >
                   Regular Orders
                 </TabsTrigger>
                 <TabsTrigger 
                   value="prescription-orders" 
-                  className="text-xs lg:text-sm px-3 lg:px-4 whitespace-nowrap flex-shrink-0"
+                  className="text-xs lg:text-sm px-2 lg:px-4 py-2 whitespace-nowrap flex-shrink-0 min-w-[100px] lg:min-w-0"
                 >
                   Rx Orders
                 </TabsTrigger>
                 <TabsTrigger 
                   value="prescriptions" 
-                  className="text-xs lg:text-sm px-3 lg:px-4 whitespace-nowrap flex-shrink-0"
+                  className="text-xs lg:text-sm px-2 lg:px-4 py-2 whitespace-nowrap flex-shrink-0 min-w-[100px] lg:min-w-0"
                 >
                   Prescriptions
                 </TabsTrigger>
                 <TabsTrigger 
                   value="products" 
-                  className="text-xs lg:text-sm px-3 lg:px-4 whitespace-nowrap flex-shrink-0"
+                  className="text-xs lg:text-sm px-2 lg:px-4 py-2 whitespace-nowrap flex-shrink-0 min-w-[100px] lg:min-w-0"
                 >
                   Products
                 </TabsTrigger>
                 <TabsTrigger 
                   value="users" 
-                  className="text-xs lg:text-sm px-3 lg:px-4 whitespace-nowrap flex-shrink-0"
+                  className="text-xs lg:text-sm px-2 lg:px-4 py-2 whitespace-nowrap flex-shrink-0 min-w-[100px] lg:min-w-0"
                 >
                   Users
                 </TabsTrigger>

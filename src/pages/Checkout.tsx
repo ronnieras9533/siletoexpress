@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -10,12 +9,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, CreditCard, Smartphone } from 'lucide-react';
+import { ArrowLeft, CreditCard, Smartphone, Upload } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import LoginModal from '@/components/LoginModal';
 import MpesaPaymentButton from '@/components/payments/MpesaPaymentButton';
 import PesapalPaymentButton from '@/components/PesapalPaymentButton';
+import OrderPrescriptionUpload from '@/components/OrderPrescriptionUpload';
 
 // Function to calculate delivery fee based on county and order amount
 const calculateDeliveryFee = (county: string, orderAmount: number): number => {
@@ -43,6 +44,7 @@ const Checkout = () => {
 
   const [formData, setFormData] = useState({
     phone: '',
+    email: '',
     address: '',
     city: '',
     county: '',
@@ -51,10 +53,23 @@ const Checkout = () => {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'mobile'>('mobile');
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isFormValid, setIsFormValid] = useState(false);
+  const [showPrescriptionUpload, setShowPrescriptionUpload] = useState(false);
+  const [prescriptionId, setPrescriptionId] = useState<string | null>(null);
+  const [products, setProducts] = useState<Array<{ id: string; name: string; prescription_required: boolean }>>([]);
 
   const subtotal = getTotalAmount();
   const deliveryFee = formData.county ? calculateDeliveryFee(formData.county, subtotal) : 200;
   const total = subtotal + deliveryFee;
+
+  // Check if any items require prescription
+  const prescriptionItems = useMemo(() => {
+    return products.filter(product => 
+      product.prescription_required && 
+      items.some(item => item.id === product.id)
+    );
+  }, [products, items]);
+
+  const requiresPrescription = prescriptionItems.length > 0;
 
   useEffect(() => {
     if (items.length === 0) {
@@ -66,23 +81,63 @@ const Checkout = () => {
       setShowLoginModal(true);
       return;
     }
+
+    // Auto-populate email from user profile
+    if (user && user.email) {
+      setFormData(prev => ({ ...prev, email: user.email! }));
+    }
   }, [items.length, user, navigate]);
+
+  // Fetch product details to check prescription requirements
+  useEffect(() => {
+    const fetchProducts = async () => {
+      if (items.length === 0) return;
+      
+      const itemIds = items.map(item => item.id);
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, name, prescription_required')
+        .in('id', itemIds);
+      
+      if (error) {
+        console.error('Error fetching products:', error);
+        return;
+      }
+      
+      setProducts(data || []);
+    };
+
+    fetchProducts();
+  }, [items]);
 
   useEffect(() => {
     const isValid = formData.phone.trim() &&
+      formData.email.trim() &&
       formData.address.trim() &&
       formData.city.trim() &&
       formData.county &&
-      validateKenyanPhone(formData.phone);
+      validateKenyanPhone(formData.phone) &&
+      validateEmail(formData.email) &&
+      (!requiresPrescription || prescriptionId);
     
     setIsFormValid(isValid);
-  }, [formData]);
+  }, [formData, requiresPrescription, prescriptionId]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const validateKenyanPhone = (phone: string) => /^(0|\+254|254)\d{9}$/.test(phone.replace(/\s+/g, ''));
+  const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  const handlePrescriptionUploaded = (uploadedPrescriptionId: string) => {
+    setPrescriptionId(uploadedPrescriptionId);
+    setShowPrescriptionUpload(false);
+    toast({
+      title: "Prescription uploaded successfully!",
+      description: "You can now proceed with payment.",
+    });
+  };
 
   const handlePaymentSuccess = (txnData: any) => {
     toast({ 
@@ -133,6 +188,32 @@ const Checkout = () => {
     return null;
   }
 
+  if (showPrescriptionUpload) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="container mx-auto px-4 py-8">
+          <div className="max-w-2xl mx-auto">
+            <Button
+              variant="ghost"
+              onClick={() => setShowPrescriptionUpload(false)}
+              className="mb-6 flex items-center gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Checkout
+            </Button>
+            <OrderPrescriptionUpload
+              onPrescriptionUploaded={handlePrescriptionUploaded}
+              onCancel={() => setShowPrescriptionUpload(false)}
+              prescriptionItems={prescriptionItems}
+            />
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
@@ -160,6 +241,9 @@ const Checkout = () => {
                     <div className="flex-1">
                       <p className="font-medium">{item.name}</p>
                       <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
+                      {products.find(p => p.id === item.id)?.prescription_required && (
+                        <p className="text-xs text-red-600">Requires prescription</p>
+                      )}
                     </div>
                     <p className="font-medium">KES {(item.price * item.quantity).toLocaleString()}</p>
                   </div>
@@ -183,11 +267,62 @@ const Checkout = () => {
 
             {/* Customer Information */}
             <div className="space-y-6">
+              {/* Prescription Upload Section */}
+              {requiresPrescription && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-red-600">Prescription Required</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Some items in your order require a prescription. Please upload your prescription to continue.
+                    </p>
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Items requiring prescription:</p>
+                      <ul className="text-sm text-gray-600">
+                        {prescriptionItems.map(item => (
+                          <li key={item.id}>• {item.name}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    {prescriptionId ? (
+                      <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <p className="text-green-800 text-sm">✓ Prescription uploaded successfully</p>
+                      </div>
+                    ) : (
+                      <Button
+                        onClick={() => setShowPrescriptionUpload(true)}
+                        className="mt-4 w-full"
+                        variant="outline"
+                      >
+                        <Upload className="mr-2 h-4 w-4" />
+                        Upload Prescription
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
               <Card>
                 <CardHeader>
                   <CardTitle>Delivery Information</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="email">Email Address</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="your@email.com"
+                      value={formData.email}
+                      onChange={(e) => handleInputChange('email', e.target.value)}
+                      className={!validateEmail(formData.email) && formData.email ? 'border-red-500' : ''}
+                    />
+                    {!validateEmail(formData.email) && formData.email && (
+                      <p className="text-sm text-red-500 mt-1">Please enter a valid email address</p>
+                    )}
+                  </div>
+
                   <div>
                     <Label htmlFor="phone">Phone Number</Label>
                     <Input
@@ -295,9 +430,9 @@ const Checkout = () => {
                           amount={total}
                           currency="KES"
                           customerInfo={{
-                            email: user?.email!,
+                            email: formData.email,
                             phone: formData.phone,
-                            name: user?.user_metadata?.full_name || user?.email!
+                            name: user?.user_metadata?.full_name || formData.email
                           }}
                           formData={formData}
                           onSuccess={handlePaymentSuccess}
@@ -311,7 +446,7 @@ const Checkout = () => {
                   {!isFormValid && (
                     <div className="text-center p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                       <p className="text-yellow-800">
-                        Please fill in all required fields with valid information to proceed with payment.
+                        Please fill in all required fields with valid information{requiresPrescription && !prescriptionId ? ' and upload your prescription' : ''} to proceed with payment.
                       </p>
                     </div>
                   )}
