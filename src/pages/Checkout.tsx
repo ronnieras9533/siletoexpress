@@ -86,6 +86,13 @@ const Checkout = () => {
     if (user && user.email) {
       setFormData(prev => ({ ...prev, email: user.email! }));
     }
+
+    // Check if we should show prescription upload based on session storage
+    const shouldShowUpload = sessionStorage.getItem('showPrescriptionUpload');
+    if (shouldShowUpload === 'true') {
+      setShowPrescriptionUpload(true);
+      sessionStorage.removeItem('showPrescriptionUpload');
+    }
   }, [items.length, user, navigate]);
 
   // Fetch product details to check prescription requirements
