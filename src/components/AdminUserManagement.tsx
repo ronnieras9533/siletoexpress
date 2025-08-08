@@ -16,7 +16,7 @@ interface UserProfile {
   email: string;
   full_name: string;
   phone: string | null;
-  role: string;
+  role: 'user' | 'admin' | 'seller';
   created_at: string;
 }
 
@@ -40,7 +40,7 @@ const AdminUserManagement = () => {
   });
 
   const updateUserRoleMutation = useMutation({
-    mutationFn: async ({ userId, newRole }: { userId: string; newRole: string }) => {
+    mutationFn: async ({ userId, newRole }: { userId: string; newRole: 'user' | 'admin' | 'seller' }) => {
       const { error } = await supabase
         .from('profiles')
         .update({ role: newRole })
@@ -180,7 +180,7 @@ const AdminUserManagement = () => {
                       <TableCell>
                         <Select
                           value={user.role}
-                          onValueChange={(newRole) => 
+                          onValueChange={(newRole: 'user' | 'admin' | 'seller') => 
                             updateUserRoleMutation.mutate({ userId: user.id, newRole })
                           }
                           disabled={updateUserRoleMutation.isPending}

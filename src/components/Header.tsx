@@ -1,22 +1,63 @@
 
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingCart, User, Menu, X, Search } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { useCart } from '@/contexts/CartContext';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCart } from '@/contexts/CartContext';
+import { supabase } from '@/integrations/supabase/client';
+import { Search, ShoppingCart, Menu, User, LogOut, Package, FileText, Users, BarChart3 } from 'lucide-react';
 import LoginModal from '@/components/LoginModal';
+import NotificationPanel from '@/components/NotificationPanel';
+import { useToast } from '@/hooks/use-toast';
 
 const Header = () => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const { user, signOut, isAdmin } = useAuth();
   const { items } = useCart();
-  const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { toast } = useToast();
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [userProfile, setUserProfile] = useState<any>(null);
 
-  const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+  const cartItemsCount = items.reduce((total, item) => total + item.quantity, 0);
+
+  useEffect(() => {
+    if (user) {
+      fetchUserProfile();
+    }
+  }, [user]);
+
+  const fetchUserProfile = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user?.id)
+        .single();
+
+      if (error) throw error;
+      setUserProfile(data);
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate('/');
+      toast({
+        title: "Success",
+        description: "Signed out successfully",
+      });
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,192 +67,193 @@ const Header = () => {
     }
   };
 
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      navigate('/');
-    } catch (error) {
-      console.error('Error signing out:', error);
-    }
+  const isActive = (path: string) => {
+    return location.pathname === path;
   };
 
   return (
-    <>
-      <header className="bg-white shadow-sm border-b sticky top-0 z-50">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <Link to="/" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">S</span>
-              </div>
-              <span className="font-bold text-xl text-gray-900">SiletoExpress</span>
-            </Link>
-
-            {/* Search Bar - Hidden on mobile */}
-            <div className="hidden md:flex flex-1 max-w-lg mx-8">
-              <form onSubmit={handleSearch} className="flex w-full">
-                <div className="relative flex-1">
-                  <Input
-                    type="text"
-                    placeholder="Search for medicines..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pr-10"
-                  />
-                  <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                </div>
-                <Button 
-                  type="submit"
-                  className="ml-2"
-                  disabled={!searchQuery.trim()}
-                >
-                  Search
-                </Button>
-              </form>
+    <header className="bg-white shadow-sm border-b sticky top-0 z-50">
+      <div className="container mx-auto px-4">
+        <div className="flex items-center justify-between h-16">
+          {/* Logo */}
+          <Link to="/" className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+              <span className="text-white font-bold text-sm">S</span>
             </div>
+            <span className="font-bold text-xl text-blue-600 hidden sm:block">SiletoExpress</span>
+          </Link>
 
+          {/* Search Bar - Desktop */}
+          <form onSubmit={handleSearch} className="hidden md:flex items-center flex-1 max-w-md mx-8">
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                type="text"
+                placeholder="Search products..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 pr-4"
+              />
+            </div>
+          </form>
+
+          {/* Navigation Links & Actions */}
+          <div className="flex items-center space-x-4">
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center space-x-6">
-              <Link to="/products" className="text-gray-700 hover:text-blue-600 font-medium">
+              <Link
+                to="/products"
+                className={`text-sm font-medium transition-colors hover:text-blue-600 ${
+                  isActive('/products') ? 'text-blue-600' : 'text-gray-700'
+                }`}
+              >
                 Products
               </Link>
-              <Link to="/why-choose-us" className="text-gray-700 hover:text-blue-600 font-medium">
+              <Link
+                to="/why-choose-us"
+                className={`text-sm font-medium transition-colors hover:text-blue-600 ${
+                  isActive('/why-choose-us') ? 'text-blue-600' : 'text-gray-700'
+                }`}
+              >
                 Why Choose Us
               </Link>
-              {user && (
-                <>
-                  <Link to="/dashboard" className="text-gray-700 hover:text-blue-600 font-medium">
-                    Dashboard
-                  </Link>
-                  <Link to="/my-orders-prescriptions" className="text-gray-700 hover:text-blue-600 font-medium">
-                    My Orders
-                  </Link>
-                </>
-              )}
-            </nav>
-
-            {/* Right Side Icons */}
-            <div className="flex items-center space-x-4">
-              {/* Cart */}
-              <Link to="/cart" className="relative p-2 text-gray-700 hover:text-blue-600">
-                <ShoppingCart className="h-6 w-6" />
-                {totalItems > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                    {totalItems}
-                  </span>
-                )}
-              </Link>
-
-              {/* User Menu */}
-              {user ? (
-                <div className="flex items-center space-x-2">
-                  <span className="hidden md:inline text-sm text-gray-700">
-                    Hi, {user.email?.split('@')[0]}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleSignOut}
-                    className="text-gray-700 hover:text-blue-600"
-                  >
-                    Sign Out
-                  </Button>
-                </div>
-              ) : (
+              {!user && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setIsLoginModalOpen(true)}
-                  className="text-gray-700 hover:text-blue-600"
+                  onClick={() => setShowLoginModal(true)}
+                  className="text-sm font-medium"
                 >
-                  <User className="h-5 w-5 mr-1" />
                   Sign In
                 </Button>
               )}
+            </nav>
 
-              {/* Mobile Menu Button */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="md:hidden"
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-              >
-                {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-              </Button>
-            </div>
-          </div>
+            {/* User Actions */}
+            {user && (
+              <div className="flex items-center space-x-2">
+                {/* Notifications */}
+                <NotificationPanel />
 
-          {/* Mobile Search Bar */}
-          <div className="md:hidden pb-4">
-            <form onSubmit={handleSearch} className="flex">
-              <div className="relative flex-1">
-                <Input
-                  type="text"
-                  placeholder="Search for medicines..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pr-10"
-                />
-                <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                {/* User Menu - Desktop */}
+                <div className="hidden md:flex items-center space-x-2">
+                  <div className="flex items-center space-x-2">
+                    <User className="h-4 w-4" />
+                    <span className="text-sm font-medium">
+                      Hi, {userProfile?.full_name?.split(' ')[0] || 'User'}
+                    </span>
+                  </div>
+                  
+                  {isAdmin && (
+                    <Link to="/admin">
+                      <Button variant="outline" size="sm">
+                        <BarChart3 className="mr-2 h-4 w-4" />
+                        Admin
+                      </Button>
+                    </Link>
+                  )}
+                  
+                  <Link to="/dashboard">
+                    <Button variant="outline" size="sm">
+                      <User className="mr-2 h-4 w-4" />
+                      Dashboard
+                    </Button>
+                  </Link>
+                  
+                  <Button variant="ghost" size="sm" onClick={handleSignOut}>
+                    <LogOut className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-              <Button 
-                type="submit"
-                className="ml-2"
-                disabled={!searchQuery.trim()}
-              >
-                Search
+            )}
+
+            {/* Cart */}
+            <Link to="/cart">
+              <Button variant="ghost" size="sm" className="relative">
+                <ShoppingCart className="h-5 w-5" />
+                {cartItemsCount > 0 && (
+                  <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center bg-blue-600 text-white text-xs">
+                    {cartItemsCount}
+                  </Badge>
+                )}
               </Button>
-            </form>
+            </Link>
+
+            {/* Mobile Menu */}
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="sm" className="md:hidden">
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[280px] sm:w-[350px]">
+                {/* Mobile menu content */}
+                <div className="flex flex-col space-y-4 mt-8">
+                  {/* Mobile Search */}
+                  <form onSubmit={handleSearch} className="md:hidden">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                      <Input
+                        type="text"
+                        placeholder="Search products..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-10 pr-4"
+                      />
+                    </div>
+                  </form>
+
+                  {/* Mobile Navigation Links */}
+                  <Link to="/products" className="text-lg font-medium">Products</Link>
+                  <Link to="/why-choose-us" className="text-lg font-medium">Why Choose Us</Link>
+                  
+                  {user ? (
+                    <>
+                      <div className="border-t pt-4">
+                        <p className="font-medium mb-2">
+                          Hi, {userProfile?.full_name?.split(' ')[0] || 'User'}
+                        </p>
+                      </div>
+                      
+                      <Link to="/dashboard" className="text-lg font-medium flex items-center">
+                        <User className="mr-2 h-4 w-4" />
+                        Dashboard
+                      </Link>
+                      
+                      {isAdmin && (
+                        <Link to="/admin" className="text-lg font-medium flex items-center">
+                          <BarChart3 className="mr-2 h-4 w-4" />
+                          Admin Panel
+                        </Link>
+                      )}
+                      
+                      <Button variant="ghost" onClick={handleSignOut} className="justify-start p-0 text-lg font-medium">
+                        <LogOut className="mr-2 h-4 w-4" />
+                        Sign Out
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowLoginModal(true)}
+                      className="justify-start"
+                    >
+                      Sign In
+                    </Button>
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
           </div>
         </div>
+      </div>
 
-        {/* Mobile Menu */}
-        {isMenuOpen && (
-          <div className="md:hidden bg-white border-t">
-            <div className="px-4 py-4 space-y-4">
-              <Link 
-                to="/products" 
-                className="block text-gray-700 hover:text-blue-600 font-medium"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Products
-              </Link>
-              <Link 
-                to="/why-choose-us" 
-                className="block text-gray-700 hover:text-blue-600 font-medium"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Why Choose Us
-              </Link>
-              {user && (
-                <>
-                  <Link 
-                    to="/dashboard" 
-                    className="block text-gray-700 hover:text-blue-600 font-medium"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    Dashboard
-                  </Link>
-                  <Link 
-                    to="/my-orders-prescriptions" 
-                    className="block text-gray-700 hover:text-blue-600 font-medium"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    My Orders
-                  </Link>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-      </header>
-
+      {/* Login Modal */}
       <LoginModal 
-        isOpen={isLoginModalOpen} 
-        onClose={() => setIsLoginModalOpen(false)} 
+        isOpen={showLoginModal} 
+        onClose={() => setShowLoginModal(false)} 
       />
-    </>
+    </header>
   );
 };
 
