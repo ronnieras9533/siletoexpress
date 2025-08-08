@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -45,11 +44,6 @@ const Checkout = () => {
   // Check if any items require prescription
   const requiresPrescription = useMemo(() => {
     return items.some(item => item.prescription_required);
-  }, [items]);
-
-  // Get prescription required items
-  const prescriptionItems = useMemo(() => {
-    return items.filter(item => item.prescription_required);
   }, [items]);
 
   // Calculate delivery fee when county changes
@@ -141,17 +135,13 @@ const Checkout = () => {
     setShowPrescriptionUpload(true);
   };
 
-  const handlePrescriptionSuccess = (prescriptionId: string) => {
+  const handlePrescriptionSuccess = () => {
     setPrescriptionUploaded(true);
     setShowPrescriptionUpload(false);
     toast({
       title: "Success",
       description: "Prescription uploaded successfully",
     });
-  };
-
-  const handlePrescriptionCancel = () => {
-    setShowPrescriptionUpload(false);
   };
 
   const handleSubmit = async () => {
@@ -307,10 +297,7 @@ const Checkout = () => {
                   <MapPin className="h-4 w-4 mr-1 text-gray-500" />
                   County
                 </Label>
-                <KenyaCountiesSelect 
-                  value={formData.county} 
-                  onValueChange={handleCountySelect} 
-                />
+                <KenyaCountiesSelect onSelect={handleCountySelect} />
               </div>
               <div>
                 <Label htmlFor="deliveryAddress" className="mb-2 flex items-center gap-1">
@@ -385,19 +372,13 @@ const Checkout = () => {
                       </AlertDescription>
                     </Alert>
                     {showPrescriptionUpload && (
-                      <OrderPrescriptionUpload 
-                        onPrescriptionUploaded={handlePrescriptionSuccess}
-                        onCancel={handlePrescriptionCancel}
-                        prescriptionItems={prescriptionItems}
-                      />
+                      <OrderPrescriptionUpload onSuccess={handlePrescriptionSuccess} />
                     )}
                   </>
                 ) : (
-                  <Alert>
+                  <Alert variant="success">
                     <CheckCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      Prescription uploaded successfully!
-                    </AlertDescription>
+                    Prescription uploaded successfully!
                   </Alert>
                 )}
               </div>
@@ -429,21 +410,10 @@ const Checkout = () => {
             <div className="flex justify-center gap-4 mt-4">
               {paymentMethod === 'mpesa' ? (
                 <MpesaPaymentButton 
-                  paymentData={{
-                    amount: total + deliveryFee,
-                    phoneNumber: formData.phone,
-                    orderId: Date.now().toString(),
-                    accountReference: `Order-${Date.now()}`,
-                    transactionDesc: 'Online pharmacy order payment'
-                  }}
-                  onSuccess={() => handleSubmit()}
-                  onError={(error) => {
-                    toast({
-                      title: "Payment Error",
-                      description: error,
-                      variant: "destructive"
-                    });
-                  }}
+                  amount={total + deliveryFee}
+                  orderDetails={formData}
+                  onSuccess={handleSubmit}
+                  isLoading={loading}
                 />
               ) : (
                 <PesapalPaymentButton 
