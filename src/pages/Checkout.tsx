@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,7 @@ import LoginModal from '@/components/LoginModal';
 import MpesaPaymentButton from '@/components/payments/MpesaPaymentButton';
 import PesapalPaymentButton from '@/components/PesapalPaymentButton';
 import OrderPrescriptionUpload from '@/components/OrderPrescriptionUpload';
+import KenyaCountiesSelect from '@/components/KenyaCountiesSelect';
 
 // Function to calculate delivery fee based on county and order amount
 const calculateDeliveryFee = (county: string, orderAmount: number): number => {
@@ -24,8 +26,8 @@ const calculateDeliveryFee = (county: string, orderAmount: number): number => {
   if (orderAmount >= 2000) return 0;
   
   // Different rates for different counties
-  const nairobiCounties = ['nairobi', 'kiambu', 'machakos', 'kajiado'];
-  const majorCounties = ['mombasa', 'nakuru', 'eldoret', 'kisumu', 'thika'];
+  const nairobiCounties = ['nairobi city', 'kiambu', 'machakos', 'kajiado'];
+  const majorCounties = ['mombasa', 'nakuru', 'uasin gishu', 'kisumu', 'thika'];
   
   if (nairobiCounties.includes(county.toLowerCase())) {
     return 200;
@@ -82,7 +84,7 @@ const Checkout = () => {
       return;
     }
 
-    // Auto-populate email from user profile
+    // Auto-populate email from user profile and make it read-only
     if (user && user.email) {
       setFormData(prev => ({ ...prev, email: user.email! }));
     }
@@ -131,6 +133,10 @@ const Checkout = () => {
   }, [formData, requiresPrescription, prescriptionId]);
 
   const handleInputChange = (field: string, value: string) => {
+    // Prevent email field from being changed if user is logged in
+    if (field === 'email' && user) {
+      return;
+    }
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -169,11 +175,6 @@ const Checkout = () => {
       variant: 'destructive' 
     });
   };
-
-  const counties = [
-    'Nairobi', 'Mombasa', 'Kiambu', 'Nakuru', 'Machakos', 'Eldoret', 'Kisumu', 
-    'Thika', 'Kajiado', 'Murang\'a', 'Nyeri', 'Meru', 'Embu', 'Kitui', 'Garissa'
-  ];
 
   if (!user) {
     return (
@@ -324,8 +325,13 @@ const Checkout = () => {
                       value={formData.email}
                       onChange={(e) => handleInputChange('email', e.target.value)}
                       className={!validateEmail(formData.email) && formData.email ? 'border-red-500' : ''}
+                      readOnly={!!user}
+                      disabled={!!user}
                     />
-                    {!validateEmail(formData.email) && formData.email && (
+                    {user && (
+                      <p className="text-sm text-gray-500 mt-1">Email is auto-populated from your account</p>
+                    )}
+                    {!validateEmail(formData.email) && formData.email && !user && (
                       <p className="text-sm text-red-500 mt-1">Please enter a valid email address</p>
                     )}
                   </div>
@@ -367,19 +373,11 @@ const Checkout = () => {
                     </div>
 
                     <div>
-                      <Label htmlFor="county">County</Label>
-                      <Select value={formData.county} onValueChange={(value) => handleInputChange('county', value)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select county" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {counties.map((county) => (
-                            <SelectItem key={county} value={county.toLowerCase()}>
-                              {county}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <KenyaCountiesSelect
+                        value={formData.county}
+                        onValueChange={(value) => handleInputChange('county', value)}
+                        required
+                      />
                     </div>
                   </div>
 
