@@ -578,7 +578,7 @@ export type Database = {
         | "shipped"
         | "out_for_delivery"
       prescription_status: "pending" | "approved" | "rejected"
-      user_role: "user" | "admin" | "seller"
+      user_role: "user" | "admin"
     }
     CompositeTypes: {
       http_header: {
@@ -739,7 +739,7 @@ export const Constants = {
         "out_for_delivery",
       ],
       prescription_status: ["pending", "approved", "rejected"],
-      user_role: ["user", "admin", "seller"],
+      user_role: ["user", "admin"],
     },
   },
 } as const
