@@ -448,9 +448,28 @@ const Checkout = () => {
               ) : (
                 <PesapalPaymentButton 
                   amount={total + deliveryFee}
-                  orderDetails={formData}
+                  currency="KES"
+                  customerInfo={{
+                    email: formData.email,
+                    phone: formData.phone,
+                    name: user?.user_metadata?.full_name || 'Customer'
+                  }}
+                  formData={{
+                    phone: formData.phone,
+                    address: formData.deliveryAddress,
+                    city: formData.county,
+                    county: formData.county,
+                    notes: formData.deliveryInstructions
+                  }}
                   onSuccess={handleSubmit}
-                  isLoading={loading}
+                  onError={(error) => {
+                    toast({
+                      title: "Payment Error",
+                      description: error,
+                      variant: "destructive"
+                    });
+                  }}
+                  paymentType="card"
                 />
               )}
             </div>
