@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,7 +15,7 @@ interface UserProfile {
   email: string;
   full_name: string;
   phone: string | null;
-  role: string;
+  role: 'user' | 'admin' | 'seller';
   created_at: string;
 }
 
