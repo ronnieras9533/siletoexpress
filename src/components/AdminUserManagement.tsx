@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -75,14 +76,14 @@ const AdminUserManagement = () => {
     }
   };
 
-  const getRoleBadgeVariant = (role: string): "default" | "secondary" | "destructive" | "outline" => {
+  const getRoleBadgeVariant = (role: string) => {
     switch (role) {
       case 'admin':
-        return 'destructive';
+        return 'destructive' as const;
       case 'seller':
-        return 'default';
+        return 'default' as const;
       default:
-        return 'secondary';
+        return 'secondary' as const;
     }
   };
 
