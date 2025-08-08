@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -39,7 +40,7 @@ const AdminUserManagement = () => {
   });
 
   const updateUserRoleMutation = useMutation({
-    mutationFn: async ({ userId, newRole }: { userId: string; newRole: 'user' | 'admin' | 'seller' }) => {
+    mutationFn: async ({ userId, newRole }: { userId: string; newRole: string }) => {
       const { error } = await supabase
         .from('profiles')
         .update({ role: newRole })
@@ -179,7 +180,7 @@ const AdminUserManagement = () => {
                       <TableCell>
                         <Select
                           value={user.role}
-                          onValueChange={(newRole: 'user' | 'admin' | 'seller') => 
+                          onValueChange={(newRole: string) => 
                             updateUserRoleMutation.mutate({ userId: user.id, newRole })
                           }
                           disabled={updateUserRoleMutation.isPending}
