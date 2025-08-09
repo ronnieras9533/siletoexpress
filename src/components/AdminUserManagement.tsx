@@ -16,7 +16,7 @@ interface UserProfile {
   email: string;
   full_name: string;
   phone: string | null;
-  role: string;
+  role: 'user' | 'admin';
   created_at: string;
 }
 
@@ -40,7 +40,7 @@ const AdminUserManagement = () => {
   });
 
   const updateUserRoleMutation = useMutation({
-    mutationFn: async ({ userId, newRole }: { userId: string; newRole: string }) => {
+    mutationFn: async ({ userId, newRole }: { userId: string; newRole: 'user' | 'admin' }) => {
       const { error } = await supabase
         .from('profiles')
         .update({ role: newRole })
@@ -69,8 +69,6 @@ const AdminUserManagement = () => {
     switch (role) {
       case 'admin':
         return <Shield className="h-4 w-4" />;
-      case 'seller':
-        return <UserCheck className="h-4 w-4" />;
       default:
         return <User className="h-4 w-4" />;
     }
@@ -80,8 +78,6 @@ const AdminUserManagement = () => {
     switch (role) {
       case 'admin':
         return 'destructive' as const;
-      case 'seller':
-        return 'default' as const;
       default:
         return 'secondary' as const;
     }
@@ -105,7 +101,7 @@ const AdminUserManagement = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -124,18 +120,6 @@ const AdminUserManagement = () => {
           <CardContent>
             <div className="text-2xl font-bold">
               {users.filter(user => user.role === 'admin').length}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sellers</CardTitle>
-            <UserCheck className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {users.filter(user => user.role === 'seller').length}
             </div>
           </CardContent>
         </Card>
@@ -180,7 +164,7 @@ const AdminUserManagement = () => {
                       <TableCell>
                         <Select
                           value={user.role}
-                          onValueChange={(newRole) => 
+                          onValueChange={(newRole: 'user' | 'admin') => 
                             updateUserRoleMutation.mutate({ userId: user.id, newRole })
                           }
                           disabled={updateUserRoleMutation.isPending}
@@ -190,7 +174,6 @@ const AdminUserManagement = () => {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="user">User</SelectItem>
-                            <SelectItem value="seller">Seller</SelectItem>
                             <SelectItem value="admin">Admin</SelectItem>
                           </SelectContent>
                         </Select>

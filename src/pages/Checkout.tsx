@@ -1,220 +1,259 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { useCart } from '@/contexts/CartContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useCart } from '@/contexts/CartContext';
-import { useAuth } from '@/contexts/AuthContext';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, CreditCard, Smartphone, Upload } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { ShoppingCart, MapPin, Phone, Mail, FileText, CreditCard } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import LoginModal from '@/components/LoginModal';
+import KenyaCountiesSelect from '@/components/KenyaCountiesSelect';
+import OrderPrescriptionUpload from '@/components/OrderPrescriptionUpload';
 import MpesaPaymentButton from '@/components/payments/MpesaPaymentButton';
 import PesapalPaymentButton from '@/components/PesapalPaymentButton';
-import OrderPrescriptionUpload from '@/components/OrderPrescriptionUpload';
-import KenyaCountiesSelect from '@/components/KenyaCountiesSelect';
-
-// Function to calculate delivery fee based on county and order amount
-const calculateDeliveryFee = (county: string, orderAmount: number): number => {
-  // Free delivery for orders above KES 2000
-  if (orderAmount >= 2000) return 0;
-  
-  // Different rates for different counties
-  const nairobiCounties = ['nairobi city', 'kiambu', 'machakos', 'kajiado'];
-  const majorCounties = ['mombasa', 'nakuru', 'uasin gishu', 'kisumu', 'thika'];
-  
-  if (nairobiCounties.includes(county.toLowerCase())) {
-    return 200;
-  } else if (majorCounties.includes(county.toLowerCase())) {
-    return 300;
-  } else {
-    return 400;
-  }
-};
 
 const Checkout = () => {
-  const navigate = useNavigate();
-  const { items, clearCart, getTotalAmount } = useCart();
   const { user } = useAuth();
+  const { items, clearCart } = useCart();
+  const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [formData, setFormData] = useState({
-    phone: '',
-    email: '',
-    address: '',
-    city: '',
-    county: '',
-    notes: ''
-  });
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'card' | 'mobile'>('mobile');
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  const [isFormValid, setIsFormValid] = useState(false);
-  const [showPrescriptionUpload, setShowPrescriptionUpload] = useState(false);
-  const [prescriptionId, setPrescriptionId] = useState<string | null>(null);
-  const [products, setProducts] = useState<Array<{ id: string; name: string; prescription_required: boolean }>>([]);
+  const [loading, setLoading] = useState(false);
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [county, setCounty] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [email, setEmail] = useState(user?.email || '');
+  const [deliveryInstructions, setDeliveryInstructions] = useState('');
+  const [deliveryFee, setDeliveryFee] = useState(0);
+  const [requiresPrescription, setRequiresPrescription] = useState(false);
+  const [prescriptionFiles, setPrescriptionFiles] = useState<File[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState('mpesa');
 
-  const subtotal = getTotalAmount();
-  const deliveryFee = formData.county ? calculateDeliveryFee(formData.county, subtotal) : 200;
+  const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const total = subtotal + deliveryFee;
 
-  // Check if any items require prescription
-  const prescriptionItems = useMemo(() => {
-    return products.filter(product => 
-      product.prescription_required && 
-      items.some(item => item.id === product.id)
-    );
-  }, [products, items]);
-
-  const requiresPrescription = prescriptionItems.length > 0;
-
   useEffect(() => {
-    if (items.length === 0) {
-      navigate('/cart');
-      return;
-    }
-
     if (!user) {
-      setShowLoginModal(true);
+      navigate('/auth');
       return;
     }
 
-    // Auto-populate email from user profile and make it read-only
-    if (user && user.email) {
-      setFormData(prev => ({ ...prev, email: user.email! }));
-    }
+    // Check if any items require prescription
+    const needsPrescription = items.some(item => item.prescription_required);
+    setRequiresPrescription(needsPrescription);
 
-    // Check if we should show prescription upload based on session storage
-    const shouldShowUpload = sessionStorage.getItem('showPrescriptionUpload');
-    if (shouldShowUpload === 'true') {
-      setShowPrescriptionUpload(true);
-      sessionStorage.removeItem('showPrescriptionUpload');
+    // Calculate delivery fee when county changes
+    if (county) {
+      calculateDeliveryFee();
     }
-  }, [items.length, user, navigate]);
+  }, [user, navigate, items, county, subtotal]);
 
-  // Fetch product details to check prescription requirements
-  useEffect(() => {
-    const fetchProducts = async () => {
-      if (items.length === 0) return;
-      
-      const itemIds = items.map(item => item.id);
+  const calculateDeliveryFee = async () => {
+    try {
       const { data, error } = await supabase
-        .from('products')
-        .select('id, name, prescription_required')
-        .in('id', itemIds);
-      
-      if (error) {
-        console.error('Error fetching products:', error);
-        return;
-      }
-      
-      setProducts(data || []);
-    };
+        .rpc('calculate_delivery_fee', {
+          county_name: county,
+          order_total: subtotal
+        });
 
-    fetchProducts();
-  }, [items]);
-
-  useEffect(() => {
-    const isValid = formData.phone.trim() &&
-      formData.email.trim() &&
-      formData.address.trim() &&
-      formData.city.trim() &&
-      formData.county &&
-      validateKenyanPhone(formData.phone) &&
-      validateEmail(formData.email) &&
-      (!requiresPrescription || prescriptionId);
-    
-    setIsFormValid(isValid);
-  }, [formData, requiresPrescription, prescriptionId]);
-
-  const handleInputChange = (field: string, value: string) => {
-    // Prevent email field from being changed if user is logged in
-    if (field === 'email' && user) {
-      return;
+      if (error) throw error;
+      setDeliveryFee(data || 300);
+    } catch (error) {
+      console.error('Error calculating delivery fee:', error);
+      setDeliveryFee(300); // Default fee
     }
-    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const validateKenyanPhone = (phone: string) => /^(0|\+254|254)\d{9}$/.test(phone.replace(/\s+/g, ''));
-  const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const validateForm = () => {
+    if (!deliveryAddress.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter your delivery address",
+        variant: "destructive"
+      });
+      return false;
+    }
 
-  const handlePrescriptionUploaded = (uploadedPrescriptionId: string) => {
-    setPrescriptionId(uploadedPrescriptionId);
-    setShowPrescriptionUpload(false);
-    toast({
-      title: "Prescription uploaded successfully!",
-      description: "You can now proceed with payment.",
-    });
+    if (!county) {
+      toast({
+        title: "Error",
+        description: "Please select your county",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    if (!phoneNumber.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter your phone number",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    if (!email.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter your email address",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    if (requiresPrescription && prescriptionFiles.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please upload prescription files for prescription items",
+        variant: "destructive"
+      });
+      return false;
+    }
+
+    return true;
   };
 
-  const handlePaymentSuccess = (txnData: any) => {
-    toast({ 
-      title: 'Payment successful', 
-      description: 'Your payment has been processed successfully' 
-    });
+  const createOrder = async () => {
+    if (!user || !validateForm()) return null;
+
+    setLoading(true);
+    try {
+      // Create order
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          user_id: user.id,
+          total_amount: total,
+          delivery_address: deliveryAddress,
+          county: county,
+          phone_number: phoneNumber,
+          email: email,
+          delivery_instructions: deliveryInstructions,
+          delivery_fee: deliveryFee,
+          requires_prescription: requiresPrescription,
+          payment_method: paymentMethod,
+          currency: 'KES'
+        })
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // Create order items
+      const orderItems = items.map(item => ({
+        order_id: order.id,
+        product_id: item.id,
+        quantity: item.quantity,
+        price: item.price
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItems);
+
+      if (itemsError) throw itemsError;
+
+      // Handle prescription upload if needed
+      if (requiresPrescription && prescriptionFiles.length > 0) {
+        await handlePrescriptionUpload(order.id);
+      }
+
+      return order;
+    } catch (error) {
+      console.error('Error creating order:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create order. Please try again.",
+        variant: "destructive"
+      });
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePrescriptionUpload = async (orderId: string) => {
+    if (prescriptionFiles.length === 0) return;
+
+    try {
+      for (const file of prescriptionFiles) {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${orderId}-${Date.now()}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('prescriptions')
+          .upload(fileName, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data } = supabase.storage
+          .from('prescriptions')
+          .getPublicUrl(fileName);
+
+        // Create prescription record
+        await supabase
+          .from('prescriptions')
+          .insert({
+            user_id: user!.id,
+            order_id: orderId,
+            image_url: data.publicUrl,
+            status: 'pending'
+          });
+      }
+    } catch (error) {
+      console.error('Error uploading prescriptions:', error);
+      toast({
+        title: "Warning",
+        description: "Order created but prescription upload failed. Please contact support.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handlePaymentSuccess = (receiptNumber?: string) => {
+    if (receiptNumber) {
+      toast({
+        title: "Payment Successful",
+        description: `Payment completed. Receipt: ${receiptNumber}`,
+      });
+    } else {
+      toast({
+        title: "Payment Successful",
+        description: "Your payment has been processed successfully.",
+      });
+    }
+    
     clearCart();
-    navigate('/payment-success', { 
-      state: { 
-        txnData, 
-        formData, 
-        total,
-        items 
-      } 
-    });
+    navigate('/order-success');
   };
 
-  const handlePaymentError = (err: string) => {
-    toast({ 
-      title: 'Payment Failed', 
-      description: err, 
-      variant: 'destructive' 
+  const handlePaymentError = (error: string) => {
+    toast({
+      title: "Payment Failed",
+      description: error,
+      variant: "destructive"
     });
   };
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <Header />
-        <LoginModal 
-          isOpen={showLoginModal} 
-          onClose={() => {
-            setShowLoginModal(false);
-            navigate('/');
-          }} 
-        />
-        <Footer />
-      </div>
-    );
-  }
 
   if (items.length === 0) {
-    return null;
-  }
-
-  if (showPrescriptionUpload) {
     return (
       <div className="min-h-screen bg-gray-50">
         <Header />
         <div className="container mx-auto px-4 py-8">
-          <div className="max-w-2xl mx-auto">
-            <Button
-              variant="ghost"
-              onClick={() => setShowPrescriptionUpload(false)}
-              className="mb-6 flex items-center gap-2"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Checkout
+          <div className="text-center">
+            <ShoppingCart className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Your cart is empty</h2>
+            <p className="text-gray-600 mb-6">Add some products to your cart to continue with checkout.</p>
+            <Button onClick={() => navigate('/products')}>
+              Browse Products
             </Button>
-            <OrderPrescriptionUpload
-              onPrescriptionUploaded={handlePrescriptionUploaded}
-              onCancel={() => setShowPrescriptionUpload(false)}
-              prescriptionItems={prescriptionItems}
-            />
           </div>
         </div>
         <Footer />
@@ -225,239 +264,221 @@ const Checkout = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-
+      
       <div className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto">
-          <Button
-            variant="ghost"
-            onClick={() => navigate('/cart')}
-            className="mb-6 flex items-center gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Cart
-          </Button>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Checkout</h1>
+          <p className="text-gray-600">Complete your order details</p>
+        </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Order Summary */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Order Form */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Delivery Information */}
             <Card>
               <CardHeader>
-                <CardTitle>Order Summary</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5" />
+                  Delivery Information
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {items.map((item) => (
-                  <div key={item.id} className="flex justify-between items-center py-2 border-b">
-                    <div className="flex-1">
-                      <p className="font-medium">{item.name}</p>
-                      <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
-                      {products.find(p => p.id === item.id)?.prescription_required && (
-                        <p className="text-xs text-red-600">Requires prescription</p>
-                      )}
-                    </div>
-                    <p className="font-medium">KES {(item.price * item.quantity).toLocaleString()}</p>
-                  </div>
-                ))}
-                <div className="space-y-2 pt-4">
-                  <div className="flex justify-between">
-                    <span>Subtotal:</span>
-                    <span>KES {subtotal.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Delivery Fee:</span>
-                    <span>KES {deliveryFee.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-lg pt-2 border-t">
-                    <span>Total:</span>
-                    <span>KES {total.toLocaleString()}</span>
-                  </div>
+                <div>
+                  <Label htmlFor="address">Delivery Address *</Label>
+                  <Textarea
+                    id="address"
+                    placeholder="Enter your full delivery address"
+                    value={deliveryAddress}
+                    onChange={(e) => setDeliveryAddress(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="county">County *</Label>
+                  <KenyaCountiesSelect
+                    value={county}
+                    onValueChange={setCounty}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="instructions">Delivery Instructions (Optional)</Label>
+                  <Textarea
+                    id="instructions"
+                    placeholder="Any special delivery instructions..."
+                    value={deliveryInstructions}
+                    onChange={(e) => setDeliveryInstructions(e.target.value)}
+                    rows={2}
+                  />
                 </div>
               </CardContent>
             </Card>
 
-            {/* Customer Information */}
-            <div className="space-y-6">
-              {/* Prescription Upload Section */}
-              {requiresPrescription && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-red-600">Prescription Required</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-600 mb-4">
-                      Some items in your order require a prescription. Please upload your prescription to continue.
-                    </p>
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Items requiring prescription:</p>
-                      <ul className="text-sm text-gray-600">
-                        {prescriptionItems.map(item => (
-                          <li key={item.id}>• {item.name}</li>
-                        ))}
-                      </ul>
-                    </div>
-                    {prescriptionId ? (
-                      <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                        <p className="text-green-800 text-sm">✓ Prescription uploaded successfully</p>
-                      </div>
-                    ) : (
-                      <Button
-                        onClick={() => setShowPrescriptionUpload(true)}
-                        className="mt-4 w-full"
-                        variant="outline"
-                      >
-                        <Upload className="mr-2 h-4 w-4" />
-                        Upload Prescription
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
+            {/* Contact Information */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Phone className="h-5 w-5" />
+                  Contact Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="phone">Phone Number *</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder="e.g. 0712345678"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                  />
+                </div>
 
+                <div>
+                  <Label htmlFor="email">Email Address *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="your@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Prescription Upload */}
+            {requiresPrescription && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Delivery Information</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="email">Email Address</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="your@email.com"
-                      value={formData.email}
-                      onChange={(e) => handleInputChange('email', e.target.value)}
-                      className={!validateEmail(formData.email) && formData.email ? 'border-red-500' : ''}
-                      readOnly={!!user}
-                      disabled={!!user}
-                    />
-                    {user && (
-                      <p className="text-sm text-gray-500 mt-1">Email is auto-populated from your account</p>
-                    )}
-                    {!validateEmail(formData.email) && formData.email && !user && (
-                      <p className="text-sm text-red-500 mt-1">Please enter a valid email address</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <Label htmlFor="phone">Phone Number</Label>
-                    <Input
-                      id="phone"
-                      type="tel"
-                      placeholder="0712345678"
-                      value={formData.phone}
-                      onChange={(e) => handleInputChange('phone', e.target.value)}
-                      className={!validateKenyanPhone(formData.phone) && formData.phone ? 'border-red-500' : ''}
-                    />
-                    {!validateKenyanPhone(formData.phone) && formData.phone && (
-                      <p className="text-sm text-red-500 mt-1">Please enter a valid Kenyan phone number</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <Label htmlFor="address">Delivery Address</Label>
-                    <Textarea
-                      id="address"
-                      placeholder="Enter your full delivery address"
-                      value={formData.address}
-                      onChange={(e) => handleInputChange('address', e.target.value)}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="city">City/Town</Label>
-                      <Input
-                        id="city"
-                        placeholder="Enter city"
-                        value={formData.city}
-                        onChange={(e) => handleInputChange('city', e.target.value)}
-                      />
-                    </div>
-
-                    <div>
-                      <KenyaCountiesSelect
-                        value={formData.county}
-                        onValueChange={(value) => handleInputChange('county', value)}
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="notes">Special Instructions (Optional)</Label>
-                    <Textarea
-                      id="notes"
-                      placeholder="Any special delivery instructions..."
-                      value={formData.notes}
-                      onChange={(e) => handleInputChange('notes', e.target.value)}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Payment Method */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Payment Method</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Prescription Required
+                    <Badge variant="destructive">Required</Badge>
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    <Button
-                      onClick={() => setSelectedPaymentMethod('mobile')}
-                      variant={selectedPaymentMethod === 'mobile' ? 'default' : 'outline'}
-                    >
-                      <Smartphone className="mr-2 h-4 w-4" />
-                      M‑PESA
-                    </Button>
-                    <Button
-                      onClick={() => setSelectedPaymentMethod('card')}
-                      variant={selectedPaymentMethod === 'card' ? 'default' : 'outline'}
-                    >
-                      <CreditCard className="mr-2 h-4 w-4" />
-                      Card
-                    </Button>
-                  </div>
-
-                  {isFormValid && (
-                    <div className="space-y-4">
-                      {selectedPaymentMethod === 'mobile' ? (
-                        <MpesaPaymentButton
-                          paymentData={{
-                            amount: total,
-                            phoneNumber: formData.phone,
-                            orderId: `ORD_${Date.now()}`,
-                            accountReference: `SiletoExpress_${Date.now()}`,
-                            transactionDesc: `Payment for ${items.length} items`
-                          }}
-                          onSuccess={handlePaymentSuccess}
-                          onError={handlePaymentError}
-                        />
-                      ) : (
-                        <PesapalPaymentButton
-                          amount={total}
-                          currency="KES"
-                          customerInfo={{
-                            email: formData.email,
-                            phone: formData.phone,
-                            name: user?.user_metadata?.full_name || formData.email
-                          }}
-                          formData={formData}
-                          onSuccess={handlePaymentSuccess}
-                          onError={handlePaymentError}
-                          paymentType="card"
-                        />
-                      )}
-                    </div>
-                  )}
-
-                  {!isFormValid && (
-                    <div className="text-center p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <p className="text-yellow-800">
-                        Please fill in all required fields with valid information{requiresPrescription && !prescriptionId ? ' and upload your prescription' : ''} to proceed with payment.
-                      </p>
-                    </div>
-                  )}
+                  <p className="text-sm text-gray-600 mb-4">
+                    Some items in your cart require a prescription. Please upload your prescription files below.
+                  </p>
+                  <OrderPrescriptionUpload
+                    onFilesChange={setPrescriptionFiles}
+                  />
                 </CardContent>
               </Card>
-            </div>
+            )}
+
+            {/* Payment Method */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5" />
+                  Payment Method
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <label className="flex items-center space-x-3">
+                    <input
+                      type="radio"
+                      name="payment"
+                      value="mpesa"
+                      checked={paymentMethod === 'mpesa'}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="text-blue-600"
+                    />
+                    <span>M-Pesa</span>
+                    <Badge variant="secondary">Recommended</Badge>
+                  </label>
+                  
+                  <label className="flex items-center space-x-3">
+                    <input
+                      type="radio"
+                      name="payment"
+                      value="pesapal"
+                      checked={paymentMethod === 'pesapal'}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="text-blue-600"
+                    />
+                    <span>Pesapal (Card/Mobile Money)</span>
+                  </label>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Order Summary */}
+          <div className="lg:col-span-1">
+            <Card className="sticky top-6">
+              <CardHeader>
+                <CardTitle>Order Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  {items.map((item) => (
+                    <div key={item.id} className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <p className="font-medium">{item.name}</p>
+                        <p className="text-sm text-gray-600">
+                          Qty: {item.quantity} × KES {item.price.toLocaleString()}
+                        </p>
+                        {item.prescription_required && (
+                          <Badge variant="destructive" className="text-xs mt-1">
+                            Prescription Required
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="font-medium">
+                        KES {(item.price * item.quantity).toLocaleString()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t pt-3 space-y-2">
+                  <div className="flex justify-between">
+                    <span>Subtotal</span>
+                    <span>KES {subtotal.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Delivery Fee</span>
+                    <span>KES {deliveryFee.toLocaleString()}</span>
+                  </div>
+                  {county && subtotal >= 2000 && (
+                    <p className="text-xs text-green-600">
+                      Free delivery for orders over KES 2,000!
+                    </p>
+                  )}
+                  <div className="flex justify-between font-bold text-lg border-t pt-2">
+                    <span>Total</span>
+                    <span>KES {total.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {paymentMethod === 'mpesa' ? (
+                    <MpesaPaymentButton
+                      amount={total}
+                      phoneNumber={phoneNumber}
+                      onCreateOrder={createOrder}
+                      onSuccess={handlePaymentSuccess}
+                      onError={handlePaymentError}
+                      disabled={loading || !validateForm()}
+                    />
+                  ) : (
+                    <PesapalPaymentButton
+                      amount={total}
+                      currency="KES"
+                      onCreateOrder={createOrder}
+                      onSuccess={handlePaymentSuccess}
+                      onError={handlePaymentError}
+                      disabled={loading}
+                    />
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
