@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -17,6 +16,8 @@ import AdminPrescriptionOrdersTable from '@/components/AdminPrescriptionOrdersTa
 import AdminProductForm from '@/components/AdminProductForm';
 import AdminUserManagement from '@/components/AdminUserManagement';
 import AdminProductManagement from '@/components/AdminProductManagement';
+
+type OrderStatus = 'pending' | 'approved' | 'delivered' | 'cancelled' | 'confirmed' | 'processing' | 'shipped' | 'out_for_delivery';
 
 const Admin = () => {
   const { user } = useAuth();
@@ -131,7 +132,7 @@ const Admin = () => {
     }
   };
 
-  const handleOrderStatusUpdate = async (orderId: string, newStatus: string) => {
+  const handleOrderStatusUpdate = async (orderId: string, newStatus: OrderStatus) => {
     try {
       const { error } = await supabase
         .from('orders')

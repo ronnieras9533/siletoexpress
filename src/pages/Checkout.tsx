@@ -71,7 +71,7 @@ const Checkout = () => {
     }
   };
 
-  const validateForm = () => {
+  const validateForm = (): boolean => {
     if (!deliveryAddress.trim()) {
       toast({
         title: "Error",
@@ -363,6 +363,7 @@ const Checkout = () => {
                     Some items in your cart require a prescription. Please upload your prescription files below.
                   </p>
                   <OrderPrescriptionUpload
+                    files={prescriptionFiles}
                     onFilesChange={setPrescriptionFiles}
                   />
                 </CardContent>
@@ -459,18 +460,22 @@ const Checkout = () => {
                 <div className="space-y-2">
                   {paymentMethod === 'mpesa' ? (
                     <MpesaPaymentButton
-                      amount={total}
-                      phoneNumber={phoneNumber}
-                      onCreateOrder={createOrder}
+                      paymentData={{
+                        amount: total,
+                        phoneNumber: phoneNumber,
+                        orderId: '',
+                        accountReference: `Order-${Date.now()}`,
+                        transactionDesc: 'SiletoExpress Order Payment'
+                      }}
                       onSuccess={handlePaymentSuccess}
                       onError={handlePaymentError}
-                      disabled={loading || !validateForm()}
                     />
                   ) : (
                     <PesapalPaymentButton
                       amount={total}
                       currency="KES"
-                      onCreateOrder={createOrder}
+                      orderReference={`Order-${Date.now()}`}
+                      description="SiletoExpress Order Payment"
                       onSuccess={handlePaymentSuccess}
                       onError={handlePaymentError}
                       disabled={loading}
