@@ -242,6 +242,17 @@ const Checkout = () => {
     });
   };
 
+  const handlePrescriptionUploaded = (prescriptionId: string) => {
+    toast({
+      title: "Success",
+      description: "Prescription uploaded successfully",
+    });
+  };
+
+  const handlePrescriptionCancel = () => {
+    setPrescriptionFiles([]);
+  };
+
   if (items.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -363,8 +374,9 @@ const Checkout = () => {
                     Some items in your cart require a prescription. Please upload your prescription files below.
                   </p>
                   <OrderPrescriptionUpload
-                    files={prescriptionFiles}
-                    onFilesChange={setPrescriptionFiles}
+                    onPrescriptionUploaded={handlePrescriptionUploaded}
+                    onCancel={handlePrescriptionCancel}
+                    prescriptionItems={items.filter(item => item.prescription_required).map(item => ({ id: item.id, name: item.name }))}
                   />
                 </CardContent>
               </Card>
@@ -474,11 +486,22 @@ const Checkout = () => {
                     <PesapalPaymentButton
                       amount={total}
                       currency="KES"
-                      orderReference={`Order-${Date.now()}`}
-                      description="SiletoExpress Order Payment"
+                      customerInfo={{
+                        email: email,
+                        phone: phoneNumber,
+                        name: user?.email || 'Customer'
+                      }}
+                      formData={{
+                        phone: phoneNumber,
+                        address: deliveryAddress,
+                        city: county,
+                        county: county,
+                        notes: deliveryInstructions
+                      }}
+                      prescriptionId={null}
                       onSuccess={handlePaymentSuccess}
                       onError={handlePaymentError}
-                      disabled={loading}
+                      paymentType="card"
                     />
                   )}
                 </div>
