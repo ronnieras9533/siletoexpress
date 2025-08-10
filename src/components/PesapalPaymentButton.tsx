@@ -134,7 +134,7 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
         notes: formData.notes
       };
 
-      // Call Pesapal edge function with proper payment structure
+      // Call new Pesapal initiation edge function
       const pesapalRequestData = {
         orderId: uniqueOrderId,
         amount: Math.floor(amount * 100) / 100, // Ensure 2 decimal places
@@ -142,7 +142,7 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
         email: customerInfo.email.toLowerCase(),
         phone: formattedPhone,
         description: `SiletoExpress Order - ${items.length} items - ${amount} ${currency}`,
-        callback_url: `${window.location.origin}/pesapal-callback`,
+        callback_url: `${window.location.origin}/payment-success`,
         notification_id: '', // Will be set by the edge function
         cartItems: cartItems,
         deliveryInfo: deliveryInfo,
@@ -152,7 +152,7 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
       console.log('Sending payment request to Pesapal...');
 
       const { data: pesapalResponse, error: pesapalError } = await supabase.functions
-        .invoke('pesapal-payment', {
+        .invoke('initiate-pesapal-payment', {
           body: pesapalRequestData,
           headers: {
             'Content-Type': 'application/json'
