@@ -1,16 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { supabase } from '@/integrations/supabase/client';
-import { useQuery } from '@tanstack/react-query';
-import {
-  Users,
-  Package,
-  ShoppingCart,
-  TrendingUp,
-} from 'lucide-react';
+import { Users, Package, ShoppingCart, TrendingUp } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import AdminOrdersTable from '@/components/AdminOrdersTable';
 import AdminPrescriptionOrdersTable from '@/components/AdminPrescriptionOrdersTable';
 import AdminPrescriptionsTable from '@/components/AdminPrescriptionsTable';
@@ -19,88 +14,159 @@ import AdminProductManagement from '@/components/AdminProductManagement';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
+type OrderStatus = 'pending' | 'approved' | 'delivered' | 'cancelled' | 'confirmed' | 'processing' | 'shipped' | 'out_for_delivery';
+
 const AdminDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
-  const [totalUsers, setTotalUsers] = useState(0);
-  const [totalProducts, setTotalProducts] = useState(0);
-  const [totalOrders, setTotalOrders] = useState(0);
-  const [monthlyRevenue, setMonthlyRevenue] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalProducts: 0,
+    totalOrders: 0,
+    monthlyRevenue: 0
+  });
 
   useEffect(() => {
+    checkAdminStatus();
+  }, [user]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchStats();
+    }
+  }, [isAdmin]);
+
+  const checkAdminStatus = async () => {
     if (!user) {
       navigate('/auth');
+      return;
     }
-  }, [user, navigate]);
 
-  const { data: usersCount, isLoading: isLoadingUsers, error: errorUsers } = useQuery({
-    queryKey: ['usersCount'],
-    queryFn: async () => {
-      const { count, error } = await supabase
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      if (profile?.role === 'admin') {
+        setIsAdmin(true);
+      } else {
+        navigate('/');
+      }
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      navigate('/');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchStats = async () => {
+    try {
+      // Users count
+      const { count: usersCount, error: usersError } = await supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true });
-      if (error) throw error;
-      return count || 0;
-    },
-  });
+      if (usersError) throw usersError;
 
-  const { data: productsCount, isLoading: isLoadingProducts, error: errorProducts } = useQuery({
-    queryKey: ['productsCount'],
-    queryFn: async () => {
-      const { count, error } = await supabase
+      // Products count
+      const { count: productsCount, error: productsError } = await supabase
         .from('products')
         .select('*', { count: 'exact', head: true });
-      if (error) throw error;
-      return count || 0;
-    },
-  });
+      if (productsError) throw productsError;
 
-  const { data: ordersCount, isLoading: isLoadingOrders, error: errorOrders } = useQuery({
-    queryKey: ['ordersCount'],
-    queryFn: async () => {
-      const { count, error } = await supabase
+      // Orders count
+      const { count: ordersCount, error: ordersError } = await supabase
         .from('orders')
         .select('*', { count: 'exact', head: true });
-      if (error) throw error;
-      return count || 0;
-    },
-  });
+      if (ordersError) throw ordersError;
 
-  const { data: monthlyRevenueData, isLoading: isLoadingRevenue, error: errorRevenue } = useQuery({
-    queryKey: ['monthlyRevenue'],
-    queryFn: async () => {
+      // Monthly revenue
       const currentDate = new Date();
       const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
       const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString();
-      const { data, error } = await supabase
+      const { data: ordersThisMonth, error: revenueError } = await supabase
         .from('orders')
         .select('total_amount')
         .gte('created_at', firstDayOfMonth)
         .lte('created_at', lastDayOfMonth);
-      if (error) throw error;
-      return data?.reduce((sum, order) => sum + order.total_amount, 0) || 0;
-    },
-  });
+      if (revenueError) throw revenueError;
 
-  useEffect(() => {
-    if (usersCount !== undefined) setTotalUsers(usersCount);
-    if (productsCount !== undefined) setTotalProducts(productsCount);
-    if (ordersCount !== undefined) setTotalOrders(ordersCount);
-    if (monthlyRevenueData !== undefined) setMonthlyRevenue(monthlyRevenueData);
-  }, [usersCount, productsCount, ordersCount, monthlyRevenueData]);
+      const monthlyRevenue = ordersThisMonth?.reduce((sum, order) => sum + order.total_amount, 0) || 0;
 
-  const handleStatusUpdate = async (orderId: string, newStatus: string) => {
+      setStats({
+        totalUsers: usersCount || 0,
+        totalProducts: productsCount || 0,
+        totalOrders: ordersCount || 0,
+        monthlyRevenue
+      });
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch admin statistics",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleStatusUpdate = async (orderId: string, newStatus: OrderStatus) => {
     try {
       const { error } = await supabase
         .from('orders')
-        .update({ status: newStatus as any })
+        .update({ status: newStatus })
         .eq('id', orderId);
+
       if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `Order status updated to ${newStatus}`,
+      });
+
+      fetchStats();
     } catch (error) {
       console.error('Error updating order status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update order status",
+        variant: "destructive"
+      });
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Access Denied</h1>
+          <p className="text-gray-600 mb-6">You don't have permission to access this page.</p>
+          <button
+            onClick={() => navigate('/')}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            Go to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -124,10 +190,8 @@ const AdminDashboard = () => {
               <Users className="h-8 w-8 text-gray-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalUsers}</div>
-              <p className="text-xs text-gray-500">
-                {isLoadingUsers ? 'Loading...' : errorUsers ? 'Error' : 'Active users'}
-              </p>
+              <div className="text-2xl font-bold">{stats.totalUsers}</div>
+              <p className="text-xs text-gray-500">Active users</p>
             </CardContent>
           </Card>
 
@@ -140,10 +204,8 @@ const AdminDashboard = () => {
               <Package className="h-8 w-8 text-gray-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalProducts}</div>
-              <p className="text-xs text-gray-500">
-                {isLoadingProducts ? 'Loading...' : errorProducts ? 'Error' : 'Available products'}
-              </p>
+              <div className="text-2xl font-bold">{stats.totalProducts}</div>
+              <p className="text-xs text-gray-500">Available products</p>
             </CardContent>
           </Card>
 
@@ -156,10 +218,8 @@ const AdminDashboard = () => {
               <ShoppingCart className="h-8 w-8 text-gray-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalOrders}</div>
-              <p className="text-xs text-gray-500">
-                {isLoadingOrders ? 'Loading...' : errorOrders ? 'Error' : 'Orders placed'}
-              </p>
+              <div className="text-2xl font-bold">{stats.totalOrders}</div>
+              <p className="text-xs text-gray-500">Orders placed</p>
             </CardContent>
           </Card>
 
@@ -172,10 +232,8 @@ const AdminDashboard = () => {
               <TrendingUp className="h-8 w-8 text-gray-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">KES {Number(monthlyRevenue).toLocaleString()}</div>
-              <p className="text-xs text-gray-500">
-                {isLoadingRevenue ? 'Loading...' : errorRevenue ? 'Error' : 'Revenue this month'}
-              </p>
+              <div className="text-2xl font-bold">KES {Number(stats.monthlyRevenue).toLocaleString()}</div>
+              <p className="text-xs text-gray-500">Revenue this month</p>
             </CardContent>
           </Card>
         </div>
@@ -196,7 +254,7 @@ const AdminDashboard = () => {
                 <CardTitle>All Orders</CardTitle>
               </CardHeader>
               <CardContent>
-                <AdminOrdersTable />
+                <AdminOrdersTable onStatusUpdate={handleStatusUpdate} />
               </CardContent>
             </Card>
           </TabsContent>
