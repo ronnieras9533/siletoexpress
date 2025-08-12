@@ -1,6 +1,7 @@
 // src/lib/supabaseClient.ts
 import { createClient } from "@supabase/supabase-js";
 
+// Detect environment: browser or server (Node/Deno)
 const isBrowser = typeof window !== "undefined";
 
 const supabaseUrl = isBrowser
