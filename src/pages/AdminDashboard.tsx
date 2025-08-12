@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../supabaseClient';
+import { supabase } from '../lib/supabaseClient';
 import { Tabs, Tab } from '@mui/material';
 import OrdersTable from './OrdersTable';
 import PrescriptionsTable from './PrescriptionsTable';
