@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -7,15 +6,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { Package, FileText, Users, ShoppingCart, Clock, CheckCircle, AlertCircle, Edit, Trash2, Plus } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import AdminOrdersTable from '@/components/AdminOrdersTable';
 import AdminPrescriptionsTable from '@/components/AdminPrescriptionsTable';
 import AdminPrescriptionOrdersTable from '@/components/AdminPrescriptionOrdersTable';
-import ProductFormModal from '@/components/ProductFormModal';
-import OrderStatusStepper from '@/components/OrderStatusStepper';
+import AdminProductForm from '@/components/AdminProductForm';
+import AdminUserManagement from '@/components/AdminUserManagement';
+import AdminProductManagement from '@/components/AdminProductManagement';
+
+type OrderStatus = 'pending' | 'approved' | 'delivered' | 'cancelled' | 'confirmed' | 'processing' | 'shipped' | 'out_for_delivery';
 
 const Admin = () => {
   const { user } = useAuth();
@@ -35,10 +37,6 @@ const Admin = () => {
     pendingPrescriptions: 0,
     generalPrescriptions: 0
   });
-  const [products, setProducts] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [productsLoading, setProductsLoading] = useState(true);
-  const [usersLoading, setUsersLoading] = useState(true);
 
   useEffect(() => {
     checkAdminStatus();
@@ -47,8 +45,6 @@ const Admin = () => {
   useEffect(() => {
     if (isAdmin) {
       fetchStats();
-      fetchProducts();
-      fetchUsers();
     }
   }, [isAdmin]);
 
@@ -136,78 +132,7 @@ const Admin = () => {
     }
   };
 
-  const fetchProducts = async () => {
-    setProductsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      setProducts(data || []);
-    } catch (error) {
-      console.error('Error fetching products:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch products",
-        variant: "destructive"
-      });
-    } finally {
-      setProductsLoading(false);
-    }
-  };
-
-  const fetchUsers = async () => {
-    setUsersLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      setUsers(data || []);
-    } catch (error) {
-      console.error('Error fetching users:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch users",
-        variant: "destructive"
-      });
-    } finally {
-      setUsersLoading(false);
-    }
-  };
-
-  const handleDeleteProduct = async (productId) => {
-    if (!confirm('Are you sure you want to delete this product?')) return;
-
-    try {
-      const { error } = await supabase
-        .from('products')
-        .delete()
-        .eq('id', productId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Product deleted successfully",
-      });
-      
-      fetchProducts();
-    } catch (error) {
-      console.error('Error deleting product:', error);
-      toast({
-        title: "Error",
-        description: "Failed to delete product",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleOrderStatusUpdate = async (orderId, newStatus) => {
+  const handleOrderStatusUpdate = async (orderId: string, newStatus: OrderStatus) => {
     try {
       const { error } = await supabase
         .from('orders')
@@ -337,7 +262,7 @@ const Admin = () => {
                 className="w-full text-xs lg:text-sm"
                 onClick={() => setShowProductForm(true)}
               >
-                <Package className="h-3 w-3 lg:h-4 lg:w-4 mr-2" />
+                <Plus className="h-3 w-3 lg:h-4 lg:w-4 mr-2" />
                 Add Product
               </Button>
             </CardContent>
@@ -376,15 +301,44 @@ const Admin = () => {
           </Card>
         </div>
 
-        {/* Main Content Tabs */}
+        {/* Main Content Tabs - Updated with new tabs */}
         <Tabs defaultValue="regular-orders" className="space-y-4 lg:space-y-6">
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5 h-auto">
-            <TabsTrigger value="regular-orders" className="text-xs lg:text-sm px-2 lg:px-4">Regular Orders</TabsTrigger>
-            <TabsTrigger value="prescription-orders" className="text-xs lg:text-sm px-2 lg:px-4">Orders with Prescriptions</TabsTrigger>
-            <TabsTrigger value="prescriptions" className="text-xs lg:text-sm px-2 lg:px-4">General Prescriptions</TabsTrigger>
-            <TabsTrigger value="products" className="text-xs lg:text-sm px-2 lg:px-4">Products</TabsTrigger>
-            <TabsTrigger value="users" className="text-xs lg:text-sm px-2 lg:px-4">Users</TabsTrigger>
-          </TabsList>
+          <div className="w-full">
+            <div className="overflow-x-auto pb-2">
+              <TabsList className="flex h-auto w-max min-w-full lg:w-full lg:grid lg:grid-cols-5 p-1">
+                <TabsTrigger 
+                  value="regular-orders" 
+                  className="text-xs lg:text-sm px-2 lg:px-4 py-2 whitespace-nowrap flex-shrink-0 min-w-[100px] lg:min-w-0"
+                >
+                  Regular Orders
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="prescription-orders" 
+                  className="text-xs lg:text-sm px-2 lg:px-4 py-2 whitespace-nowrap flex-shrink-0 min-w-[100px] lg:min-w-0"
+                >
+                  Rx Orders
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="prescriptions" 
+                  className="text-xs lg:text-sm px-2 lg:px-4 py-2 whitespace-nowrap flex-shrink-0 min-w-[100px] lg:min-w-0"
+                >
+                  Prescriptions
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="users" 
+                  className="text-xs lg:text-sm px-2 lg:px-4 py-2 whitespace-nowrap flex-shrink-0 min-w-[100px] lg:min-w-0"
+                >
+                  Users
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="products" 
+                  className="text-xs lg:text-sm px-2 lg:px-4 py-2 whitespace-nowrap flex-shrink-0 min-w-[100px] lg:min-w-0"
+                >
+                  Products
+                </TabsTrigger>
+              </TabsList>
+            </div>
+          </div>
 
           <TabsContent value="regular-orders" className="space-y-4 lg:space-y-6">
             <Card>
@@ -424,136 +378,27 @@ const Admin = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="products" className="space-y-4 lg:space-y-6">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-4 gap-4">
-              <h2 className="text-lg lg:text-xl font-semibold">Product Management</h2>
-              <Button onClick={() => setShowProductForm(true)} className="w-full lg:w-auto">
-                <Plus className="mr-2 h-4 w-4" />
-                Add Product
-              </Button>
-            </div>
-            
-            <Card>
-              <CardContent className="p-4 lg:p-6">
-                {productsLoading ? (
-                  <div className="text-center py-8">Loading products...</div>
-                ) : products && products.length > 0 ? (
-                  <div className="space-y-4">
-                    {products.map((product) => (
-                      <div key={product.id} className="flex flex-col lg:flex-row lg:items-center justify-between p-4 border rounded-lg gap-4">
-                        <div className="flex-1">
-                          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                            {product.image_url && (
-                              <img 
-                                src={product.image_url} 
-                                alt={product.name}
-                                className="w-16 h-16 object-cover rounded mx-auto lg:mx-0"
-                              />
-                            )}
-                            <div className="text-center lg:text-left">
-                              <h3 className="font-medium">{product.name}</h3>
-                              <p className="text-sm text-gray-600">{product.category}</p>
-                              <p className="text-sm font-medium">KES {Number(product.price).toLocaleString()}</p>
-                              {product.prescription_required && (
-                                <Badge variant="secondary" className="bg-red-100 text-red-800 mt-1">
-                                  Prescription Required
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex flex-col lg:flex-row items-center gap-4">
-                          <Badge variant={product.stock > 10 ? "default" : product.stock > 0 ? "secondary" : "destructive"}>
-                            {product.stock} in stock
-                          </Badge>
-                          <div className="flex gap-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => {
-                                setEditingProduct(product);
-                                setShowProductForm(true);
-                              }}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => handleDeleteProduct(product.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    No products yet. <Button variant="link" onClick={() => setShowProductForm(true)}>Add your first product</Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+          <TabsContent value="users" className="space-y-4 lg:space-y-6">
+            <AdminUserManagement />
           </TabsContent>
 
-          <TabsContent value="users" className="space-y-4 lg:space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg lg:text-xl">User Management</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {usersLoading ? (
-                  <div className="text-center py-8">Loading users...</div>
-                ) : users && users.length > 0 ? (
-                  <div className="space-y-4">
-                    {users.map((user) => (
-                      <div key={user.id} className="flex flex-col lg:flex-row lg:items-center justify-between p-4 border rounded-lg gap-4">
-                        <div className="flex-1">
-                          <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                            <div className="text-center lg:text-left">
-                              <h3 className="font-medium">{user.full_name}</h3>
-                              <p className="text-sm text-gray-600">{user.email}</p>
-                              <p className="text-sm text-gray-500">
-                                {user.phone && `Phone: ${user.phone}`}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex flex-col lg:flex-row items-center gap-4">
-                          <Badge variant={user.role === 'admin' ? "default" : "secondary"}>
-                            {user.role}
-                          </Badge>
-                          <p className="text-sm text-gray-500">
-                            {new Date(user.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    No users found
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+          <TabsContent value="products" className="space-y-4 lg:space-y-6">
+            <AdminProductManagement />
           </TabsContent>
         </Tabs>
       </div>
 
       {showProductForm && (
-        <ProductFormModal
-          isOpen={showProductForm}
-          onClose={() => {
+        <AdminProductForm
+          product={editingProduct}
+          onSave={() => {
             setShowProductForm(false);
             setEditingProduct(null);
-          }}
-          product={editingProduct}
-          onSuccess={() => {
-            fetchProducts();
             fetchStats();
+          }}
+          onCancel={() => {
+            setShowProductForm(false);
+            setEditingProduct(null);
           }}
         />
       )}

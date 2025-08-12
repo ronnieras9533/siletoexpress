@@ -1,250 +1,115 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/integrations/supabase/client';
-import { useQuery } from '@tanstack/react-query';
-import { 
-  Users, 
-  Package, 
-  ShoppingCart, 
-  TrendingUp,
-  FileText,
-  AlertCircle,
-  CheckCircle,
-  Clock
-} from 'lucide-react';
-import AdminOrdersTable from '@/components/AdminOrdersTable';
-import AdminPrescriptionOrdersTable from '@/components/AdminPrescriptionOrdersTable';
-import AdminPrescriptionsTable from '@/components/AdminPrescriptionsTable';
-import Header from '@/components/Header';
-import Footer from '@/components/Footer';
+import { supabase } from '../supabaseClient';
+import { Tabs, Tab } from '@mui/material';
+import OrdersTable from './OrdersTable';
+import PrescriptionsTable from './PrescriptionsTable';
 
-const AdminDashboard = () => {
-  const { user } = useAuth();
+export default function AdminDashboard() {
   const navigate = useNavigate();
-
-  const [totalUsers, setTotalUsers] = useState(0);
-  const [totalProducts, setTotalProducts] = useState(0);
-  const [totalOrders, setTotalOrders] = useState(0);
-  const [monthlyRevenue, setMonthlyRevenue] = useState(0);
+  const [user, setUser] = useState(null);
+  const [stats, setStats] = useState({
+    totalOrders: 0,
+    pendingOrders: 0,
+    prescriptions: 0,
+    monthlyRevenue: 0,
+  });
+  const [tab, setTab] = useState(0);
 
   useEffect(() => {
-    if (!user) {
-      navigate('/auth');
-    }
-  }, [user, navigate]);
+    const fetchUserAndStats = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-  const { data: usersCount, isLoading: isLoadingUsers, error: errorUsers } = useQuery({
-    queryKey: ['usersCount'],
-    queryFn: async () => {
-      const { count, error } = await supabase
+      if (!user) {
+        navigate('/auth');
+        return;
+      }
+
+      // Check if user is admin
+      const { data: profile } = await supabase
         .from('profiles')
-        .select('*', { count: 'exact', head: true });
+        .select('role')
+        .eq('id', user.id)
+        .single();
 
-      if (error) throw error;
-      return count || 0;
-    },
-  });
+      if (!profile || profile.role !== 'admin') {
+        navigate('/auth');
+        return;
+      }
 
-  const { data: productsCount, isLoading: isLoadingProducts, error: errorProducts } = useQuery({
-    queryKey: ['productsCount'],
-    queryFn: async () => {
-      const { count, error } = await supabase
-        .from('products')
-        .select('*', { count: 'exact', head: true });
+      setUser(user);
+      await fetchStats();
+    };
 
-      if (error) throw error;
-      return count || 0;
-    },
-  });
+    fetchUserAndStats();
+  }, [navigate]);
 
-  const { data: ordersCount, isLoading: isLoadingOrders, error: errorOrders } = useQuery({
-    queryKey: ['ordersCount'],
-    queryFn: async () => {
-      const { count, error } = await supabase
-        .from('orders')
-        .select('*', { count: 'exact', head: true });
+  const fetchStats = async () => {
+    // Regular (non-prescription) orders count
+    const { count: totalOrders } = await supabase
+      .from('orders')
+      .select('*', { count: 'exact', head: true })
+      .neq('type', 'prescription');
 
-      if (error) throw error;
-      return count || 0;
-    },
-  });
+    // Pending regular orders
+    const { count: pendingOrders } = await supabase
+      .from('orders')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending')
+      .neq('type', 'prescription');
 
-  const { data: monthlyRevenueData, isLoading: isLoadingRevenue, error: errorRevenue } = useQuery({
-    queryKey: ['monthlyRevenue'],
-    queryFn: async () => {
-      const currentDate = new Date();
-      const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
-      const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString();
+    // Prescription orders count
+    const { count: prescriptions } = await supabase
+      .from('orders')
+      .select('*', { count: 'exact', head: true })
+      .eq('type', 'prescription');
 
-      const { data, error } = await supabase
-        .from('orders')
-        .select('total_amount')
-        .gte('created_at', firstDayOfMonth)
-        .lte('created_at', lastDayOfMonth);
+    // Monthly revenue (all orders)
+    const { data: monthly } = await supabase
+      .from('orders')
+      .select('total_amount, created_at')
+      .gte(
+        'created_at',
+        new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+      );
 
-      if (error) throw error;
+    const monthlyRevenue =
+      monthly?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
 
-      const totalRevenue = data?.reduce((sum, order) => sum + order.total_amount, 0) || 0;
-      return totalRevenue;
-    },
-  });
-
-  useEffect(() => {
-    if (usersCount !== undefined) {
-      setTotalUsers(usersCount);
-    }
-    if (productsCount !== undefined) {
-      setTotalProducts(productsCount);
-    }
-    if (ordersCount !== undefined) {
-      setTotalOrders(ordersCount);
-    }
-    if (monthlyRevenueData !== undefined) {
-      setMonthlyRevenue(monthlyRevenueData);
-    }
-  }, [usersCount, productsCount, ordersCount, monthlyRevenueData]);
-
-  const handleStatusUpdate = async (orderId: string, newStatus: string) => {
-    try {
-      const { error } = await supabase
-        .from('orders')
-        .update({ status: newStatus as any })
-        .eq('id', orderId);
-
-      if (error) throw error;
-
-      // Refresh the data
-      // You might want to invalidate queries here
-    } catch (error) {
-      console.error('Error updating order status:', error);
-    }
+    setStats({
+      totalOrders: totalOrders || 0,
+      pendingOrders: pendingOrders || 0,
+      prescriptions: prescriptions || 0,
+      monthlyRevenue,
+    });
   };
 
+  if (!user) {
+    return null; // Prevents flicker while checking auth
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header />
-      
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-          <p className="text-gray-600">Manage your store efficiently</p>
-        </div>
+    <div className="admin-dashboard">
+      <h1>Admin Dashboard</h1>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Users className="h-4 w-4 mr-1" />
-                Total Users
-              </CardTitle>
-              <Users className="h-8 w-8 text-gray-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalUsers}</div>
-              <p className="text-xs text-gray-500">
-                {isLoadingUsers ? 'Loading...' : errorUsers ? 'Error' : 'Active users'}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Package className="h-4 w-4 mr-1" />
-                Total Products
-              </CardTitle>
-              <Package className="h-8 w-8 text-gray-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalProducts}</div>
-              <p className="text-xs text-gray-500">
-                {isLoadingProducts ? 'Loading...' : errorProducts ? 'Error' : 'Available products'}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <ShoppingCart className="h-4 w-4 mr-1" />
-                Total Orders
-              </CardTitle>
-              <ShoppingCart className="h-8 w-8 text-gray-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalOrders}</div>
-              <p className="text-xs text-gray-500">
-                {isLoadingOrders ? 'Loading...' : errorOrders ? 'Error' : 'Orders placed'}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 mr-1" />
-                Monthly Revenue
-              </CardTitle>
-              <TrendingUp className="h-8 w-8 text-gray-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">KES {Number(monthlyRevenue).toLocaleString()}</div>
-              <p className="text-xs text-gray-500">
-                {isLoadingRevenue ? 'Loading...' : errorRevenue ? 'Error' : 'Revenue this month'}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Tabs defaultValue="orders" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="orders">All Orders</TabsTrigger>
-            <TabsTrigger value="prescription-orders">Prescription Orders</TabsTrigger>
-            <TabsTrigger value="prescriptions">Prescriptions</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="orders">
-            <Card>
-              <CardHeader>
-                <CardTitle>All Orders</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <AdminOrdersTable />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="prescription-orders">
-            <Card>
-              <CardHeader>
-                <CardTitle>Prescription Orders</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <AdminPrescriptionOrdersTable onStatusUpdate={handleStatusUpdate} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="prescriptions">
-            <Card>
-              <CardHeader>
-                <CardTitle>Prescriptions</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <AdminPrescriptionsTable />
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+      <div className="stats">
+        <p>Regular Orders: {stats.totalOrders}</p>
+        <p>Pending Regular Orders: {stats.pendingOrders}</p>
+        <p>Prescription Orders: {stats.prescriptions}</p>
+        <p>
+          Monthly Revenue: KSh {stats.monthlyRevenue.toLocaleString('en-KE')}
+        </p>
       </div>
-      
-      <Footer />
+
+      <Tabs value={tab} onChange={(e, newValue) => setTab(newValue)}>
+        <Tab label="Regular Orders" />
+        <Tab label="Prescription Orders" />
+      </Tabs>
+
+      {tab === 0 && <OrdersTable filter={{ type: 'regular' }} />}
+      {tab === 1 && <PrescriptionsTable />}
     </div>
   );
-};
-
-export default AdminDashboard;
+}

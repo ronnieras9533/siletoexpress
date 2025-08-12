@@ -1,4 +1,16 @@
+<<<<<<< HEAD
 [[redirects]]
 from = "/functions/pesapal-ipn"
 to = "/.netlify/functions/pesapal-ipn"
 status = 200
+=======
+[build]
+  publish = "dist" # or "build" or "out" depending on your framework
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/.netlify/functions/pesapal-ipn"
+  to = "https://siletoexpress.netlify.app/.netlify/functions/pesapal-ipn"
+  status = 200
+  force = true
+>>>>>>> b3edd836e598d0578976cd3fad7a0dc2ba7eb90c

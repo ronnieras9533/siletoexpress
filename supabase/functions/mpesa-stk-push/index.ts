@@ -41,15 +41,12 @@ function generatePassword(shortcode: string, passkey: string, timestamp: string)
 
 // Helper function to format phone number
 function formatPhoneNumber(phone: string): string {
-  // Remove any non-digit characters
   let cleaned = phone.replace(/\D/g, '');
   
-  // If it starts with 0, replace with 254
   if (cleaned.startsWith('0')) {
     cleaned = '254' + cleaned.substring(1);
   }
   
-  // If it doesn't start with 254, add it
   if (!cleaned.startsWith('254')) {
     cleaned = '254' + cleaned;
   }
@@ -70,11 +67,12 @@ serve(async (req) => {
     // Get environment variables
     const shortcode = Deno.env.get('MPESA_SHORTCODE') || '174379';
     const passkey = Deno.env.get('MPESA_PASSKEY') || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919';
+    const callbackUrl = Deno.env.get('MPESA_CALLBACK_URL') || 'https://hevbjzdahldvijwqtqcx.supabase.co/functions/v1/mpesa-callback';
     
-    // Initialize Supabase client
+    // Initialize Supabase client with service role key for admin operations
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
     // Get OAuth token
@@ -99,7 +97,7 @@ serve(async (req) => {
       PartyA: formattedPhone,
       PartyB: shortcode,
       PhoneNumber: formattedPhone,
-      CallBackURL: "https://siletoexpress.netlify.app/mpesa-callback",
+      CallBackURL: callbackUrl,
       AccountReference: accountReference || orderId,
       TransactionDesc: transactionDesc || `Payment for order ${orderId}`
     };
@@ -120,22 +118,42 @@ serve(async (req) => {
     console.log('STK Push response:', stkResult);
 
     if (stkResult.ResponseCode === '0') {
-      // Store payment record for tracking
+      // Store payment record for tracking with proper user context
+      const authHeader = req.headers.get('Authorization');
+      let userId = null;
+
+      if (authHeader?.startsWith('Bearer ')) {
+        try {
+          const token = authHeader.slice(7);
+          const { data: { user } } = await supabaseClient.auth.getUser(token);
+          userId = user?.id;
+        } catch (error) {
+          console.error('Error getting user from token:', error);
+        }
+      }
+
       const { error: paymentError } = await supabaseClient
         .from('payments')
         .insert({
-          order_id: orderId,
+          user_id: userId,
           amount: amount,
           currency: 'KES',
           method: 'mpesa',
           gateway: 'mpesa',
           status: 'pending',
           transaction_id: stkResult.CheckoutRequestID,
-          metadata: stkResult
+          metadata: {
+            ...stkResult,
+            phone_number: formattedPhone,
+            order_reference: orderId,
+            account_reference: accountReference
+          }
         });
 
       if (paymentError) {
         console.error('Error storing payment record:', paymentError);
+      } else {
+        console.log('Payment record stored successfully');
       }
 
       return new Response(
@@ -153,7 +171,7 @@ serve(async (req) => {
         }
       );
     } else {
-      throw new Error(stkResult.errorMessage || 'STK Push failed');
+      throw new Error(stkResult.errorMessage || stkResult.ResponseDescription || 'STK Push failed');
     }
 
   } catch (error) {

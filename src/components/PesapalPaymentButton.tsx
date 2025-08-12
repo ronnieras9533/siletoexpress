@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { CreditCard, Loader2, Smartphone } from 'lucide-react';
@@ -5,7 +6,6 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
 
 interface PesapalPaymentButtonProps {
   amount: number;
@@ -19,6 +19,7 @@ interface PesapalPaymentButtonProps {
     phone: string;
     address: string;
     city: string;
+    county: string;
     notes: string;
   };
   prescriptionId?: string | null;
@@ -26,6 +27,33 @@ interface PesapalPaymentButtonProps {
   onError: (error: string) => void;
   paymentType: 'card' | 'mobile';
 }
+
+// Input validation utilities
+const validateEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email) && email.length <= 254;
+};
+
+const validateKenyanPhone = (phone: string): boolean => {
+  const kenyanPhoneRegex = /^(\+254|254|0)?[17]\d{8}$/;
+  return kenyanPhoneRegex.test(phone.replace(/\s/g, ''));
+};
+
+const formatKenyanPhone = (phone: string): string => {
+  // Remove all non-digits
+  const cleaned = phone.replace(/\D/g, '');
+  
+  // Handle different formats
+  if (cleaned.startsWith('254')) {
+    return cleaned;
+  } else if (cleaned.startsWith('0')) {
+    return '254' + cleaned.substring(1);
+  } else if (cleaned.length === 9) {
+    return '254' + cleaned;
+  }
+  
+  return cleaned;
+};
 
 const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
   amount,
@@ -41,8 +69,6 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
   const { toast } = useToast();
   const { items, clearCart } = useCart();
   const { user } = useAuth();
-  const navigate = useNavigate();
-
 
   const handlePesapalPayment = async () => {
     if (!user) {
@@ -50,44 +76,90 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
       return;
     }
 
+    // Input validation
+    if (!validateEmail(customerInfo.email)) {
+      onError('Invalid email address format');
+      return;
+    }
+
+    if (!validateKenyanPhone(customerInfo.phone)) {
+      onError('Invalid Kenyan phone number format. Please use format: 0712345678 or +254712345678');
+      return;
+    }
+
+    // Validate amount
+    if (amount <= 0 || amount > 1000000) {
+      onError('Invalid payment amount. Amount must be between 1 and 1,000,000');
+      return;
+    }
+
+    // Validate currency
+    if (currency !== 'KES') {
+      onError('Only Kenyan Shillings (KES) supported for Pesapal payments');
+      return;
+    }
+
     setLoading(true);
     
     try {
-      // Prepare payment data for Pesapal (no order creation yet)
-      const paymentData = {
+      // Format phone number properly
+      const formattedPhone = formatKenyanPhone(customerInfo.phone);
+
+      // Generate unique order ID with timestamp
+      const uniqueOrderId = `ORDER_${user.id.substring(0, 8)}_${Date.now()}`;
+
+      console.log('Initiating Pesapal payment:', {
+        orderId: uniqueOrderId,
         amount,
         currency,
-        userId: user.id,
-        customerInfo: {
-          email: customerInfo.email,
-          phone: customerInfo.phone.replace(/^\+?254/, '254'), // Ensure proper format
-          name: customerInfo.name
-        },
-        formData,
-        prescriptionId,
-        cartItems: items.map(item => ({
-          id: item.id,
-          quantity: item.quantity,
-          price: item.price
-        }))
+        paymentType,
+        itemCount: items.length
+      });
+
+      // Prepare cart items data
+      const cartItems = items.map(item => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        total: item.price * item.quantity
+      }));
+
+      // Prepare delivery info
+      const deliveryInfo = {
+        phone: formatKenyanPhone(formData.phone),
+        address: formData.address,
+        city: formData.city,
+        county: formData.county,
+        notes: formData.notes
       };
 
-      console.log('Initiating Pesapal payment:', paymentData);
-
-      // Call Pesapal edge function with proper payment structure
-      const pesapalPaymentData = {
-        orderId: 'ORDER_' + Date.now(),
-        amount: amount,
+      // Call new Pesapal initiation edge function
+      const pesapalRequestData = {
+        orderId: uniqueOrderId,
+        amount: Math.floor(amount * 100) / 100, // Ensure 2 decimal places
         currency: currency,
-        email: customerInfo.email,
-        phone: customerInfo.phone,
-        description: `SiletoExpress Order - ${amount} ${currency}`
+        email: customerInfo.email.toLowerCase(),
+        phone: formattedPhone,
+        description: `SiletoExpress Order - ${items.length} items - ${amount} ${currency}`,
+        callback_url: `${window.location.origin}/payment-success`,
+        notification_id: '', // Will be set by the edge function
+        cartItems: cartItems,
+        deliveryInfo: deliveryInfo,
+        prescriptionId: prescriptionId
       };
+
+      console.log('Sending payment request to Pesapal...');
 
       const { data: pesapalResponse, error: pesapalError } = await supabase.functions
-        .invoke('pesapal-payment', {
-          body: pesapalPaymentData
+        .invoke('initiate-pesapal-payment', {
+          body: pesapalRequestData,
+          headers: {
+            'Content-Type': 'application/json'
+          }
         });
+
+      console.log('Pesapal response:', pesapalResponse);
 
       if (pesapalError) {
         console.error('Pesapal function error:', pesapalError);
@@ -101,19 +173,31 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
 
       console.log('Pesapal payment initiated successfully:', pesapalResponse);
 
-      // Store payment tracking info in localStorage for later retrieval
-      localStorage.setItem('pesapal_payment', JSON.stringify({
+      // Store payment tracking info in localStorage
+      const trackingData = {
         trackingId: pesapalResponse.order_tracking_id,
         merchantReference: pesapalResponse.merchant_reference,
         amount: amount,
-        currency: currency
-      }));
+        currency: currency,
+        userId: user.id,
+        orderId: uniqueOrderId,
+        timestamp: Date.now()
+      };
+
+      localStorage.setItem('pesapal_payment', JSON.stringify(trackingData));
 
       // Clear cart since payment intent is created
       clearCart();
 
-      // Redirect to Pesapal payment page
-      window.location.href = pesapalResponse.redirect_url;
+      toast({
+        title: "Redirecting to Payment",
+        description: "You will be redirected to complete your payment...",
+      });
+
+      // Small delay to show the toast, then redirect
+      setTimeout(() => {
+        window.location.href = pesapalResponse.redirect_url;
+      }, 1000);
 
     } catch (error) {
       console.error('Pesapal payment error:', error);
@@ -131,7 +215,7 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
 
   const buttonText = paymentType === 'card' 
     ? `Pay with Card - ${currency} ${amount.toLocaleString()}`
-    : `Pay with Mobile Money - ${currency} ${amount.toLocaleString()}`;
+    : `Pay with M-PESA - ${currency} ${amount.toLocaleString()}`;
 
   const ButtonIcon = paymentType === 'card' ? CreditCard : Smartphone;
 

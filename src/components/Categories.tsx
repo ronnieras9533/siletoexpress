@@ -54,6 +54,14 @@ const Categories = () => {
     navigate(`/products?category=${encodeURIComponent(categoryName)}`);
   };
 
+  const handleUploadPrescription = () => {
+    navigate('/prescription-upload');
+  };
+
+  const handleWhyChooseUs = () => {
+    navigate('/why-choose-us');
+  };
+
   return (
     <section className="py-16 bg-gray-50">
       <div className="container mx-auto px-4">
@@ -100,7 +108,7 @@ const Categories = () => {
               <Button 
                 variant="secondary" 
                 className="bg-white text-blue-600 hover:bg-blue-50"
-                onClick={() => navigate('/prescription-upload')}
+                onClick={handleUploadPrescription}
               >
                 Upload Now
               </Button>
@@ -119,7 +127,7 @@ const Categories = () => {
               <Button 
                 variant="secondary" 
                 className="bg-white text-green-600 hover:bg-green-50"
-                onClick={() => navigate('/why-choose-us')}
+                onClick={handleWhyChooseUs}
               >
                 Why Choose Us
               </Button>

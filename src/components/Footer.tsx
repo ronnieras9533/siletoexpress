@@ -1,206 +1,97 @@
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useNavigate } from "react-router-dom";
-import { 
-  Phone, 
-  Mail, 
-  MapPin, 
-  Facebook, 
-  Twitter, 
-  Instagram, 
-  Shield,
-  Truck,
-  Clock,
-  Award,
-  ExternalLink,
-  MessageCircle
-} from "lucide-react";
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { Facebook, Instagram, Twitter } from 'lucide-react';
 
 const Footer = () => {
-  const navigate = useNavigate();
-
-  const handleWhatsAppClick = () => {
-    const message = encodeURIComponent("Hi SiletoExpress, I'd like to order medicine or talk to a pharmacist.");
-    const whatsappUrl = `https://api.whatsapp.com/send?phone=254718925368&text=${message}`;
-    window.open(whatsappUrl, '_blank');
-  };
-
   return (
     <footer className="bg-gray-900 text-white">
-      {/* Main Footer */}
       <div className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Company Info */}
-          <div>
-            <h3 className="text-2xl font-bold text-blue-400 mb-4">SiletoExpress</h3>
-            <p className="text-gray-300 mb-4">
-              Your trusted online pharmacy in Kenya, providing authentic medications and healthcare products with professional service.
+          <div className="space-y-4">
+            <h3 className="text-xl font-bold">SiletoExpress</h3>
+            <p className="text-gray-300 text-sm">
+              Your trusted online pharmacy delivering quality healthcare products 
+              across Kenya with fast, reliable service.
             </p>
-            <div className="flex space-x-4">
-              <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white">
-                <Facebook className="h-5 w-5" />
-              </Button>
-              <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white">
-                <Twitter className="h-5 w-5" />
-              </Button>
-              <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white">
-                <Instagram className="h-5 w-5" />
-              </Button>
-            </div>
           </div>
 
           {/* Quick Links */}
-          <div>
-            <h4 className="text-lg font-semibold mb-4">Quick Links</h4>
-            <ul className="space-y-2">
-              <li>
-                <Button 
-                  variant="ghost" 
-                  className="text-gray-300 hover:text-white p-0 h-auto font-normal"
-                  onClick={() => navigate('/products')}
-                >
-                  All Products
-                </Button>
-              </li>
-              <li>
-                <Button 
-                  variant="ghost" 
-                  className="text-gray-300 hover:text-white p-0 h-auto font-normal"
-                  onClick={() => navigate('/prescription-upload')}
-                >
-                  Upload Prescription
-                </Button>
-              </li>
-              <li>
-                <Button 
-                  variant="ghost" 
-                  className="text-gray-300 hover:text-white p-0 h-auto font-normal"
-                  onClick={() => navigate('/cart')}
-                >
-                  Shopping Cart
-                </Button>
-              </li>
-              <li>
-                <Button 
-                  variant="ghost" 
-                  className="text-gray-300 hover:text-white p-0 h-auto font-normal"
-                  onClick={() => navigate('/auth')}
-                >
-                  Sign In
-                </Button>
-              </li>
-              <li>
-                <Button 
-                  variant="ghost" 
-                  className="text-green-400 hover:text-green-300 p-0 h-auto font-normal flex items-center"
-                  onClick={handleWhatsAppClick}
-                >
-                  <MessageCircle size={16} className="mr-1" />
-                  WhatsApp Chat
-                </Button>
-              </li>
+          <div className="space-y-4">
+            <h4 className="text-lg font-semibold">Quick Links</h4>
+            <ul className="space-y-2 text-sm">
+              <li><Link to="/products" className="text-gray-300 hover:text-white transition-colors">All Products</Link></li>
+              <li><Link to="/prescription-upload" className="text-gray-300 hover:text-white transition-colors">Upload Prescription</Link></li>
+              <li><Link to="/track-order" className="text-gray-300 hover:text-white transition-colors">Track Order</Link></li>
+              <li><Link to="/why-choose-us" className="text-gray-300 hover:text-white transition-colors">Why Choose Us</Link></li>
             </ul>
           </div>
 
           {/* Contact Info */}
-          <div>
-            <h4 className="text-lg font-semibold mb-4">Contact Us</h4>
-            <div className="space-y-3">
-              <div className="flex items-start">
-                <Phone className="h-4 w-4 mr-2 text-blue-400 mt-1 flex-shrink-0" />
-                <div className="text-gray-300">
-                  <div>0791 161 828</div>
-                  <div>0729 061 644</div>
-                  <div>0718 925 368</div>
-                </div>
-              </div>
-              <div className="flex items-center">
-                <Mail className="h-4 w-4 mr-2 text-blue-400" />
-                <span className="text-gray-300">info@siletoexpress.com</span>
-              </div>
-              <div className="flex items-start">
-                <MapPin className="h-4 w-4 mr-2 text-blue-400 mt-1 flex-shrink-0" />
-                <div className="text-gray-300">
-                  <div>Tom Mboya St, Nairobi</div>
-                  <div>P.O Box 260-00100</div>
-                  <div>Nairobi, Kenya</div>
-                  <a 
-                    href="https://www.google.com/maps/dir//Tom+Mboya+St,+Nairobi/@-1.2880513,36.7455143,12z/data=!4m8!4m7!1m0!1m5!1m1!1s0x182f1126347bc893:0x8853a59fda25bfef!2m2!1d36.8279163!2d-1.2880526?entry=ttu&g_ep=EgoyMDI1MDcwOC4wIKXMDSoASAFQAw%3D%3D"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-400 hover:text-blue-300 inline-flex items-center mt-1"
-                  >
-                    Get Directions <ExternalLink className="h-3 w-3 ml-1" />
-                  </a>
-                </div>
-              </div>
-              <div className="flex items-center">
-                <Clock className="h-4 w-4 mr-2 text-blue-400" />
-                <span className="text-gray-300">24/7 Support</span>
-              </div>
+          <div className="space-y-4">
+            <h4 className="text-lg font-semibold">Contact Us</h4>
+            <div className="space-y-2 text-sm text-gray-300">
+              <p>Email: info@siletoexpress.com</p>
+              <p>Working Hours: Every Day 8AM - 9PM</p>
             </div>
           </div>
 
-          {/* Newsletter */}
-          <div>
-            <h4 className="text-lg font-semibold mb-4">Newsletter</h4>
-            <p className="text-gray-300 mb-4">
-              Stay updated with health tips and special offers
-            </p>
-            <div className="flex">
-              <Input
-                type="email"
-                placeholder="Enter your email"
-                className="bg-gray-800 border-gray-700 text-white"
-              />
-              <Button className="ml-2 bg-blue-600 hover:bg-blue-700">
-                Subscribe
-              </Button>
+          {/* Social Media */}
+          <div className="space-y-4">
+            <h4 className="text-lg font-semibold">Follow Us</h4>
+            <div className="flex space-x-4">
+              <a
+                href="https://www.facebook.com/profile.php?id=61578190423738"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-300 hover:text-white transition-colors"
+                aria-label="Facebook"
+              >
+                <Facebook size={24} />
+              </a>
+              <a
+                href="https://www.instagram.com/siletoexpress/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-300 hover:text-white transition-colors"
+                aria-label="Instagram"
+              >
+                <Instagram size={24} />
+              </a>
+              <a
+                href="https://x.com/siletoexpress"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-300 hover:text-white transition-colors"
+                aria-label="Twitter/X"
+              >
+                <Twitter size={24} />
+              </a>
+              <a
+                href="https://www.tiktok.com/@siletoexpress"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-300 hover:text-white transition-colors"
+                aria-label="TikTok"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19.321 5.562a5.124 5.124 0 0 1-.443-.258 6.228 6.228 0 0 1-1.137-.966c-.849-.849-1.242-1.783-1.289-2.838h-3.063v13.5c0 2.071-1.679 3.75-3.75 3.75s-3.75-1.679-3.75-3.75 1.679-3.75 3.75-3.75c.414 0 .815.067 1.188.191v-3.23a6.975 6.975 0 0 0-1.188-.101c-3.863 0-7 3.137-7 7s3.137 7 7 7 7-3.137 7-7V8.562c1.348.932 2.977 1.438 4.625 1.438v-3.25c-1.062 0-2.063-.329-2.875-.938-.325-.244-.616-.518-.875-.825z"/>
+                </svg>
+              </a>
+            </div>
+            <div className="text-sm text-gray-300">
+              <p>Stay connected for health tips and updates!</p>
             </div>
           </div>
         </div>
 
-        {/* Trust Indicators */}
         <div className="border-t border-gray-800 mt-8 pt-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="flex items-center justify-center">
-              <Shield className="h-6 w-6 text-blue-400 mr-2" />
-              <span className="text-sm text-gray-300">Licensed Pharmacy</span>
-            </div>
-            <div className="flex items-center justify-center">
-              <Truck className="h-6 w-6 text-blue-400 mr-2" />
-              <span className="text-sm text-gray-300">Fast Delivery</span>
-            </div>
-            <div className="flex items-center justify-center">
-              <Award className="h-6 w-6 text-blue-400 mr-2" />
-              <span className="text-sm text-gray-300">Quality Assured</span>
-            </div>
-            <div className="flex items-center justify-center">
-              <Clock className="h-6 w-6 text-blue-400 mr-2" />
-              <span className="text-sm text-gray-300">24/7 Support</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom Bar */}
-      <div className="border-t border-gray-800">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <p className="text-gray-400 text-sm">
-              © 2024 SiletoExpress. All rights reserved.
-            </p>
+          <div className="flex flex-col md:flex-row justify-between items-center text-sm text-gray-400">
+            <p>&copy; 2025 SiletoExpress. All rights reserved.</p>
             <div className="flex space-x-6 mt-4 md:mt-0">
-              <Button variant="ghost" className="text-gray-400 hover:text-white text-sm p-0 h-auto">
-                Privacy Policy
-              </Button>
-              <Button variant="ghost" className="text-gray-400 hover:text-white text-sm p-0 h-auto">
-                Terms of Service
-              </Button>
-              <Button variant="ghost" className="text-gray-400 hover:text-white text-sm p-0 h-auto">
-                Return Policy
-              </Button>
+              <Link to="/privacy-policy" className="hover:text-white transition-colors">Privacy Policy</Link>
+              <Link to="/terms-of-service" className="hover:text-white transition-colors">Terms of Service</Link>
             </div>
           </div>
         </div>
