@@ -1,2 +1,4 @@
-[functions]
-  directory = "netlify/functions"
+[[redirects]]
+from = "/functions/pesapal-ipn"
+to = "/.netlify/functions/pesapal-ipn"
+status = 200
