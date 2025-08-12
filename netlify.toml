@@ -1,5 +1,5 @@
 [build]
-  publish = "dist"
+  publish = "dist" # change to "build" or "out" if that's your framework's output dir
   functions = "netlify/functions"
 
 [[redirects]]
