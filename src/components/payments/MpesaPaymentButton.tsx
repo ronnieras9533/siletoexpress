@@ -38,21 +38,27 @@ const MpesaPaymentButton: React.FC<MpesaPaymentButtonProps> = ({
     setLoading(true);
 
     try {
-      console.log('Starting M-Pesa payment process with:', paymentData);
-      console.log('Supabase client:', supabase); // Verify client initialization
+      console.log('Starting M-Pesa payment process at:', new Date().toISOString());
+      console.log('Supabase client initialized:', supabase);
+      console.log('Payment data being sent:', paymentData);
+      console.log('Stringified payload:', JSON.stringify(paymentData));
 
-      const { data, error } = await supabase.functions.invoke('mpesa-stk-push', {
+      const response = await supabase.functions.invoke('mpesa-stk-push', {
         body: JSON.stringify(paymentData),
         headers: { 'Content-Type': 'application/json' }
       });
 
-      console.log('Invoke response:', { data, error });
+      console.log('Invoke response:', {
+        status: response.status,
+        data: response.data,
+        error: response.error
+      });
 
-      if (error || !data?.success || !data?.checkoutRequestID) {
-        throw new Error(data?.error || error?.message || 'Failed to initiate M-Pesa STK Push');
+      if (response.error || !response.data?.success || !response.data?.checkoutRequestID) {
+        throw new Error(response.data?.error || response.error?.message || 'Failed to initiate M-Pesa STK Push');
       }
 
-      const checkoutRequestID = data.checkoutRequestID;
+      const checkoutRequestID = response.data.checkoutRequestID;
       setLoading(false);
       setVerifying(true);
 
@@ -61,7 +67,6 @@ const MpesaPaymentButton: React.FC<MpesaPaymentButtonProps> = ({
         description: "Please check your phone and enter your M-PESA PIN to complete payment.",
       });
 
-      // Poll payment status
       try {
         const pollInterval = 2000; // 2 seconds
         const maxAttempts = 60; // 2 minutes timeout
