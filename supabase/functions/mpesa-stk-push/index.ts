@@ -1,17 +1,31 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js";
+
+const supabaseClient = createClient(
+  Deno.env.get("SUPABASE_URL"),
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+);
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
 
 serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   try {
     const { phoneNumber, amount, orderId, accountReference, transactionDesc } = await req.json();
 
     if (!phoneNumber || !amount || !orderId || !accountReference || !transactionDesc) {
       return new Response(
         JSON.stringify({ success: false, error: "Missing required payment information" }),
-        { headers: { "Content-Type": "application/json" }, status: 400 }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
       );
     }
 
-    // Safaricom M-PESA API credentials from environment
     const consumerKey = Deno.env.get("MPESA_CONSUMER_KEY");
     const consumerSecret = Deno.env.get("MPESA_CONSUMER_SECRET");
     const shortCode = Deno.env.get("MPESA_SHORTCODE");
@@ -27,16 +41,10 @@ serve(async (req) => {
         }
       }
     );
-
     const tokenData = await tokenRes.json();
     const accessToken = tokenData.access_token;
 
-    // Prepare STK push request
-    const timestamp = new Date()
-      .toISOString()
-      .replace(/[^0-9]/g, "")
-      .slice(0, 14);
-
+    const timestamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);
     const password = btoa(`${shortCode}${passkey}${timestamp}`);
 
     const stkRes = await fetch(`https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest`, {
@@ -60,56 +68,62 @@ serve(async (req) => {
       })
     });
 
-    const stkData = await stkRes.json();
+    const stkResult = await stkRes.json();
+    console.log("STK Push response:", stkResult);
 
-    return new Response(JSON.stringify({ success: true, data: stkData }), {
-      headers: { "Content-Type": "application/json" }
-    });
-  } catch (err) {
-    return new Response(JSON.stringify({ success: false, error: err.message }), {
-      headers: { "Content-Type": "application/json" },
-      status: 500
-    });
-  }
-});        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(stkPushData)
-    });
-
-    const stkResult = await stkResponse.json();
-    console.log('STK Push response:', stkResult);
-
-    if (stkResult.ResponseCode === '0') {
-      // Store payment record for tracking with proper user context
-      const authHeader = req.headers.get('Authorization');
+    if (stkResult.ResponseCode === "0") {
+      // Store payment record in Supabase
+      const authHeader = req.headers.get("Authorization");
       let userId = null;
 
-      if (authHeader?.startsWith('Bearer ')) {
+      if (authHeader?.startsWith("Bearer ")) {
         try {
           const token = authHeader.slice(7);
           const { data: { user } } = await supabaseClient.auth.getUser(token);
           userId = user?.id;
         } catch (error) {
-          console.error('Error getting user from token:', error);
+          console.error("Error getting user from token:", error);
         }
       }
 
       const { error: paymentError } = await supabaseClient
-        .from('payments')
+        .from("payments")
         .insert({
           user_id: userId,
           amount: amount,
-          currency: 'KES',
-          method: 'mpesa',
-          gateway: 'mpesa',
-          status: 'pending',
+          currency: "KES",
+          method: "mpesa",
+          gateway: "mpesa",
+          status: "pending",
           transaction_id: stkResult.CheckoutRequestID,
           metadata: {
             ...stkResult,
-            phone_number: formattedPhone,
+            phone_number: phoneNumber,
             order_reference: orderId,
             account_reference: accountReference
           }
+        });
+
+      if (paymentError) console.error("Error storing payment record:", paymentError);
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: stkResult.CustomerMessage || "STK Push sent successfully",
+        data: stkResult
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+    );
+
+  } catch (err) {
+    console.error("M-PESA STK Push error:", err);
+    return new Response(
+      JSON.stringify({ success: false, error: err.message }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+    );
+  }
+});          }
         });
 
       if (paymentError) {
