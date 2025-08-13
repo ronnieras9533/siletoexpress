@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -253,6 +252,30 @@ const Checkout = () => {
     setPrescriptionFiles([]);
   };
 
+  const handleMpesaPayment = async () => {
+    if (!validateForm()) return;
+
+    const order = await createOrder();
+    if (!order) return;
+
+    setLoading(true);
+    try {
+      const paymentData = {
+        amount: total,
+        phoneNumber: phoneNumber,
+        orderId: order.id,
+        accountReference: `Order-${Date.now()}`,
+        transactionDesc: 'SiletoExpress Order Payment'
+      };
+      // Assuming MpesaPaymentButton handles the invoke to supabase.functions
+      // This should be integrated with your MpesaPaymentButton component
+    } catch (error) {
+      handlePaymentError('Failed to initiate M-Pesa payment');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (items.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -475,7 +498,7 @@ const Checkout = () => {
                       paymentData={{
                         amount: total,
                         phoneNumber: phoneNumber,
-                        orderId: '',
+                        orderId: '', // Will be set after order creation
                         accountReference: `Order-${Date.now()}`,
                         transactionDesc: 'SiletoExpress Order Payment'
                       }}
