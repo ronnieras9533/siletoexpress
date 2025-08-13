@@ -1,9 +1,16 @@
 [build]
-  publish = "dist" # or "build" or "out" depending on your framework
+  publish = "dist" # Change to "build" or "out" if your framework uses a different output dir
   functions = "netlify/functions"
 
+# Redirect for PesaPal IPN
+[[redirects]]
+  from = "/functions/pesapal-ipn"
+  to = "/.netlify/functions/pesapal-ipn"
+  status = 200
+
+# Force direct access to Netlify Function
 [[redirects]]
   from = "/.netlify/functions/pesapal-ipn"
-  to = "https://siletoexpress.netlify.app/.netlify/functions/pesapal-ipn"
+  to = "/.netlify/functions/pesapal-ipn"
   status = 200
   force = true
