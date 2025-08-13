@@ -26,6 +26,17 @@ import TermsOfService from '@/pages/TermsOfService';
 import WhyChooseUs from '@/pages/WhyChooseUs';
 import Dashboard from '@/pages/Dashboard';
 import MyOrdersAndPrescriptions from '@/pages/MyOrdersAndPrescriptions';
+import ProtectedRoute from "@/components/ProtectedRoute";
+
+// ...
+<Route
+  path="/admin"
+  element={
+    <ProtectedRoute>
+      <AdminDashboard />
+    </ProtectedRoute>
+  }
+/>
 
 function AppContent() {
   const navigate = useNavigate();

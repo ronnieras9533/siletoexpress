@@ -1,126 +1,133 @@
+// src/pages/MyOrdersAndPrescriptions.tsx
 
 import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { Upload, FileText, ArrowLeft } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/use-toast';
+import { Package, FileText, Calendar, Eye } from 'lucide-react';
+import { format } from 'date-fns';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
-const PrescriptionUpload = () => {
-  const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
+interface Order {
+  id: string;
+  created_at: string;
+  status: string;
+  total_amount: number;
+  delivery_address: string;
+  county: string;
+  requires_prescription: boolean;
+  order_items: {
+    quantity: number;
+    price: number;
+    products: {
+      name: string;
+      brand: string;
+    };
+  }[];
+}
+
+interface Prescription {
+  id: string;
+  created_at: string;
+  status: string;
+  image_url: string;
+  admin_notes: string | null;
+  order_id: string | null;
+}
+
+const MyOrdersAndPrescriptions = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const { toast } = useToast();
-  const { orderId } = location.state || {};
+  const [regularOrders, setRegularOrders] = useState<Order[]>([]);
+  const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Redirect to auth page if not signed in
   useEffect(() => {
-    if (!user) {
-      navigate('/auth', { 
-        state: { 
-          redirectTo: '/prescription-upload',
-          message: 'Please sign in to upload your prescription' 
-        }
-      });
-    }
-  }, [user, navigate]);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      if (selectedFile.size > 10 * 1024 * 1024) {
-        toast({
-          title: "File too large",
-          description: "Please select a file smaller than 10MB",
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      if (!selectedFile.type.startsWith('image/') && selectedFile.type !== 'application/pdf') {
-        toast({
-          title: "Invalid file type",
-          description: "Please select an image file or PDF",
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      setFile(selectedFile);
-    }
-  };
-
-  const handleUpload = async () => {
     if (!user) {
       navigate('/auth');
       return;
     }
+    fetchUserData();
+  }, [user, navigate]);
 
-    if (!file) {
-      toast({
-        title: "No file selected",
-        description: "Please select a file to upload",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setUploading(true);
+  const fetchUserData = async () => {
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-      
-      const { error: uploadError } = await supabase.storage
+      // Fetch ONLY regular orders
+      const { data: ordersData, error: ordersError } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            quantity,
+            price,
+            products (name, brand)
+          )
+        `)
+        .eq('user_id', user!.id)
+        .eq('requires_prescription', false) // only regular orders
+        .order('created_at', { ascending: false });
+
+      if (ordersError) throw ordersError;
+
+      // Fetch prescriptions
+      const { data: prescriptionsData, error: prescriptionsError } = await supabase
         .from('prescriptions')
-        .upload(fileName, file);
+        .select('*')
+        .eq('user_id', user!.id)
+        .order('created_at', { ascending: false });
 
-      if (uploadError) throw uploadError;
+      if (prescriptionsError) throw prescriptionsError;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('prescriptions')
-        .getPublicUrl(fileName);
-
-      // Create prescription record
-      const { error: prescriptionError } = await supabase
-        .from('prescriptions')
-        .insert({
-          user_id: user.id,
-          order_id: orderId,
-          image_url: publicUrl,
-          status: 'pending'
-        });
-
-      if (prescriptionError) throw prescriptionError;
-
-      toast({
-        title: "Prescription uploaded successfully!",
-        description: "Our pharmacist will review your prescription shortly.",
-      });
-
-      navigate('/dashboard');
+      setRegularOrders(ordersData || []);
+      setPrescriptions(prescriptionsData || []);
     } catch (error) {
-      console.error('Error uploading prescription:', error);
+      console.error('Error fetching user data:', error);
       toast({
-        title: "Upload failed",
-        description: "Please try again later.",
+        title: "Error",
+        description: "Failed to load your orders and prescriptions",
         variant: "destructive"
       });
     } finally {
-      setUploading(false);
+      setLoading(false);
     }
   };
 
-  // Don't render content if user is not signed in
-  if (!user) {
-    return null;
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'approved': return 'bg-green-100 text-green-800';
+      case 'rejected': return 'bg-red-100 text-red-800';
+      case 'delivered': return 'bg-blue-100 text-blue-800';
+      case 'confirmed': return 'bg-purple-100 text-purple-800';
+      case 'processing': return 'bg-orange-100 text-orange-800';
+      case 'shipped': return 'bg-indigo-100 text-indigo-800';
+      case 'out_for_delivery': return 'bg-teal-100 text-teal-800';
+      case 'cancelled': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const viewPrescription = (imageUrl: string) => {
+    window.open(imageUrl, '_blank');
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center">Loading...</div>
+        </div>
+        <Footer />
+      </div>
+    );
   }
 
   return (
@@ -128,90 +135,137 @@ const PrescriptionUpload = () => {
       <Header />
       
       <div className="container mx-auto px-4 py-8">
-        <div className="max-w-2xl mx-auto">
-          <div className="flex items-center gap-4 mb-8">
-            <Button
-              variant="ghost"
-              onClick={() => navigate(-1)}
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft size={16} />
-              Back
-            </Button>
-            <h1 className="text-3xl font-bold text-gray-900">Upload Prescription</h1>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Upload Your Prescription
-              </CardTitle>
-            </CardHeader>
-            
-            <CardContent className="space-y-6">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="font-medium text-blue-900 mb-2">Important Information</h3>
-                <ul className="text-sm text-blue-800 space-y-1">
-                  <li>• Ensure your prescription is clear and readable</li>
-                  <li>• Include doctor's name, signature, and date</li>
-                  <li>• Maximum file size: 10MB</li>
-                  <li>• Supported formats: JPG, PNG, PDF</li>
-                </ul>
-              </div>
-
-              <div className="space-y-4">
-                <Label htmlFor="prescription">Select Prescription File</Label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                  <input
-                    id="prescription"
-                    type="file"
-                    accept="image/*,.pdf"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                  <label
-                    htmlFor="prescription"
-                    className="cursor-pointer flex flex-col items-center"
-                  >
-                    <Upload className="h-12 w-12 text-gray-400 mb-4" />
-                    <p className="text-lg font-medium text-gray-600">
-                      Click to upload prescription
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      or drag and drop your file here
-                    </p>
-                  </label>
-                </div>
-
-                {file && (
-                  <div className="bg-gray-50 border rounded-lg p-4">
-                    <p className="font-medium">Selected file:</p>
-                    <p className="text-sm text-gray-600">{file.name}</p>
-                    <p className="text-xs text-gray-500">
-                      {(file.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <Button
-                onClick={handleUpload}
-                disabled={!file || uploading}
-                className="w-full"
-              >
-                {uploading ? 'Uploading...' : 'Upload Prescription'}
-              </Button>
-
-              <div className="text-center text-sm text-gray-500">
-                <p>
-                  Your prescription will be reviewed by our licensed pharmacist
-                  within 2-4 hours during business hours.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">My Orders & Prescriptions</h1>
+          <p className="text-gray-600">View and manage your orders and prescriptions</p>
         </div>
+
+        <Tabs defaultValue="orders" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="orders" className="flex items-center gap-2">
+              <Package className="h-4 w-4" />
+              Regular Orders ({regularOrders.length})
+            </TabsTrigger>
+            <TabsTrigger value="prescriptions" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Prescription Orders ({prescriptions.length})
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Regular Orders Tab */}
+          <TabsContent value="orders" className="space-y-4">
+            {regularOrders.length > 0 ? (
+              regularOrders.map((order) => (
+                <Card key={order.id}>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="text-lg">Order #{order.id.slice(0, 8)}</CardTitle>
+                        <p className="text-sm text-gray-600 flex items-center gap-1">
+                          <Calendar className="h-4 w-4" />
+                          {format(new Date(order.created_at), 'MMM dd, yyyy HH:mm')}
+                        </p>
+                      </div>
+                      <Badge className={getStatusColor(order.status)}>
+                        {order.status.replace('_', ' ').toUpperCase()}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Total Amount:</span>
+                        <span className="font-medium">KES {order.total_amount.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Delivery Address:</span>
+                        <span className="text-sm text-right">{order.delivery_address}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">County:</span>
+                        <span className="text-sm">{order.county}</span>
+                      </div>
+                      <div className="border-t pt-3">
+                        <p className="text-sm text-gray-600 mb-2">Items:</p>
+                        <div className="space-y-1">
+                          {order.order_items.map((item, index) => (
+                            <div key={index} className="flex justify-between text-sm">
+                              <span>{item.products.name} ({item.products.brand})</span>
+                              <span>Qty: {item.quantity} - KES {(item.price * item.quantity).toLocaleString()}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <Card>
+                <CardContent className="text-center py-8">
+                  <Package className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Regular Orders</h3>
+                  <p className="text-gray-600 mb-4">You haven't placed any regular orders yet.</p>
+                  <Button onClick={() => navigate('/products')}>
+                    Start Shopping
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Prescription Orders Tab */}
+          <TabsContent value="prescriptions" className="space-y-4">
+            {prescriptions.length > 0 ? (
+              prescriptions.map((prescription) => (
+                <Card key={prescription.id}>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="text-lg">Prescription #{prescription.id.slice(0, 8)}</CardTitle>
+                        <p className="text-sm text-gray-600 flex items-center gap-1">
+                          <Calendar className="h-4 w-4" />
+                          {format(new Date(prescription.created_at), 'MMM dd, yyyy HH:mm')}
+                        </p>
+                      </div>
+                      <Badge className={getStatusColor(prescription.status)}>
+                        {prescription.status.toUpperCase()}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {prescription.admin_notes && (
+                      <div className="border-t pt-3 mb-2">
+                        <p className="text-sm text-gray-600 mb-1">Admin Notes:</p>
+                        <p className="text-sm text-gray-800">{prescription.admin_notes}</p>
+                      </div>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => viewPrescription(prescription.image_url)}
+                      className="flex items-center gap-2"
+                    >
+                      <Eye className="h-4 w-4" />
+                      View Prescription
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <Card>
+                <CardContent className="text-center py-8">
+                  <FileText className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Prescription Orders</h3>
+                  <p className="text-gray-600 mb-4">You haven't uploaded any prescriptions yet.</p>
+                  <Button onClick={() => navigate('/prescription-upload')}>
+                    Upload Prescription
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
       
       <Footer />
@@ -219,4 +273,4 @@ const PrescriptionUpload = () => {
   );
 };
 
-export default PrescriptionUpload;
+export default MyOrdersAndPrescriptions;
