@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Smartphone, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client'; // Direct Supabase client as fallback
+import { supabase } from '@/integrations/supabase/client'; // Direct Supabase client
 import { useCart } from '@/contexts/CartContext';
 
 interface MpesaPaymentButtonProps {
@@ -38,15 +38,18 @@ const MpesaPaymentButton: React.FC<MpesaPaymentButtonProps> = ({
     setLoading(true);
 
     try {
-      // Step 1: Initiate STK Push via Supabase Edge Function (fallback if mpesaService fails)
-      console.log('Initiating M-PESA STK Push with payload:', paymentData);
-      const { data, error: initError } = await supabase.functions.invoke('mpesa-stk-push', {
+      console.log('Starting M-Pesa payment process with:', paymentData);
+      console.log('Supabase client:', supabase); // Verify client initialization
+
+      const { data, error } = await supabase.functions.invoke('mpesa-stk-push', {
         body: JSON.stringify(paymentData),
         headers: { 'Content-Type': 'application/json' }
       });
 
-      if (initError || !data?.success || !data?.checkoutRequestID) {
-        throw new Error(data?.error || initError?.message || 'Failed to initiate M-PESA STK Push');
+      console.log('Invoke response:', { data, error });
+
+      if (error || !data?.success || !data?.checkoutRequestID) {
+        throw new Error(data?.error || error?.message || 'Failed to initiate M-Pesa STK Push');
       }
 
       const checkoutRequestID = data.checkoutRequestID;
@@ -58,7 +61,7 @@ const MpesaPaymentButton: React.FC<MpesaPaymentButtonProps> = ({
         description: "Please check your phone and enter your M-PESA PIN to complete payment.",
       });
 
-      // Step 2: Wait for payment confirmation (polling or callback-based)
+      // Poll payment status
       try {
         const pollInterval = 2000; // 2 seconds
         const maxAttempts = 60; // 2 minutes timeout
@@ -66,14 +69,15 @@ const MpesaPaymentButton: React.FC<MpesaPaymentButtonProps> = ({
 
         const checkPaymentStatus = async (): Promise<any> => {
           attempts++;
-          const { data: payment, error } = await supabase
+          console.log(`Polling payment status, attempt ${attempts}, CheckoutRequestID: ${checkoutRequestID}`);
+          const { data: payment, error: statusError } = await supabase
             .from('payments')
             .select('*')
             .eq('transaction_id', checkoutRequestID)
             .single();
 
-          if (error) {
-            console.error('Payment status check error:', error);
+          if (statusError) {
+            console.error('Payment status check error:', statusError);
             return { success: false, error: 'Failed to check payment status' };
           }
 
@@ -116,7 +120,7 @@ const MpesaPaymentButton: React.FC<MpesaPaymentButtonProps> = ({
         onError('Payment verification failed');
       }
     } catch (error) {
-      console.error('M-PESA payment error:', error);
+      console.error('M-Pesa payment error:', error);
       toast({
         title: "Payment Error",
         description: error instanceof Error ? error.message : 'Payment failed',
