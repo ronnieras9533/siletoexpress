@@ -7,29 +7,27 @@ export default function MpesaCallback() {
   const [status, setStatus] = useState("Processing payment...");
 
   useEffect(() => {
-    const orderId = searchParams.get("orderId");
-    const resultCode = searchParams.get("ResultCode");
+    const handleCallback = async () => {
+      const resultCode = searchParams.get("ResultCode");
+      const orderId = searchParams.get("orderId");
 
-    if (!orderId) {
-      setStatus("Missing order ID in callback.");
-      return;
-    }
+      if (!orderId) {
+        setStatus("Invalid callback: missing order ID.");
+        return;
+      }
 
-    if (resultCode === "0") {
-      // Payment successful
-      supabase
-        .from("orders")
-        .update({ status: "paid" })
-        .eq("id", orderId)
-        .then(() => setStatus("Payment successful! Order confirmed."));
-    } else {
-      // Payment failed
-      supabase
-        .from("orders")
-        .update({ status: "payment_failed" })
-        .eq("id", orderId)
-        .then(() => setStatus("Payment failed. Please try again."));
-    }
+      if (resultCode === "0") {
+        // Payment successful
+        await supabase.from("orders").update({ status: "paid" }).eq("id", orderId);
+        setStatus("Payment successful! Thank you.");
+      } else {
+        // Payment failed
+        await supabase.from("orders").update({ status: "failed" }).eq("id", orderId);
+        setStatus("Payment failed. Please try again.");
+      }
+    };
+
+    handleCallback();
   }, [searchParams]);
 
   return (
@@ -37,4 +35,4 @@ export default function MpesaCallback() {
       <h1 className="text-xl font-bold">{status}</h1>
     </div>
   );
-        }
+}
