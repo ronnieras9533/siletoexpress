@@ -8,13 +8,24 @@ export default function Checkout() {
 
   useEffect(() => {
     const fetchCartTotal = async () => {
-      const { data, error } = await supabase.from("cart").select("price, quantity");
-      if (error) return console.error("Error fetching cart:", error);
+      const { data, error } = await supabase
+        .from("cart")
+        .select("price, quantity");
+
+      if (error) {
+        console.error("Error fetching cart:", error);
+        return;
+      }
+
       if (data) {
-        const calculatedTotal = data.reduce((sum, item) => sum + item.price * item.quantity, 0);
+        const calculatedTotal = data.reduce(
+          (sum, item) => sum + item.price * item.quantity,
+          0
+        );
         setTotal(calculatedTotal);
       }
     };
+
     fetchCartTotal();
   }, []);
 
@@ -23,16 +34,19 @@ export default function Checkout() {
       alert("Order total must be greater than zero.");
       return null;
     }
+
     const { data, error } = await supabase
       .from("orders")
       .insert([{ total, status: "pending" }])
       .select()
       .single();
+
     if (error) {
       console.error("Error creating order:", error);
       alert("Failed to create order.");
       return null;
     }
+
     return data;
   };
 
@@ -41,12 +55,15 @@ export default function Checkout() {
       alert("Please enter a valid M-PESA phone number (e.g., 2547XXXXXXXX).");
       return;
     }
+
     setLoading(true);
     const order = await createOrder();
+
     if (!order) {
       setLoading(false);
       return;
     }
+
     try {
       const res = await fetch("/.netlify/functions/mpesa-stk-push", {
         method: "POST",
@@ -59,7 +76,9 @@ export default function Checkout() {
           transactionDesc: "SiletoExpress Order Payment",
         }),
       });
+
       const data = await res.json();
+
       if (data.success) {
         alert("M-PESA STK push sent. Complete payment on your phone.");
       } else {
@@ -90,18 +109,6 @@ export default function Checkout() {
         onClick={handleMpesaPayment}
         disabled={loading || total <= 0}
         className="bg-green-600 text-white px-4 py-2 rounded w-full disabled:bg-gray-400"
-      >
-        {loading ? "Processing..." : "Pay with M-PESA"}
-      </button>
-    </div>
-  );
-          }        className="border p-2 w-full my-3"
-      />
-
-      <button
-        onClick={handleMpesaPayment}
-        disabled={loading}
-        className="bg-green-600 text-white px-4 py-2 rounded"
       >
         {loading ? "Processing..." : "Pay with M-PESA"}
       </button>
