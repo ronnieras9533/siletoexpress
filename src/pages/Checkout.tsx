@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { ShoppingCart, MapPin, Phone, Mail, FileText, CreditCard } from 'lucide-react';
+import { ShoppingCart, MapPin, Phone, Mail, FileText, CreditCard, Loader2 } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import KenyaCountiesSelect from '@/components/KenyaCountiesSelect';
@@ -34,6 +34,8 @@ const Checkout = () => {
   const [requiresPrescription, setRequiresPrescription] = useState(false);
   const [prescriptionFiles, setPrescriptionFiles] = useState<File[]>([]);
   const [paymentMethod, setPaymentMethod] = useState('mpesa');
+  const [orderId, setOrderId] = useState<string | null>(null);
+  const mpesaButtonRef = useRef<HTMLButtonElement>(null); // Ref to control M-Pesa button
 
   const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const total = subtotal + deliveryFee;
@@ -196,27 +198,14 @@ const Checkout = () => {
     setPrescriptionFiles([]);
   };
 
-  const handleMpesaPayment = async () => {
-    const orderId = await createOrder();
-    if (!orderId) return;
-
-    setLoading(true);
-    try {
-      const paymentData = {
-        amount: total,
-        phoneNumber: phoneNumber,
-        orderId: orderId,
-        accountReference: `Order-${Date.now()}`,
-        transactionDesc: 'SiletoExpress Order Payment'
-      };
-
-      // Simulate button click or pass data to MpesaPaymentButton
-      // Note: Direct invocation here is for demonstration; integrate with the button
-      console.log('Initiating M-Pesa payment with:', paymentData);
-    } catch (error) {
-      handlePaymentError('Failed to initiate M-Pesa payment');
-    } finally {
-      setLoading(false);
+  const handlePlaceOrder = async () => {
+    const newOrderId = await createOrder();
+    if (newOrderId) {
+      setOrderId(newOrderId);
+      toast({ title: "Order Created", description: "Please proceed with payment." });
+      if (paymentMethod === 'mpesa' && mpesaButtonRef.current) {
+        mpesaButtonRef.current.click(); // Trigger M-Pesa button
+      }
     }
   };
 
@@ -437,12 +426,13 @@ const Checkout = () => {
                 </div>
 
                 <div className="space-y-2">
-                  {paymentMethod === 'mpesa' && (
+                  {paymentMethod === 'mpesa' && orderId && (
                     <MpesaPaymentButton
+                      ref={mpesaButtonRef}
                       paymentData={{
                         amount: total,
                         phoneNumber: phoneNumber,
-                        orderId: '', // Placeholder, will be updated
+                        orderId: orderId,
                         accountReference: `Order-${Date.now()}`,
                         transactionDesc: 'SiletoExpress Order Payment'
                       }}
@@ -450,7 +440,7 @@ const Checkout = () => {
                       onError={handlePaymentError}
                     />
                   )}
-                  {paymentMethod === 'pesapal' && (
+                  {paymentMethod === 'pesapal' && orderId && (
                     <PesapalPaymentButton
                       amount={total}
                       currency="KES"
@@ -473,16 +463,8 @@ const Checkout = () => {
                     />
                   )}
                   <Button
-                    onClick={async () => {
-                      const orderId = await createOrder();
-                      if (orderId && paymentMethod === 'mpesa') {
-                        const mpesaButton = document.querySelector('button.bg-green-600');
-                        if (mpesaButton) {
-                          mpesaButton.dispatchEvent(new Event('click'));
-                        }
-                      }
-                    }}
-                    disabled={loading}
+                    onClick={handlePlaceOrder}
+                    disabled={loading || !validateForm()}
                     className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                     size="lg"
                   >
@@ -492,7 +474,7 @@ const Checkout = () => {
                         Processing...
                       </>
                     ) : (
-                      'Place Order & Pay'
+                      'Place Order'
                     )}
                   </Button>
                 </div>
