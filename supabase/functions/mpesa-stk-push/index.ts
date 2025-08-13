@@ -1,115 +1,77 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-// Helper function to get OAuth token from Safaricom
-async function getOAuthToken(): Promise<string> {
-  const consumerKey = Deno.env.get('MPESA_CONSUMER_KEY');
-  const consumerSecret = Deno.env.get('MPESA_CONSUMER_SECRET');
-  
-  if (!consumerKey || !consumerSecret) {
-    throw new Error('M-PESA credentials not configured');
-  }
-
-  const auth = btoa(`${consumerKey}:${consumerSecret}`);
-  
-  const response = await fetch('https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials', {
-    method: 'GET',
-    headers: {
-      'Authorization': `Basic ${auth}`,
-    }
-  });
-
-  if (!response.ok) {
-    throw new Error(`OAuth request failed: ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  return data.access_token;
-}
-
-// Helper function to generate password
-function generatePassword(shortcode: string, passkey: string, timestamp: string): string {
-  const data = shortcode + passkey + timestamp;
-  return btoa(data);
-}
-
-// Helper function to format phone number
-function formatPhoneNumber(phone: string): string {
-  let cleaned = phone.replace(/\D/g, '');
-  
-  if (cleaned.startsWith('0')) {
-    cleaned = '254' + cleaned.substring(1);
-  }
-  
-  if (!cleaned.startsWith('254')) {
-    cleaned = '254' + cleaned;
-  }
-  
-  return cleaned;
-}
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
-
   try {
     const { phoneNumber, amount, orderId, accountReference, transactionDesc } = await req.json();
 
-    console.log('M-PESA STK Push request:', { phoneNumber, amount, orderId });
+    if (!phoneNumber || !amount || !orderId || !accountReference || !transactionDesc) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Missing required payment information" }),
+        { headers: { "Content-Type": "application/json" }, status: 400 }
+      );
+    }
 
-    // Get environment variables
-    const shortcode = Deno.env.get('MPESA_SHORTCODE') || '174379';
-    const passkey = Deno.env.get('MPESA_PASSKEY') || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919';
-    const callbackUrl = Deno.env.get('MPESA_CALLBACK_URL') || 'https://hevbjzdahldvijwqtqcx.supabase.co/functions/v1/mpesa-callback';
-    
-    // Initialize Supabase client with service role key for admin operations
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    // Safaricom M-PESA API credentials from environment
+    const consumerKey = Deno.env.get("MPESA_CONSUMER_KEY");
+    const consumerSecret = Deno.env.get("MPESA_CONSUMER_SECRET");
+    const shortCode = Deno.env.get("MPESA_SHORTCODE");
+    const passkey = Deno.env.get("MPESA_PASSKEY");
+    const callbackURL = Deno.env.get("MPESA_CALLBACK_URL");
 
     // Get OAuth token
-    const accessToken = await getOAuthToken();
-    console.log('OAuth token obtained successfully');
+    const tokenRes = await fetch(
+      `https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials`,
+      {
+        headers: {
+          Authorization: "Basic " + btoa(`${consumerKey}:${consumerSecret}`)
+        }
+      }
+    );
 
-    // Generate timestamp and password
-    const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, -3);
-    const password = generatePassword(shortcode, passkey, timestamp);
+    const tokenData = await tokenRes.json();
+    const accessToken = tokenData.access_token;
 
-    // Format phone number
-    const formattedPhone = formatPhoneNumber(phoneNumber);
-    console.log('Formatted phone:', formattedPhone);
+    // Prepare STK push request
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[^0-9]/g, "")
+      .slice(0, 14);
 
-    // Prepare STK Push request
-    const stkPushData = {
-      BusinessShortCode: shortcode,
-      Password: password,
-      Timestamp: timestamp,
-      TransactionType: "CustomerPayBillOnline",
-      Amount: Math.round(amount),
-      PartyA: formattedPhone,
-      PartyB: shortcode,
-      PhoneNumber: formattedPhone,
-      CallBackURL: callbackUrl,
-      AccountReference: accountReference || orderId,
-      TransactionDesc: transactionDesc || `Payment for order ${orderId}`
-    };
+    const password = btoa(`${shortCode}${passkey}${timestamp}`);
 
-    console.log('STK Push data:', { ...stkPushData, Password: '[HIDDEN]' });
-
-    // Send STK Push request
-    const stkResponse = await fetch('https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest', {
-      method: 'POST',
+    const stkRes = await fetch(`https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest`, {
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        BusinessShortCode: shortCode,
+        Password: password,
+        Timestamp: timestamp,
+        TransactionType: "CustomerPayBillOnline",
+        Amount: amount,
+        PartyA: phoneNumber,
+        PartyB: shortCode,
+        PhoneNumber: phoneNumber,
+        CallBackURL: `${callbackURL}?orderId=${orderId}`,
+        AccountReference: accountReference,
+        TransactionDesc: transactionDesc
+      })
+    });
+
+    const stkData = await stkRes.json();
+
+    return new Response(JSON.stringify({ success: true, data: stkData }), {
+      headers: { "Content-Type": "application/json" }
+    });
+  } catch (err) {
+    return new Response(JSON.stringify({ success: false, error: err.message }), {
+      headers: { "Content-Type": "application/json" },
+      status: 500
+    });
+  }
+});        'Content-Type': 'application/json',
       },
       body: JSON.stringify(stkPushData)
     });
