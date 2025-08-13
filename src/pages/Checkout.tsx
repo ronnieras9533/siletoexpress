@@ -44,11 +44,9 @@ const Checkout = () => {
       return;
     }
 
-    // Check if any items require prescription
     const needsPrescription = items.some(item => item.prescription_required);
     setRequiresPrescription(needsPrescription);
 
-    // Calculate delivery fee when county changes
     if (county) {
       calculateDeliveryFee();
     }
@@ -57,74 +55,45 @@ const Checkout = () => {
   const calculateDeliveryFee = async () => {
     try {
       const { data, error } = await supabase
-        .rpc('calculate_delivery_fee', {
-          county_name: county,
-          order_total: subtotal
-        });
+        .rpc('calculate_delivery_fee', { county_name: county, order_total: subtotal });
 
       if (error) throw error;
       setDeliveryFee(data || 300);
     } catch (error) {
       console.error('Error calculating delivery fee:', error);
-      setDeliveryFee(300); // Default fee
+      setDeliveryFee(300);
     }
   };
 
   const validateForm = (): boolean => {
     if (!deliveryAddress.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter your delivery address",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: "Please enter your delivery address", variant: "destructive" });
       return false;
     }
-
     if (!county) {
-      toast({
-        title: "Error",
-        description: "Please select your county",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: "Please select your county", variant: "destructive" });
       return false;
     }
-
     if (!phoneNumber.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter your phone number",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: "Please enter your phone number", variant: "destructive" });
       return false;
     }
-
     if (!email.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter your email address",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: "Please enter your email address", variant: "destructive" });
       return false;
     }
-
     if (requiresPrescription && prescriptionFiles.length === 0) {
-      toast({
-        title: "Error",
-        description: "Please upload prescription files for prescription items",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: "Please upload prescription files for prescription items", variant: "destructive" });
       return false;
     }
-
     return true;
   };
 
-  const createOrder = async () => {
+  const createOrder = async (): Promise<string | null> => {
     if (!user || !validateForm()) return null;
 
     setLoading(true);
     try {
-      // Create order
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
@@ -145,7 +114,6 @@ const Checkout = () => {
 
       if (orderError) throw orderError;
 
-      // Create order items
       const orderItems = items.map(item => ({
         order_id: order.id,
         product_id: item.id,
@@ -159,19 +127,14 @@ const Checkout = () => {
 
       if (itemsError) throw itemsError;
 
-      // Handle prescription upload if needed
       if (requiresPrescription && prescriptionFiles.length > 0) {
         await handlePrescriptionUpload(order.id);
       }
 
-      return order;
+      return order.id;
     } catch (error) {
       console.error('Error creating order:', error);
-      toast({
-        title: "Error",
-        description: "Failed to create order. Please try again.",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: "Failed to create order. Please try again.", variant: "destructive" });
       return null;
     } finally {
       setLoading(false);
@@ -196,7 +159,6 @@ const Checkout = () => {
           .from('prescriptions')
           .getPublicUrl(fileName);
 
-        // Create prescription record
         await supabase
           .from('prescriptions')
           .insert({
@@ -208,44 +170,26 @@ const Checkout = () => {
       }
     } catch (error) {
       console.error('Error uploading prescriptions:', error);
-      toast({
-        title: "Warning",
-        description: "Order created but prescription upload failed. Please contact support.",
-        variant: "destructive"
-      });
+      toast({ title: "Warning", description: "Order created but prescription upload failed. Please contact support.", variant: "destructive" });
     }
   };
 
   const handlePaymentSuccess = (receiptNumber?: string) => {
     if (receiptNumber) {
-      toast({
-        title: "Payment Successful",
-        description: `Payment completed. Receipt: ${receiptNumber}`,
-      });
+      toast({ title: "Payment Successful", description: `Payment completed. Receipt: ${receiptNumber}` });
     } else {
-      toast({
-        title: "Payment Successful",
-        description: "Your payment has been processed successfully.",
-      });
+      toast({ title: "Payment Successful", description: "Your payment has been processed successfully." });
     }
-    
     clearCart();
     navigate('/order-success');
   };
 
   const handlePaymentError = (error: string) => {
-    toast({
-      title: "Payment Failed",
-      description: error,
-      variant: "destructive"
-    });
+    toast({ title: "Payment Failed", description: error, variant: "destructive" });
   };
 
   const handlePrescriptionUploaded = (prescriptionId: string) => {
-    toast({
-      title: "Success",
-      description: "Prescription uploaded successfully",
-    });
+    toast({ title: "Success", description: "Prescription uploaded successfully" });
   };
 
   const handlePrescriptionCancel = () => {
@@ -253,22 +197,22 @@ const Checkout = () => {
   };
 
   const handleMpesaPayment = async () => {
-    if (!validateForm()) return;
-
-    const order = await createOrder();
-    if (!order) return;
+    const orderId = await createOrder();
+    if (!orderId) return;
 
     setLoading(true);
     try {
       const paymentData = {
         amount: total,
         phoneNumber: phoneNumber,
-        orderId: order.id,
+        orderId: orderId,
         accountReference: `Order-${Date.now()}`,
         transactionDesc: 'SiletoExpress Order Payment'
       };
-      // Assuming MpesaPaymentButton handles the invoke to supabase.functions
-      // This should be integrated with your MpesaPaymentButton component
+
+      // Simulate button click or pass data to MpesaPaymentButton
+      // Note: Direct invocation here is for demonstration; integrate with the button
+      console.log('Initiating M-Pesa payment with:', paymentData);
     } catch (error) {
       handlePaymentError('Failed to initiate M-Pesa payment');
     } finally {
@@ -493,19 +437,20 @@ const Checkout = () => {
                 </div>
 
                 <div className="space-y-2">
-                  {paymentMethod === 'mpesa' ? (
+                  {paymentMethod === 'mpesa' && (
                     <MpesaPaymentButton
                       paymentData={{
                         amount: total,
                         phoneNumber: phoneNumber,
-                        orderId: '', // Will be set after order creation
+                        orderId: '', // Placeholder, will be updated
                         accountReference: `Order-${Date.now()}`,
                         transactionDesc: 'SiletoExpress Order Payment'
                       }}
                       onSuccess={handlePaymentSuccess}
                       onError={handlePaymentError}
                     />
-                  ) : (
+                  )}
+                  {paymentMethod === 'pesapal' && (
                     <PesapalPaymentButton
                       amount={total}
                       currency="KES"
@@ -527,6 +472,29 @@ const Checkout = () => {
                       paymentType="card"
                     />
                   )}
+                  <Button
+                    onClick={async () => {
+                      const orderId = await createOrder();
+                      if (orderId && paymentMethod === 'mpesa') {
+                        const mpesaButton = document.querySelector('button.bg-green-600');
+                        if (mpesaButton) {
+                          mpesaButton.dispatchEvent(new Event('click'));
+                        }
+                      }
+                    }}
+                    disabled={loading}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                    size="lg"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      'Place Order & Pay'
+                    )}
+                  </Button>
                 </div>
               </CardContent>
             </Card>
