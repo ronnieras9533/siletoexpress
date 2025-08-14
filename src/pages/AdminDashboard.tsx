@@ -5,54 +5,72 @@ import { supabase } from "@/integrations/supabase/client";
 import AdminOrdersTable from "../components/AdminOrdersTable";
 import AdminPrescriptionOrdersTable from "../components/AdminPrescriptionOrdersTable";
 
+// Chart.js imports
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+} from "chart.js";
+import { Bar, Pie } from "react-chartjs-2";
+
+// Register Chart.js components
+ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend);
+
+interface Stats {
+  totalOrders: number;
+  pendingOrders: number;
+  prescriptions: number;
+  monthlyRevenue: number;
+}
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<"0" | "1">("0");
   const [connectionStatus, setConnectionStatus] = useState<"checking" | "ok" | "error">("checking");
-  const [user, setUser] = useState(null);
-  const [stats, setStats] = useState({
+  const [user, setUser] = useState<any>(null);
+  const [stats, setStats] = useState<Stats>({
     totalOrders: 0,
     pendingOrders: 0,
     prescriptions: 0,
     monthlyRevenue: 0,
   });
 
+  const [monthlyRevenueData, setMonthlyRevenueData] = useState<number[]>([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+
   useEffect(() => {
     const fetchUserAndStats = async () => {
       try {
         // Test Supabase connection
-        const { data: testData, error: testError } = await supabase
-          .from("orders")
-          .select("*")
-          .limit(1);
-
+        const { data: testData, error: testError } = await supabase.from("orders").select("*").limit(1);
         if (testError) {
           console.error("Supabase connection error:", testError.message);
           setConnectionStatus("error");
           return;
         }
         setConnectionStatus("ok");
-        console.log("Supabase connection OK. Sample order:", testData);
 
         // Check user authentication
         const {
           data: { user },
         } = await supabase.auth.getUser();
-
         if (!user) {
-          navigate('/auth');
+          navigate("/auth");
           return;
         }
 
-        // Check if user is admin
+        // Check admin role
         const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
           .single();
-
-        if (profileError || !profile || profile.role !== 'admin') {
-          navigate('/auth');
+        if (profileError || !profile || profile.role !== "admin") {
+          navigate("/auth");
           return;
         }
 
@@ -61,7 +79,7 @@ export default function AdminDashboard() {
       } catch (err) {
         console.error("Unexpected error:", err);
         setConnectionStatus("error");
-        navigate('/auth');
+        navigate("/auth");
       }
     };
 
@@ -70,43 +88,28 @@ export default function AdminDashboard() {
 
   const fetchStats = async () => {
     try {
-      // Regular (non-prescription) orders count
-      const { count: totalOrders } = await supabase
-        .from('orders')
-        .select('*', { count: 'exact', head: true })
-        .neq('type', 'prescription');
-
-      // Pending regular orders
-      const { count: pendingOrders } = await supabase
-        .from('orders')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending')
-        .neq('type', 'prescription');
-
-      // Prescription orders count
-      const { count: prescriptions } = await supabase
-        .from('orders')
-        .select('*', { count: 'exact', head: true })
-        .eq('type', 'prescription');
-
-      // Monthly revenue (all orders)
+      const { count: totalOrders } = await supabase.from("orders").select("*", { count: "exact", head: true }).neq("type", "prescription");
+      const { count: pendingOrders } = await supabase.from("orders").select("*", { count: "exact", head: true }).eq("status", "pending").neq("type", "prescription");
+      const { count: prescriptions } = await supabase.from("orders").select("*", { count: "exact", head: true }).eq("type", "prescription");
+      
+      // Monthly revenue
       const { data: monthly } = await supabase
-        .from('orders')
-        .select('total_amount, created_at')
-        .gte(
-          'created_at',
-          new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
-        );
+        .from("orders")
+        .select("total_amount, created_at")
+        .gte("created_at", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString());
 
-      const monthlyRevenue =
-        monthly?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
+      const monthlyRevenue = monthly?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
 
-      setStats({
-        totalOrders: totalOrders || 0,
-        pendingOrders: pendingOrders || 0,
-        prescriptions: prescriptions || 0,
-        monthlyRevenue,
+      // Revenue per month for chart
+      const revenueByMonth = new Array(12).fill(0);
+      const { data: allOrders } = await supabase.from("orders").select("total_amount, created_at");
+      allOrders?.forEach(order => {
+        const month = new Date(order.created_at).getMonth();
+        revenueByMonth[month] += order.total_amount || 0;
       });
+
+      setStats({ totalOrders: totalOrders || 0, pendingOrders: pendingOrders || 0, prescriptions: prescriptions || 0, monthlyRevenue });
+      setMonthlyRevenueData(revenueByMonth);
     } catch (err) {
       console.error("Error fetching stats:", err);
       setConnectionStatus("error");
@@ -116,26 +119,66 @@ export default function AdminDashboard() {
   if (!user || connectionStatus === "checking") {
     return <p className="text-gray-500 mb-4">Checking database connection...</p>;
   }
-
   if (connectionStatus === "error") {
-    return (
-      <p className="text-red-500 mb-4">
-        ⚠ Could not connect to Supabase. Please check API keys and network.
-      </p>
-    );
+    return <p className="text-red-500 mb-4">⚠ Could not connect to Supabase. Please check API keys and network.</p>;
   }
+
+  // Charts data
+  const pieData = {
+    labels: ["Regular Orders", "Prescription Orders"],
+    datasets: [
+      {
+        data: [stats.totalOrders, stats.prescriptions],
+        backgroundColor: ["#3b82f6", "#f97316"],
+      },
+    ],
+  };
+
+  const barData = {
+    labels: [
+      "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"
+    ],
+    datasets: [
+      {
+        label: "Monthly Revenue (KES)",
+        data: monthlyRevenueData,
+        backgroundColor: "#10b981",
+      },
+    ],
+  };
 
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
 
-      <div className="stats mb-4">
-        <p>Regular Orders: {stats.totalOrders}</p>
-        <p>Pending Regular Orders: {stats.pendingOrders}</p>
-        <p>Prescription Orders: {stats.prescriptions}</p>
-        <p>
-          Monthly Revenue: KSh {stats.monthlyRevenue.toLocaleString('en-KE')}
-        </p>
+      <div className="stats mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="p-4 bg-white shadow rounded">
+          <p className="text-gray-500">Regular Orders</p>
+          <p className="text-xl font-bold">{stats.totalOrders}</p>
+        </div>
+        <div className="p-4 bg-white shadow rounded">
+          <p className="text-gray-500">Pending Orders</p>
+          <p className="text-xl font-bold">{stats.pendingOrders}</p>
+        </div>
+        <div className="p-4 bg-white shadow rounded">
+          <p className="text-gray-500">Prescription Orders</p>
+          <p className="text-xl font-bold">{stats.prescriptions}</p>
+        </div>
+        <div className="p-4 bg-white shadow rounded">
+          <p className="text-gray-500">Monthly Revenue</p>
+          <p className="text-xl font-bold">KSh {stats.monthlyRevenue.toLocaleString("en-KE")}</p>
+        </div>
+      </div>
+
+      <div className="charts mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="p-4 bg-white shadow rounded">
+          <h2 className="text-lg font-bold mb-2">Order Distribution</h2>
+          <Pie data={pieData} />
+        </div>
+        <div className="p-4 bg-white shadow rounded">
+          <h2 className="text-lg font-bold mb-2">Monthly Revenue</h2>
+          <Bar data={barData} />
+        </div>
       </div>
 
       <Tabs value={tab} onValueChange={(val) => setTab(val as "0" | "1")}>
