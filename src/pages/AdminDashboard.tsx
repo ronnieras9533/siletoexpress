@@ -1,14 +1,14 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabaseClient';
-import { Tabs, Tab } from '@mui/material';
-import AdminOrdersTable from '../components/AdminOrdersTable';
-import AdminPrescriptionOrdersTable from '../components/AdminPrescriptionOrdersTable';
-import AdminPrescriptionsTable from '../components/AdminPrescriptionsTable';
-
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { supabase } from "@/integrations/supabase/client";
+import AdminOrdersTable from "../components/AdminOrdersTable";
+import AdminPrescriptionOrdersTable from "../components/AdminPrescriptionOrdersTable";
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
+  const [tab, setTab] = useState<"0" | "1">("0");
+  const [connectionStatus, setConnectionStatus] = useState<"checking" | "ok" | "error">("checking");
   const [user, setUser] = useState(null);
   const [stats, setStats] = useState({
     totalOrders: 0,
@@ -16,87 +16,120 @@ export default function AdminDashboard() {
     prescriptions: 0,
     monthlyRevenue: 0,
   });
-  const [tab, setTab] = useState(0);
 
   useEffect(() => {
     const fetchUserAndStats = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      try {
+        // Test Supabase connection
+        const { data: testData, error: testError } = await supabase
+          .from("orders")
+          .select("*")
+          .limit(1);
 
-      if (!user) {
+        if (testError) {
+          console.error("Supabase connection error:", testError.message);
+          setConnectionStatus("error");
+          return;
+        }
+        setConnectionStatus("ok");
+        console.log("Supabase connection OK. Sample order:", testData);
+
+        // Check user authentication
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          navigate('/auth');
+          return;
+        }
+
+        // Check if user is admin
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+        if (profileError || !profile || profile.role !== 'admin') {
+          navigate('/auth');
+          return;
+        }
+
+        setUser(user);
+        await fetchStats();
+      } catch (err) {
+        console.error("Unexpected error:", err);
+        setConnectionStatus("error");
         navigate('/auth');
-        return;
       }
-
-      // Check if user is admin
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-      if (!profile || profile.role !== 'admin') {
-        navigate('/auth');
-        return;
-      }
-
-      setUser(user);
-      await fetchStats();
     };
 
     fetchUserAndStats();
   }, [navigate]);
 
   const fetchStats = async () => {
-    // Regular (non-prescription) orders count
-    const { count: totalOrders } = await supabase
-      .from('orders')
-      .select('*', { count: 'exact', head: true })
-      .neq('type', 'prescription');
+    try {
+      // Regular (non-prescription) orders count
+      const { count: totalOrders } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .neq('type', 'prescription');
 
-    // Pending regular orders
-    const { count: pendingOrders } = await supabase
-      .from('orders')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'pending')
-      .neq('type', 'prescription');
+      // Pending regular orders
+      const { count: pendingOrders } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending')
+        .neq('type', 'prescription');
 
-    // Prescription orders count
-    const { count: prescriptions } = await supabase
-      .from('orders')
-      .select('*', { count: 'exact', head: true })
-      .eq('type', 'prescription');
+      // Prescription orders count
+      const { count: prescriptions } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('type', 'prescription');
 
-    // Monthly revenue (all orders)
-    const { data: monthly } = await supabase
-      .from('orders')
-      .select('total_amount, created_at')
-      .gte(
-        'created_at',
-        new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
-      );
+      // Monthly revenue (all orders)
+      const { data: monthly } = await supabase
+        .from('orders')
+        .select('total_amount, created_at')
+        .gte(
+          'created_at',
+          new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+        );
 
-    const monthlyRevenue =
-      monthly?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
+      const monthlyRevenue =
+        monthly?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
 
-    setStats({
-      totalOrders: totalOrders || 0,
-      pendingOrders: pendingOrders || 0,
-      prescriptions: prescriptions || 0,
-      monthlyRevenue,
-    });
+      setStats({
+        totalOrders: totalOrders || 0,
+        pendingOrders: pendingOrders || 0,
+        prescriptions: prescriptions || 0,
+        monthlyRevenue,
+      });
+    } catch (err) {
+      console.error("Error fetching stats:", err);
+      setConnectionStatus("error");
+    }
   };
 
-  if (!user) {
-    return null; // Prevents flicker while checking auth
+  if (!user || connectionStatus === "checking") {
+    return <p className="text-gray-500 mb-4">Checking database connection...</p>;
+  }
+
+  if (connectionStatus === "error") {
+    return (
+      <p className="text-red-500 mb-4">
+        ⚠ Could not connect to Supabase. Please check API keys and network.
+      </p>
+    );
   }
 
   return (
-    <div className="admin-dashboard">
-      <h1>Admin Dashboard</h1>
+    <div className="p-4">
+      <h1 className="text-2xl font-bold mb-4">Admin Dashboard</h1>
 
-      <div className="stats">
+      <div className="stats mb-4">
         <p>Regular Orders: {stats.totalOrders}</p>
         <p>Pending Regular Orders: {stats.pendingOrders}</p>
         <p>Prescription Orders: {stats.prescriptions}</p>
@@ -105,13 +138,20 @@ export default function AdminDashboard() {
         </p>
       </div>
 
-      <Tabs value={tab} onChange={(e, newValue) => setTab(newValue)}>
-        <Tab label="Regular Orders" />
-        <Tab label="Prescription Orders" />
-      </Tabs>
+      <Tabs value={tab} onValueChange={(val) => setTab(val as "0" | "1")}>
+        <TabsList>
+          <TabsTrigger value="0">Orders</TabsTrigger>
+          <TabsTrigger value="1">Prescription Orders</TabsTrigger>
+        </TabsList>
 
-      {tab === 0 && <OrdersTable filter={{ type: 'regular' }} />}
-      {tab === 1 && <PrescriptionsTable />}
+        <TabsContent value="0">
+          <AdminOrdersTable filter={{ type: "regular" }} />
+        </TabsContent>
+
+        <TabsContent value="1">
+          <AdminPrescriptionOrdersTable />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
