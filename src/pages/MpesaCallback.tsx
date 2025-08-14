@@ -32,7 +32,8 @@ const MpesaCallback = () => {
 
         const pollStatus = async (): Promise<void> => {
           attempts++;
-          
+          console.log('Polling payment status for checkoutRequestID:', checkoutRequestID);
+
           const { data: payment, error } = await supabase
             .from('payments')
             .select('*, orders(*)')

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { CheckCircle, XCircle, Loader2, Home, ShoppingBag } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useCart } from '@/contexts/CartContext';
+import { supabase } from '@/integrations/supabase/client'; // Ensure this is imported
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
@@ -20,64 +20,83 @@ const PesapalCallback: React.FC = () => {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        // Get payment info from localStorage
-        const storedPayment = localStorage.getItem('pesapal_payment');
-        if (storedPayment) {
-          const paymentInfo = JSON.parse(storedPayment);
-          setPaymentData(paymentInfo);
-          console.log('Retrieved stored payment info:', paymentInfo);
-        }
-
-        // Check URL parameters for payment status
         const orderTrackingId = searchParams.get('OrderTrackingId');
         const merchantReference = searchParams.get('OrderMerchantReference');
-        
-        console.log('Pesapal callback params:', { orderTrackingId, merchantReference });
+        const cancelled = searchParams.get('cancelled');
 
-        if (orderTrackingId && merchantReference) {
-          // Payment was processed successfully
-          setStatus('success');
-          
-          // Clear cart and stored payment info
-          clearCart();
-          localStorage.removeItem('pesapal_payment');
-          
-          toast({
-            title: "Payment Successful!",
-            description: "Your payment has been processed successfully. Your order is being prepared.",
-          });
+        console.log('Pesapal callback params:', { orderTrackingId, merchantReference, cancelled });
 
-          // Redirect to order success after a delay
-          setTimeout(() => {
-            navigate('/order-success', {
-              state: {
-                orderId: paymentData?.orderId || merchantReference,
-                paymentMethod: 'pesapal',
-                amount: paymentData?.amount || 0,
-                currency: paymentData?.currency || 'KES',
-                orderTrackingId: orderTrackingId
-              }
-            });
-          }, 3000);
-        } else {
-          // Check if it's a cancelled payment
-          const cancelled = searchParams.get('cancelled');
+        if (!orderTrackingId || !merchantReference) {
           if (cancelled === 'true') {
             setStatus('cancelled');
             toast({
               title: "Payment Cancelled",
-              description: "Your payment was cancelled. You can try again.",
+              description: "Your payment was cancelled. No charges were made to your account.",
               variant: "destructive"
             });
           } else {
-            // No tracking ID means payment failed
             setStatus('failed');
             toast({
               title: "Payment Failed",
-              description: "Your payment could not be processed. Please try again.",
+              description: "Invalid callback parameters. Please try again.",
               variant: "destructive"
             });
           }
+          return;
+        }
+
+        // Verify payment status with Supabase
+        const { data, error } = await supabase
+          .from('payments')
+          .select('*')
+          .eq('transaction_id', orderTrackingId)
+          .eq('pesapal_tracking_id', orderTrackingId)
+          .single();
+
+        if (error || !data) {
+          console.error('Payment verification error:', error);
+          setStatus('failed');
+          toast({
+            title: "Payment Verification Failed",
+            description: "Could not verify your payment. Please contact support.",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        if (data.status === 'completed') {
+          setPaymentData(data.metadata);
+          setStatus('success');
+          clearCart();
+          toast({
+            title: "Payment Successful!",
+            description: "Your payment has been processed successfully. Your order is being prepared.",
+          });
+          setTimeout(() => {
+            navigate('/order-success', {
+              state: {
+                orderId: data.metadata?.merchant_reference || merchantReference,
+                paymentMethod: 'pesapal',
+                amount: data.amount,
+                currency: data.currency,
+                orderTrackingId: orderTrackingId
+              }
+            });
+          }, 3000);
+        } else if (data.status === 'failed' || data.status === 'cancelled') {
+          setStatus(data.status);
+          toast({
+            title: data.status === 'failed' ? "Payment Failed" : "Payment Cancelled",
+            description: `Your payment ${data.status}. Please try again or contact support.`,
+            variant: "destructive"
+          });
+        } else {
+          setStatus('failed');
+          toast({
+            title: "Payment Pending",
+            description: "Payment status is pending. Please check later or contact support.",
+            variant: "destructive"
+          });
         }
       } catch (error) {
         console.error('Callback handling error:', error);
@@ -91,7 +110,7 @@ const PesapalCallback: React.FC = () => {
     };
 
     handleCallback();
-  }, [searchParams, navigate, toast, clearCart, paymentData?.orderId, paymentData?.amount, paymentData?.currency]);
+  }, [searchParams, navigate, toast, clearCart]);
 
   const handleRetry = () => {
     navigate('/checkout');
@@ -133,7 +152,7 @@ const PesapalCallback: React.FC = () => {
                     <strong>Amount:</strong> {paymentData.currency} {paymentData.amount?.toLocaleString()}
                   </p>
                   <p className="text-sm text-green-800">
-                    <strong>Order ID:</strong> {paymentData.orderId}
+                    <strong>Order ID:</strong> {paymentData.merchant_reference}
                   </p>
                 </div>
               )}
