@@ -35,3 +35,8 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+[[redirects]]
+  from = "/admin"
+  to = "/auth"
+  status = 302
