@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Smartphone, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { Smartphone, Loader2 } from 'lucide-react';
 import { mpesaService } from '@/services/mpesaService';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
@@ -10,18 +9,20 @@ interface MpesaPaymentButtonProps {
   paymentData: {
     amount: number;
     phoneNumber: string;
-    orderId: string;
+    orderId?: string;
     accountReference?: string;
     transactionDesc?: string;
   };
   onSuccess: (txnData: any) => void;
   onError: (error: string) => void;
+  beforePay?: () => Promise<{ orderId: string } | any>; // optional hook
 }
 
 const MpesaPaymentButton: React.FC<MpesaPaymentButtonProps> = ({
   paymentData,
   onSuccess,
-  onError
+  onError,
+  beforePay
 }) => {
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
@@ -29,17 +30,28 @@ const MpesaPaymentButton: React.FC<MpesaPaymentButtonProps> = ({
   const navigate = useNavigate();
 
   const handlePayment = async () => {
-    if (!paymentData.phoneNumber || !paymentData.amount || !paymentData.orderId) {
-      onError('Missing required payment information');
-      return;
-    }
-
-    setLoading(true);
-    
     try {
-      // Step 1: Initiate STK Push
-      const response = await mpesaService.initiateSTKPush(paymentData);
-      
+      setLoading(true);
+
+      // 1️⃣ Create order first if beforePay exists
+      let finalPaymentData = { ...paymentData };
+      if (beforePay) {
+        const orderInfo = await beforePay();
+        if (!orderInfo?.orderId) {
+          throw new Error('Order creation failed.');
+        }
+        finalPaymentData.orderId = orderInfo.orderId;
+      }
+
+      if (!finalPaymentData.phoneNumber || !finalPaymentData.amount || !finalPaymentData.orderId) {
+        onError('Missing required payment information');
+        setLoading(false);
+        return;
+      }
+
+      // 2️⃣ Initiate STK Push
+      const response = await mpesaService.initiateSTKPush(finalPaymentData);
+
       if (response.success && response.checkoutRequestID) {
         setLoading(false);
         setVerifying(true);
@@ -49,47 +61,38 @@ const MpesaPaymentButton: React.FC<MpesaPaymentButtonProps> = ({
           description: "Please check your phone and enter your M-PESA PIN to complete payment.",
         });
 
-        // Step 2: Wait for payment confirmation
-        try {
-          const confirmationResult = await mpesaService.waitForPaymentConfirmation(
-            response.checkoutRequestID, 
-            120000 // 2 minutes timeout
-          );
+        // 3️⃣ Wait for payment confirmation
+        const confirmationResult = await mpesaService.waitForPaymentConfirmation(
+          response.checkoutRequestID,
+          120000 // 2 minutes timeout
+        );
 
-          if (confirmationResult.success) {
-            toast({
-              title: "Payment Successful!",
-              description: `Payment of KES ${paymentData.amount.toLocaleString()} completed successfully.`,
-            });
-            
-            // Navigate to success page with payment details
-            navigate(`/mpesa-callback?checkout_request_id=${response.checkoutRequestID}&payment_id=${confirmationResult.payment?.id}`);
-            onSuccess(confirmationResult);
-          } else if (confirmationResult.timeout) {
-            toast({
-              title: "Payment Verification Timeout",
-              description: "Please check your M-PESA messages or contact support if payment was deducted.",
-              variant: "destructive"
-            });
-            onError(confirmationResult.error || 'Payment verification timeout');
-          } else {
-            toast({
-              title: "Payment Failed",
-              description: confirmationResult.error || "Your M-PESA payment was not successful.",
-              variant: "destructive"
-            });
-            onError(confirmationResult.error || 'Payment failed');
-          }
-        } catch (confirmationError) {
-          console.error('Payment confirmation error:', confirmationError);
+        setVerifying(false);
+
+        if (confirmationResult.success) {
           toast({
-            title: "Payment Verification Error",
-            description: "Unable to verify payment status. Please contact support if payment was deducted.",
+            title: "Payment Successful!",
+            description: `Payment of KES ${finalPaymentData.amount.toLocaleString()} completed successfully.`,
+          });
+          navigate(`/mpesa-callback?checkout_request_id=${response.checkoutRequestID}&payment_id=${confirmationResult.payment?.id}`);
+          onSuccess(confirmationResult);
+        } else if (confirmationResult.timeout) {
+          toast({
+            title: "Payment Verification Timeout",
+            description: "Please check your M-PESA messages or contact support if payment was deducted.",
             variant: "destructive"
           });
-          onError('Payment verification failed');
+          onError(confirmationResult.error || 'Payment verification timeout');
+        } else {
+          toast({
+            title: "Payment Failed",
+            description: confirmationResult.error || "Your M-PESA payment was not successful.",
+            variant: "destructive"
+          });
+          onError(confirmationResult.error || 'Payment failed');
         }
       } else {
+        setLoading(false);
         toast({
           title: "Payment Failed",
           description: response.error || "Failed to initiate M-PESA payment.",
@@ -98,6 +101,8 @@ const MpesaPaymentButton: React.FC<MpesaPaymentButtonProps> = ({
         onError(response.error || 'Payment failed');
       }
     } catch (error) {
+      setLoading(false);
+      setVerifying(false);
       console.error('M-PESA payment error:', error);
       toast({
         title: "Payment Error",
@@ -105,9 +110,6 @@ const MpesaPaymentButton: React.FC<MpesaPaymentButtonProps> = ({
         variant: "destructive"
       });
       onError(error instanceof Error ? error.message : 'Payment failed');
-    } finally {
-      setLoading(false);
-      setVerifying(false);
     }
   };
 
@@ -120,7 +122,6 @@ const MpesaPaymentButton: React.FC<MpesaPaymentButtonProps> = ({
         </>
       );
     }
-    
     if (verifying) {
       return (
         <>
@@ -129,7 +130,6 @@ const MpesaPaymentButton: React.FC<MpesaPaymentButtonProps> = ({
         </>
       );
     }
-    
     return (
       <>
         <Smartphone className="mr-2 h-4 w-4" />
