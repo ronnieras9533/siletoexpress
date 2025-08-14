@@ -58,6 +58,7 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
     setLoading(true);
 
     try {
+      // Run beforePay to create the order and get its ID
       let orderId: string;
       if (beforePay) {
         const orderData = await beforePay();
@@ -86,32 +87,32 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
       };
 
       const pesapalRequestData = {
-        orderId,
+        orderId, // Using real Supabase order ID
         amount: Math.floor(amount * 100) / 100,
         currency,
         email: customerInfo.email.toLowerCase(),
         phone: formattedPhone,
         description: `SiletoExpress Order - ${items.length} items - ${amount} ${currency}`,
         callback_url: `${window.location.origin}/payment-success`,
+        notification_id: '',
         cartItems,
         deliveryInfo,
         prescriptionId,
       };
 
       const { data: pesapalResponse, error: pesapalError } = await supabase.functions
-        .invoke('pesapal-payment', {
+        .invoke('initiate-pesapal-payment', {
           body: pesapalRequestData,
           headers: { 'Content-Type': 'application/json' },
         });
 
-      if (pesapalError || !pesapalResponse?.success) {
-        throw new Error(pesapalResponse?.message || pesapalError?.message || 'Failed to initiate payment');
+      if (pesapalError || !pesapalResponse?.success || !pesapalResponse?.redirect_url) {
+        throw new Error(pesapalResponse?.error || pesapalError?.message || 'Failed to initiate payment');
       }
 
-      // Save payment tracking info
       localStorage.setItem('pesapal_payment', JSON.stringify({
-        trackingId: pesapalResponse.data.order_tracking_id,
-        merchantReference: pesapalResponse.data.merchant_reference,
+        trackingId: pesapalResponse.order_tracking_id,
+        merchantReference: pesapalResponse.merchant_reference,
         amount,
         currency,
         userId: user.id,
@@ -123,7 +124,7 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
       toast({ title: "Redirecting to Payment", description: "You'll be redirected to complete payment..." });
 
       setTimeout(() => {
-        window.location.href = pesapalResponse.data.redirect_url;
+        window.location.href = pesapalResponse.redirect_url;
       }, 1000);
 
     } catch (err) {
