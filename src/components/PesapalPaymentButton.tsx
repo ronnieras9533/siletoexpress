@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { CreditCard, Loader2, Smartphone } from 'lucide-react';
@@ -26,9 +25,10 @@ interface PesapalPaymentButtonProps {
   onSuccess: (transactionData: any) => void;
   onError: (error: string) => void;
   paymentType: 'card' | 'mobile';
+  beforePay?: () => Promise<{ orderId: string } | any>; // new hook
 }
 
-// Input validation utilities
+// Input validation
 const validateEmail = (email: string): boolean => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email) && email.length <= 254;
@@ -40,18 +40,10 @@ const validateKenyanPhone = (phone: string): boolean => {
 };
 
 const formatKenyanPhone = (phone: string): string => {
-  // Remove all non-digits
   const cleaned = phone.replace(/\D/g, '');
-  
-  // Handle different formats
-  if (cleaned.startsWith('254')) {
-    return cleaned;
-  } else if (cleaned.startsWith('0')) {
-    return '254' + cleaned.substring(1);
-  } else if (cleaned.length === 9) {
-    return '254' + cleaned;
-  }
-  
+  if (cleaned.startsWith('254')) return cleaned;
+  if (cleaned.startsWith('0')) return '254' + cleaned.substring(1);
+  if (cleaned.length === 9) return '254' + cleaned;
   return cleaned;
 };
 
@@ -63,7 +55,8 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
   prescriptionId,
   onSuccess,
   onError,
-  paymentType
+  paymentType,
+  beforePay
 }) => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -71,52 +64,30 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
   const { user } = useAuth();
 
   const handlePesapalPayment = async () => {
-    if (!user) {
-      onError('User not authenticated');
-      return;
-    }
-
-    // Input validation
-    if (!validateEmail(customerInfo.email)) {
-      onError('Invalid email address format');
-      return;
-    }
-
-    if (!validateKenyanPhone(customerInfo.phone)) {
-      onError('Invalid Kenyan phone number format. Please use format: 0712345678 or +254712345678');
-      return;
-    }
-
-    // Validate amount
-    if (amount <= 0 || amount > 1000000) {
-      onError('Invalid payment amount. Amount must be between 1 and 1,000,000');
-      return;
-    }
-
-    // Validate currency
-    if (currency !== 'KES') {
-      onError('Only Kenyan Shillings (KES) supported for Pesapal payments');
-      return;
-    }
-
-    setLoading(true);
-    
     try {
-      // Format phone number properly
+      if (!user) throw new Error('User not authenticated');
+      if (!validateEmail(customerInfo.email)) throw new Error('Invalid email address format');
+      if (!validateKenyanPhone(customerInfo.phone)) {
+        throw new Error('Invalid Kenyan phone number format. Use: 0712345678 or +254712345678');
+      }
+      if (amount <= 0 || amount > 1000000) throw new Error('Invalid payment amount');
+      if (currency !== 'KES') throw new Error('Only Kenyan Shillings (KES) are supported');
+
+      setLoading(true);
+
+      // 1️⃣ Run beforePay if provided
+      let orderId: string;
+      if (beforePay) {
+        const orderInfo = await beforePay();
+        if (!orderInfo?.orderId) throw new Error('Order creation failed.');
+        orderId = orderInfo.orderId;
+      } else {
+        orderId = `ORDER_${user.id.substring(0, 8)}_${Date.now()}`;
+      }
+
       const formattedPhone = formatKenyanPhone(customerInfo.phone);
 
-      // Generate unique order ID with timestamp
-      const uniqueOrderId = `ORDER_${user.id.substring(0, 8)}_${Date.now()}`;
-
-      console.log('Initiating Pesapal payment:', {
-        orderId: uniqueOrderId,
-        amount,
-        currency,
-        paymentType,
-        itemCount: items.length
-      });
-
-      // Prepare cart items data
+      // Prepare cart items
       const cartItems = items.map(item => ({
         id: item.id,
         name: item.name,
@@ -125,7 +96,6 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
         total: item.price * item.quantity
       }));
 
-      // Prepare delivery info
       const deliveryInfo = {
         phone: formatKenyanPhone(formData.phone),
         address: formData.address,
@@ -134,89 +104,66 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
         notes: formData.notes
       };
 
-      // Call new Pesapal initiation edge function
+      // Call edge function
       const pesapalRequestData = {
-        orderId: uniqueOrderId,
-        amount: Math.floor(amount * 100) / 100, // Ensure 2 decimal places
-        currency: currency,
+        orderId,
+        amount: Math.floor(amount * 100) / 100,
+        currency,
         email: customerInfo.email.toLowerCase(),
         phone: formattedPhone,
         description: `SiletoExpress Order - ${items.length} items - ${amount} ${currency}`,
         callback_url: `${window.location.origin}/payment-success`,
-        notification_id: '', // Will be set by the edge function
-        cartItems: cartItems,
-        deliveryInfo: deliveryInfo,
-        prescriptionId: prescriptionId
+        notification_id: '',
+        cartItems,
+        deliveryInfo,
+        prescriptionId
       };
-
-      console.log('Sending payment request to Pesapal...');
 
       const { data: pesapalResponse, error: pesapalError } = await supabase.functions
         .invoke('initiate-pesapal-payment', {
           body: pesapalRequestData,
-          headers: {
-            'Content-Type': 'application/json'
-          }
+          headers: { 'Content-Type': 'application/json' }
         });
 
-      console.log('Pesapal response:', pesapalResponse);
-
-      if (pesapalError) {
-        console.error('Pesapal function error:', pesapalError);
-        throw new Error(pesapalError.message || 'Failed to initiate payment');
-      }
-
+      if (pesapalError) throw new Error(pesapalError.message || 'Failed to initiate payment');
       if (!pesapalResponse?.success || !pesapalResponse?.redirect_url) {
-        console.error('Invalid Pesapal response:', pesapalResponse);
         throw new Error(pesapalResponse?.error || 'Failed to get payment URL');
       }
 
-      console.log('Pesapal payment initiated successfully:', pesapalResponse);
-
-      // Store payment tracking info in localStorage
-      const trackingData = {
+      // Store tracking
+      localStorage.setItem('pesapal_payment', JSON.stringify({
         trackingId: pesapalResponse.order_tracking_id,
         merchantReference: pesapalResponse.merchant_reference,
-        amount: amount,
-        currency: currency,
+        amount,
+        currency,
         userId: user.id,
-        orderId: uniqueOrderId,
+        orderId,
         timestamp: Date.now()
-      };
+      }));
 
-      localStorage.setItem('pesapal_payment', JSON.stringify(trackingData));
-
-      // Clear cart since payment intent is created
       clearCart();
 
       toast({
         title: "Redirecting to Payment",
-        description: "You will be redirected to complete your payment...",
+        description: "You will be redirected to complete your payment..."
       });
 
-      // Small delay to show the toast, then redirect
       setTimeout(() => {
         window.location.href = pesapalResponse.redirect_url;
       }, 1000);
 
     } catch (error) {
-      console.error('Pesapal payment error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Payment failed';
-      onError(errorMessage);
-      toast({
-        title: "Payment Error",
-        description: errorMessage,
-        variant: "destructive"
-      });
+      const errMsg = error instanceof Error ? error.message : 'Payment failed';
+      onError(errMsg);
+      toast({ title: "Payment Error", description: errMsg, variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
 
-  const buttonText = paymentType === 'card' 
+  const buttonText = paymentType === 'card'
     ? `Pay with Card - ${currency} ${amount.toLocaleString()}`
     : `Pay with M-PESA - ${currency} ${amount.toLocaleString()}`;
-
   const ButtonIcon = paymentType === 'card' ? CreditCard : Smartphone;
 
   return (
