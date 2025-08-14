@@ -1,42 +1,17 @@
 [build]
-  # Directory with your production build output (change if using a different framework output dir)
-  publish = "dist"
-  # Directory for Netlify serverless functions
+  publish = "dist" # change to "build" or "out" if that's your framework's output dir
   functions = "netlify/functions"
 
-# --- Pesapal IPN handling ---
+# Redirect API calls for Pesapal IPN to the Netlify function
 [[redirects]]
   from = "/functions/pesapal-ipn"
   to = "/.netlify/functions/pesapal-ipn"
   status = 200
-
-[[redirects]]
-  from = "/.netlify/functions/pesapal-ipn"
-  to = "https://siletoexpress.netlify.app/.netlify/functions/pesapal-ipn"
-  status = 200
   force = true
 
-# --- Admin Panel security placeholder ---
-# This won't block access yet — you'll protect it in React with auth checks.
-# Later, you can replace with Netlify Identity or serverless auth verification.
-# Example to deny public access (uncomment if ready to enforce server-side):
-# [[redirects]]
-#   from = "/admin"
-#   to = "/auth"
-#   status = 302
-# [[redirects]]
-#   from = "/admin-dashboard"
-#   to = "/auth"
-#   status = 302
-
-# --- SPA fallback ---
-# Ensures React Router handles all routes (including /admin, /products/:id, etc.)
+# Optional: Redirect root /pesapal-ipn endpoint if Pesapal calls it directly
 [[redirects]]
-  from = "/*"
-  to = "/index.html"
+  from = "/pesapal-ipn"
+  to = "/.netlify/functions/pesapal-ipn"
   status = 200
-
-[[redirects]]
-  from = "/admin"
-  to = "/auth"
-  status = 302
+  force = true
