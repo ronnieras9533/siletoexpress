@@ -87,7 +87,7 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
       };
 
       const pesapalRequestData = {
-        orderId, // Using real Supabase order ID
+        orderId,
         amount: Math.floor(amount * 100) / 100,
         currency,
         email: customerInfo.email.toLowerCase(),
@@ -100,8 +100,9 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
         prescriptionId,
       };
 
+      // Directly call `pesapal-payment` Edge Function instead of `initiate-pesapal-payment`
       const { data: pesapalResponse, error: pesapalError } = await supabase.functions
-        .invoke('initiate-pesapal-payment', {
+        .invoke('pesapal-payment', {
           body: pesapalRequestData,
           headers: { 'Content-Type': 'application/json' },
         });
@@ -110,6 +111,7 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
         throw new Error(pesapalResponse?.error || pesapalError?.message || 'Failed to initiate payment');
       }
 
+      // Store tracking info locally
       localStorage.setItem('pesapal_payment', JSON.stringify({
         trackingId: pesapalResponse.order_tracking_id,
         merchantReference: pesapalResponse.merchant_reference,
