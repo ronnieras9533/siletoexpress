@@ -1,176 +1,190 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Input validation
-const validateKenyanPhone = (phone: string): boolean =>
-  /^254[17]\d{8}$/.test(phone);
-const validateAmount = (amount: number): boolean =>
-  Number.isFinite(amount) && amount > 0 && amount <= 150000;
-const sanitizeInput = (input: string): string =>
-  input.replace(/[<>\"'&]/g, "").trim();
+// Helper function to get OAuth token from Safaricom
+async function getOAuthToken(): Promise<string> {
+  const consumerKey = Deno.env.get('MPESA_CONSUMER_KEY');
+  const consumerSecret = Deno.env.get('MPESA_CONSUMER_SECRET');
+  
+  if (!consumerKey || !consumerSecret) {
+    throw new Error('M-PESA credentials not configured');
+  }
+
+  const auth = btoa(`${consumerKey}:${consumerSecret}`);
+  
+  const response = await fetch('https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials', {
+    method: 'GET',
+    headers: {
+      'Authorization': `Basic ${auth}`,
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`OAuth request failed: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.access_token;
+}
+
+// Helper function to generate password
+function generatePassword(shortcode: string, passkey: string, timestamp: string): string {
+  const data = shortcode + passkey + timestamp;
+  return btoa(data);
+}
+
+// Helper function to format phone number
+function formatPhoneNumber(phone: string): string {
+  let cleaned = phone.replace(/\D/g, '');
+  
+  if (cleaned.startsWith('0')) {
+    cleaned = '254' + cleaned.substring(1);
+  }
+  
+  if (!cleaned.startsWith('254')) {
+    cleaned = '254' + cleaned;
+  }
+  
+  return cleaned;
+}
 
 serve(async (req) => {
-  console.log("M-PESA STK push function called:", req.method);
-
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    // Read and parse JSON body safely
-    let bodyText: string;
-    try {
-      bodyText = await req.text();
-    } catch (err) {
-      console.error("Failed to read request body:", err);
-      return jsonError("Failed to read request body", 400);
-    }
+    const { phoneNumber, amount, orderId, accountReference, transactionDesc } = await req.json();
 
-    let data: any;
-    try {
-      data = JSON.parse(bodyText);
-    } catch (err) {
-      console.error("Invalid JSON:", err);
-      return jsonError("Invalid JSON in request body", 400);
-    }
+    console.log('M-PESA STK Push request:', { phoneNumber, amount, orderId });
 
-    const { orderId, amount, currency, phone, description, cartItems, deliveryInfo, prescriptionId } = data;
-
-    // Validate input
-    if (!orderId || typeof orderId !== "string" || orderId.length > 50) {
-      return jsonError("Invalid order ID", 400);
-    }
-    if (!validateAmount(amount)) {
-      return jsonError("Invalid amount", 400);
-    }
-    if (currency !== "KES") {
-      return jsonError("Only KES currency supported", 400);
-    }
-    if (!validateKenyanPhone(phone)) {
-      return jsonError("Invalid Kenyan phone number format", 400);
-    }
-
-    // Sanitize
-    const sanitizedOrderId = sanitizeInput(orderId);
-    const sanitizedPhone = sanitizeInput(phone);
-    const sanitizedDescription = sanitizeInput(description || `Payment for order ${sanitizedOrderId}`);
-
-    // Get M-PESA credentials
-    const shortcode = Deno.env.get("MPESA_SHORTCODE");
-    const passkey = Deno.env.get("MPESA_PASSKEY");
-    const consumerKey = Deno.env.get("MPESA_CONSUMER_KEY");
-    const consumerSecret = Deno.env.get("MPESA_CONSUMER_SECRET");
-
-    if (!shortcode || !passkey || !consumerKey || !consumerSecret) {
-      return jsonError("Payment service configuration error", 500);
-    }
-
-    // Get access token
-    const authResponse = await fetch(
-      "https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials",
-      {
-        headers: {
-          Authorization: "Basic " + btoa(`${consumerKey}:${consumerSecret}`),
-        },
-      }
+    // Get environment variables
+    const shortcode = Deno.env.get('MPESA_SHORTCODE') || '174379';
+    const passkey = Deno.env.get('MPESA_PASSKEY') || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919';
+    const callbackUrl = Deno.env.get('MPESA_CALLBACK_URL') || 'https://hevbjzdahldvijwqtqcx.supabase.co/functions/v1/mpesa-callback';
+    
+    // Initialize Supabase client with service role key for admin operations
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    if (!authResponse.ok) {
-      return jsonError("Failed to authenticate with M-PESA", 500);
-    }
+    // Get OAuth token
+    const accessToken = await getOAuthToken();
+    console.log('OAuth token obtained successfully');
 
-    const { access_token } = await authResponse.json();
+    // Generate timestamp and password
+    const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, -3);
+    const password = generatePassword(shortcode, passkey, timestamp);
 
-    // Prepare STK push payload
-    const timestamp = new Date()
-      .toISOString()
-      .replace(/[-:TZ.]/g, "")
-      .slice(0, 14);
-    const password = btoa(`${shortcode}${passkey}${timestamp}`);
+    // Format phone number
+    const formattedPhone = formatPhoneNumber(phoneNumber);
+    console.log('Formatted phone:', formattedPhone);
 
-    const stkPayload = {
+    // Prepare STK Push request
+    const stkPushData = {
       BusinessShortCode: shortcode,
       Password: password,
       Timestamp: timestamp,
       TransactionType: "CustomerPayBillOnline",
-      Amount: amount,
-      PartyA: sanitizedPhone,
+      Amount: Math.round(amount),
+      PartyA: formattedPhone,
       PartyB: shortcode,
-      PhoneNumber: sanitizedPhone,
-      CallBackURL: `${Deno.env.get("BASE_URL")}/functions/v1/mpesa-callback`,
-      AccountReference: sanitizedOrderId,
-      TransactionDesc: sanitizedDescription,
+      PhoneNumber: formattedPhone,
+      CallBackURL: callbackUrl,
+      AccountReference: accountReference || orderId,
+      TransactionDesc: transactionDesc || `Payment for order ${orderId}`
     };
 
-    // Send STK push request
-    const stkResponse = await fetch(
-      "https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${access_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(stkPayload),
-      }
-    );
+    console.log('STK Push data:', { ...stkPushData, Password: '[HIDDEN]' });
 
-    if (!stkResponse.ok) {
-      const errorText = await stkResponse.text();
-      return jsonError(`Failed to initiate payment: ${errorText}`, 500);
-    }
+    // Send STK Push request
+    const stkResponse = await fetch('https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(stkPushData)
+    });
 
     const stkResult = await stkResponse.json();
+    console.log('STK Push response:', stkResult);
 
-    // Store payment record in Supabase
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    if (stkResult.ResponseCode === '0') {
+      // Store payment record for tracking with proper user context
+      const authHeader = req.headers.get('Authorization');
+      let userId = null;
+
+      if (authHeader?.startsWith('Bearer ')) {
+        try {
+          const token = authHeader.slice(7);
+          const { data: { user } } = await supabaseClient.auth.getUser(token);
+          userId = user?.id;
+        } catch (error) {
+          console.error('Error getting user from token:', error);
+        }
+      }
+
+      const { error: paymentError } = await supabaseClient
+        .from('payments')
+        .insert({
+          user_id: userId,
+          amount: amount,
+          currency: 'KES',
+          method: 'mpesa',
+          gateway: 'mpesa',
+          status: 'pending',
+          transaction_id: stkResult.CheckoutRequestID,
+          metadata: {
+            ...stkResult,
+            phone_number: formattedPhone,
+            order_reference: orderId,
+            account_reference: accountReference
+          }
+        });
+
+      if (paymentError) {
+        console.error('Error storing payment record:', paymentError);
+      } else {
+        console.log('Payment record stored successfully');
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: stkResult.CustomerMessage || 'STK Push sent successfully',
+          checkoutRequestID: stkResult.CheckoutRequestID,
+          merchantRequestID: stkResult.MerchantRequestID,
+          responseCode: stkResult.ResponseCode,
+          responseDescription: stkResult.ResponseDescription
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        }
+      );
+    } else {
+      throw new Error(stkResult.errorMessage || stkResult.ResponseDescription || 'STK Push failed');
+    }
+
+  } catch (error) {
+    console.error('M-PESA STK Push error:', error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message || 'Payment processing failed'
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      }
     );
-
-    await supabaseClient.from("payments").insert({
-      user_id: sanitizedOrderId,
-      amount: amount,
-      currency: currency,
-      status: "pending",
-      payment_method: "mpesa",
-      mpesa_checkout_request_id: stkResult.CheckoutRequestID,
-      metadata: {
-        cart_items: cartItems || [],
-        delivery_info: deliveryInfo || {},
-        prescription_id: prescriptionId,
-        phone: sanitizedPhone,
-      },
-    });
-
-    return jsonSuccess("Payment initiated successfully", {
-      checkout_request_id: stkResult.CheckoutRequestID,
-      merchant_request_id: stkResult.MerchantRequestID,
-    });
-
-  } catch (err) {
-    console.error("Unexpected error in M-PESA function:", err);
-    return jsonError("Internal server error", 500, err.message);
   }
 });
-
-// Helper functions
-function jsonError(message: string, status = 400, details?: string) {
-  return new Response(
-    JSON.stringify({ success: false, message, details }),
-    { status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-  );
-}
-
-function jsonSuccess(message: string, data: any) {
-  return new Response(
-    JSON.stringify({ success: true, message, data }),
-    { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-  );
-}
