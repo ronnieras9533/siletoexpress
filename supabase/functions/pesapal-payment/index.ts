@@ -30,26 +30,18 @@ serve(async (req) => {
       parsedData = await req.json();
     } catch (err) {
       console.error('Invalid JSON body:', err);
-      return new Response(JSON.stringify({ success: false, error: 'Invalid JSON body' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      return badRequest('Invalid JSON body');
     }
 
     const { orderId, amount, currency, email, phone, description, callback_url, cartItems, deliveryInfo, prescriptionId } = parsedData;
     console.log('Payment request data:', { orderId, amount, currency, email, phone });
 
     // ✅ Validations
-    if (!orderId || typeof orderId !== 'string' || orderId.length > 50)
-      return badRequest('Invalid order ID');
-    if (!validateAmount(amount))
-      return badRequest('Invalid amount');
-    if (currency !== 'KES')
-      return badRequest('Only KES currency supported');
-    if (!validateEmail(email))
-      return badRequest('Invalid email format');
-    if (!validateKenyanPhone(phone))
-      return badRequest('Invalid Kenyan phone number format');
+    if (!orderId || typeof orderId !== 'string' || orderId.length > 50) return badRequest('Invalid order ID');
+    if (!validateAmount(amount)) return badRequest('Invalid amount');
+    if (currency !== 'KES') return badRequest('Only KES currency supported');
+    if (!validateEmail(email)) return badRequest('Invalid email format');
+    if (!validateKenyanPhone(phone)) return badRequest('Invalid Kenyan phone number format');
 
     const sanitizedOrderId = sanitizeInput(orderId);
     const sanitizedEmail = sanitizeInput(email.toLowerCase());
@@ -67,6 +59,7 @@ serve(async (req) => {
     }
 
     // ✅ Auth token
+    console.log('Getting Pesapal access token...');
     const authResponse = await fetch(`${baseUrl}/api/Auth/RequestToken`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -84,6 +77,7 @@ serve(async (req) => {
     if (!accessToken) return internalError('Authentication failed with payment service');
 
     // ✅ Order creation
+    console.log('Creating Pesapal payment order...');
     const orderData = {
       id: sanitizedOrderId,
       currency,
@@ -110,7 +104,7 @@ serve(async (req) => {
     if (!orderResponse.ok) {
       const errorText = await orderResponse.text();
       console.error('Order error:', errorText);
-      return internalError('Failed to create payment order');
+      return internalError('Failed to create payment order', errorText);
     }
 
     const orderResult = await orderResponse.json();
@@ -136,27 +130,30 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({
       success: true,
-      order_tracking_id: orderResult.order_tracking_id,
-      merchant_reference: orderResult.merchant_reference,
-      redirect_url: orderResult.redirect_url
+      message: 'Payment initiated successfully',
+      data: {
+        order_tracking_id: orderResult.order_tracking_id,
+        merchant_reference: orderResult.merchant_reference,
+        redirect_url: orderResult.redirect_url
+      }
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error) {
     console.error('Pesapal payment error:', error);
-    return internalError('Internal server error');
+    return internalError('Internal server error', error.message);
   }
 });
 
 // Helper responses
-function badRequest(message: string) {
-  return new Response(JSON.stringify({ success: false, error: message }), {
+function badRequest(message: string, details?: any) {
+  return new Response(JSON.stringify({ success: false, message, details }), {
     status: 400,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' }
   });
 }
 
-function internalError(message: string) {
-  return new Response(JSON.stringify({ success: false, error: message }), {
+function internalError(message: string, details?: any) {
+  return new Response(JSON.stringify({ success: false, message, details }), {
     status: 500,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' }
   });
