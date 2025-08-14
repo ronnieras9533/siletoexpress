@@ -1,8 +1,10 @@
 [build]
-  # Directory with your production build output (change if using a different framework output dir)
+  # Directory with your production build output (Vite default)
   publish = "dist"
   # Directory for Netlify serverless functions
   functions = "netlify/functions"
+  # Always copy _redirects into dist after build
+  command = "vite build && cp public/_redirects dist/_redirects"
 
 # --- Pesapal IPN handling ---
 [[redirects]]
@@ -18,7 +20,6 @@
 
 # --- Admin Panel security placeholder ---
 # This won't block access yet — you'll protect it in React with auth checks.
-# Later, you can replace with Netlify Identity or serverless auth verification.
 # Example to deny public access (uncomment if ready to enforce server-side):
 # [[redirects]]
 #   from = "/admin"
