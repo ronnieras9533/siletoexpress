@@ -3,72 +3,125 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Smartphone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-
-interface MpesaPaymentData {
-  amount: number;
-  phoneNumber: string;
-  orderId: string;
-  accountReference: string;
-  transactionDesc: string;
-}
+import { useCart } from '@/contexts/CartContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface MpesaPaymentButtonProps {
-  paymentData: MpesaPaymentData;
-  beforePay?: () => Promise<{ orderId: string }>;
-  onSuccess: (receiptNumber?: string) => void;
+  amount: number;
+  currency: string;
+  customerInfo: { email: string; phone: string; name: string };
+  formData: { phone: string; address: string; city: string; county: string; notes: string };
+  prescriptionId?: string | null;
+  beforePay?: () => Promise<{ id: string }>;
+  onSuccess: (transactionData: any) => void;
   onError: (error: string) => void;
 }
 
+const validateKenyanPhone = (phone: string): boolean =>
+  /^(\+254|254|0)?[17]\d{8}$/.test(phone.replace(/\s/g, ''));
+
+const formatKenyanPhone = (phone: string): string => {
+  const cleaned = phone.replace(/\D/g, '');
+  if (cleaned.startsWith('254')) return cleaned;
+  if (cleaned.startsWith('0')) return '254' + cleaned.substring(1);
+  if (cleaned.length === 9) return '254' + cleaned;
+  return cleaned;
+};
+
 const MpesaPaymentButton: React.FC<MpesaPaymentButtonProps> = ({
-  paymentData,
+  amount,
+  currency,
+  customerInfo,
+  formData,
+  prescriptionId,
   beforePay,
   onSuccess,
   onError
 }) => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const { items, clearCart } = useCart();
+  const { user } = useAuth();
 
-  const handlePayment = async () => {
+  const handleMpesaPayment = async () => {
+    if (!user) return onError('User not authenticated');
+    if (!validateKenyanPhone(customerInfo.phone))
+      return onError('Invalid phone format. Use 0712345678 or +254712345678');
+    if (amount <= 0) return onError('Invalid payment amount');
+    if (currency !== 'KES') return onError('Only KES supported');
+
+    setLoading(true);
+
     try {
-      setLoading(true);
-
-      // Run beforePay to get the real orderId
-      let finalOrderId = paymentData.orderId;
+      let orderId: string;
       if (beforePay) {
-        const orderInfo = await beforePay();
-        if (!orderInfo?.orderId) throw new Error('Order creation failed.');
-        finalOrderId = orderInfo.orderId;
+        const orderData = await beforePay();
+        if (!orderData?.id) throw new Error('Order creation failed.');
+        orderId = orderData.id;
+      } else {
+        throw new Error('beforePay function not provided.');
       }
 
-      const mpesaPayload = {
-        ...paymentData,
-        orderId: finalOrderId, // now using the real Supabase order ID
+      const formattedPhone = formatKenyanPhone(customerInfo.phone);
+
+      const cartItems = items.map(item => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        total: item.price * item.quantity,
+      }));
+
+      const deliveryInfo = {
+        phone: formatKenyanPhone(formData.phone),
+        address: formData.address,
+        city: formData.city,
+        county: formData.county,
+        notes: formData.notes,
       };
 
-      const { data, error } = await supabase.functions.invoke('initiate-mpesa-payment', {
-        body: mpesaPayload,
-      });
+      const mpesaRequestData = {
+        orderId,
+        amount: Math.floor(amount * 100) / 100,
+        currency,
+        phone: formattedPhone,
+        email: customerInfo.email.toLowerCase(),
+        description: `SiletoExpress M-PESA Order - ${items.length} items - ${amount} ${currency}`,
+        cartItems,
+        deliveryInfo,
+        prescriptionId,
+      };
 
-      if (error || !data?.success) {
-        throw new Error(data?.message || error?.message || 'Payment initiation failed');
+      const { data: mpesaResponse, error: mpesaError } = await supabase.functions
+        .invoke('mpesa-stk-push', {
+          body: mpesaRequestData,
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+      if (mpesaError || !mpesaResponse?.success) {
+        throw new Error(mpesaResponse?.message || mpesaError?.message || 'Failed to initiate M-PESA payment');
       }
 
-      toast({
-        title: 'Payment Initiated',
-        description: 'Check your phone to complete the payment',
-      });
+      // Save payment tracking info
+      localStorage.setItem('mpesa_payment', JSON.stringify({
+        checkoutRequestId: mpesaResponse.data.checkout_request_id,
+        merchantRequestId: mpesaResponse.data.merchant_request_id,
+        amount,
+        currency,
+        userId: user.id,
+        orderId,
+        timestamp: Date.now(),
+      }));
 
-      // Optionally poll transaction status here...
+      clearCart();
+      toast({ title: "M-PESA Payment Sent", description: "Please check your phone and enter your M-PESA PIN" });
 
-      onSuccess(data.receiptNumber || undefined);
+      onSuccess(mpesaResponse.data);
+
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Payment failed';
-      onError(errorMessage);
-      toast({
-        title: 'Payment Error',
-        description: errorMessage,
-        variant: 'destructive',
-      });
+      const message = err instanceof Error ? err.message : 'Payment failed';
+      onError(message);
+      toast({ title: "Payment Error", description: message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -76,7 +129,7 @@ const MpesaPaymentButton: React.FC<MpesaPaymentButtonProps> = ({
 
   return (
     <Button
-      onClick={handlePayment}
+      onClick={handleMpesaPayment}
       disabled={loading}
       className="w-full bg-green-600 hover:bg-green-700 text-white"
       size="lg"
@@ -89,7 +142,7 @@ const MpesaPaymentButton: React.FC<MpesaPaymentButtonProps> = ({
       ) : (
         <>
           <Smartphone className="mr-2 h-4 w-4" />
-          Pay with M-PESA - KES {paymentData.amount.toLocaleString()}
+          Pay with M-PESA - {currency} {amount.toLocaleString()}
         </>
       )}
     </Button>
