@@ -1,151 +1,97 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Smartphone, Loader2 } from 'lucide-react';
-import { mpesaService } from '@/services/mpesaService';
+import { Loader2, Smartphone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+
+interface MpesaPaymentData {
+  amount: number;
+  phoneNumber: string;
+  orderId: string;
+  accountReference: string;
+  transactionDesc: string;
+}
 
 interface MpesaPaymentButtonProps {
-  paymentData: {
-    amount: number;
-    phoneNumber: string;
-    orderId?: string;
-    accountReference?: string;
-    transactionDesc?: string;
-  };
-  onSuccess: (txnData: any) => void;
+  paymentData: MpesaPaymentData;
+  beforePay?: () => Promise<{ orderId: string }>;
+  onSuccess: (receiptNumber?: string) => void;
   onError: (error: string) => void;
-  beforePay?: () => Promise<{ orderId: string } | any>; // optional hook
 }
 
 const MpesaPaymentButton: React.FC<MpesaPaymentButtonProps> = ({
   paymentData,
+  beforePay,
   onSuccess,
-  onError,
-  beforePay
+  onError
 }) => {
   const [loading, setLoading] = useState(false);
-  const [verifying, setVerifying] = useState(false);
   const { toast } = useToast();
-  const navigate = useNavigate();
 
   const handlePayment = async () => {
     try {
       setLoading(true);
 
-      // 1️⃣ Create order first if beforePay exists
-      let finalPaymentData = { ...paymentData };
+      // Run beforePay to get the real orderId
+      let finalOrderId = paymentData.orderId;
       if (beforePay) {
         const orderInfo = await beforePay();
-        if (!orderInfo?.orderId) {
-          throw new Error('Order creation failed.');
-        }
-        finalPaymentData.orderId = orderInfo.orderId;
+        if (!orderInfo?.orderId) throw new Error('Order creation failed.');
+        finalOrderId = orderInfo.orderId;
       }
 
-      if (!finalPaymentData.phoneNumber || !finalPaymentData.amount || !finalPaymentData.orderId) {
-        onError('Missing required payment information');
-        setLoading(false);
-        return;
-      }
+      const mpesaPayload = {
+        ...paymentData,
+        orderId: finalOrderId, // now using the real Supabase order ID
+      };
 
-      // 2️⃣ Initiate STK Push
-      const response = await mpesaService.initiateSTKPush(finalPaymentData);
-
-      if (response.success && response.checkoutRequestID) {
-        setLoading(false);
-        setVerifying(true);
-
-        toast({
-          title: "STK Push Sent",
-          description: "Please check your phone and enter your M-PESA PIN to complete payment.",
-        });
-
-        // 3️⃣ Wait for payment confirmation
-        const confirmationResult = await mpesaService.waitForPaymentConfirmation(
-          response.checkoutRequestID,
-          120000 // 2 minutes timeout
-        );
-
-        setVerifying(false);
-
-        if (confirmationResult.success) {
-          toast({
-            title: "Payment Successful!",
-            description: `Payment of KES ${finalPaymentData.amount.toLocaleString()} completed successfully.`,
-          });
-          navigate(`/mpesa-callback?checkout_request_id=${response.checkoutRequestID}&payment_id=${confirmationResult.payment?.id}`);
-          onSuccess(confirmationResult);
-        } else if (confirmationResult.timeout) {
-          toast({
-            title: "Payment Verification Timeout",
-            description: "Please check your M-PESA messages or contact support if payment was deducted.",
-            variant: "destructive"
-          });
-          onError(confirmationResult.error || 'Payment verification timeout');
-        } else {
-          toast({
-            title: "Payment Failed",
-            description: confirmationResult.error || "Your M-PESA payment was not successful.",
-            variant: "destructive"
-          });
-          onError(confirmationResult.error || 'Payment failed');
-        }
-      } else {
-        setLoading(false);
-        toast({
-          title: "Payment Failed",
-          description: response.error || "Failed to initiate M-PESA payment.",
-          variant: "destructive"
-        });
-        onError(response.error || 'Payment failed');
-      }
-    } catch (error) {
-      setLoading(false);
-      setVerifying(false);
-      console.error('M-PESA payment error:', error);
-      toast({
-        title: "Payment Error",
-        description: error instanceof Error ? error.message : 'Payment failed',
-        variant: "destructive"
+      const { data, error } = await supabase.functions.invoke('initiate-mpesa-payment', {
+        body: mpesaPayload,
       });
-      onError(error instanceof Error ? error.message : 'Payment failed');
-    }
-  };
 
-  const getButtonContent = () => {
-    if (loading) {
-      return (
-        <>
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          Initiating Payment...
-        </>
-      );
+      if (error || !data?.success) {
+        throw new Error(data?.message || error?.message || 'Payment initiation failed');
+      }
+
+      toast({
+        title: 'Payment Initiated',
+        description: 'Check your phone to complete the payment',
+      });
+
+      // Optionally poll transaction status here...
+
+      onSuccess(data.receiptNumber || undefined);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Payment failed';
+      onError(errorMessage);
+      toast({
+        title: 'Payment Error',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
     }
-    if (verifying) {
-      return (
-        <>
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          Verifying Payment...
-        </>
-      );
-    }
-    return (
-      <>
-        <Smartphone className="mr-2 h-4 w-4" />
-        Pay with M-PESA - KES {paymentData.amount.toLocaleString()}
-      </>
-    );
   };
 
   return (
     <Button
       onClick={handlePayment}
-      disabled={loading || verifying}
+      disabled={loading}
       className="w-full bg-green-600 hover:bg-green-700 text-white"
       size="lg"
     >
-      {getButtonContent()}
+      {loading ? (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Processing...
+        </>
+      ) : (
+        <>
+          <Smartphone className="mr-2 h-4 w-4" />
+          Pay with M-PESA - KES {paymentData.amount.toLocaleString()}
+        </>
+      )}
     </Button>
   );
 };
