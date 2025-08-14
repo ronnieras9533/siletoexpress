@@ -8,7 +8,6 @@ import {
 } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 
-// Import your components
 import AdminOrdersTable from "../components/AdminOrdersTable";
 import AdminPrescriptionOrdersTable from "../components/AdminPrescriptionOrdersTable";
 import AdminPrescriptionsTable from "../components/AdminPrescriptionsTable";
@@ -18,9 +17,7 @@ import AdminUserManagement from "../components/AdminUserManagement";
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<"0" | "1" | "2" | "3" | "4">("0");
-  const [connectionStatus, setConnectionStatus] = useState<
-    "checking" | "ok" | "error"
-  >("checking");
+  const [connectionStatus, setConnectionStatus] = useState<"checking" | "ok" | "error">("checking");
   const [user, setUser] = useState<any>(null);
 
   const [stats, setStats] = useState({
@@ -31,24 +28,19 @@ export default function AdminDashboard() {
     monthlyRevenue: 0,
   });
 
-  // Fetch user & initial stats
+  // Fetch initial user & stats
   useEffect(() => {
-    const fetchUserAndStats = async () => {
+    const init = async () => {
       try {
-        // Test Supabase connection
         const { data: testData, error: testError } = await supabase
           .from("orders")
           .select("*")
           .limit(1);
 
-        if (testError) {
-          console.error("Supabase connection error:", testError.message);
-          setConnectionStatus("error");
-          return;
-        }
+        if (testError) throw testError;
+
         setConnectionStatus("ok");
 
-        // Get authenticated user
         const {
           data: { user },
         } = await supabase.auth.getUser();
@@ -58,14 +50,13 @@ export default function AdminDashboard() {
           return;
         }
 
-        // Check if admin
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("role")
           .eq("id", user.id)
           .single();
 
-        if (profileError || !profile || profile.role !== "admin") {
+        if (profileError || profile?.role !== "admin") {
           navigate("/auth");
           return;
         }
@@ -73,13 +64,12 @@ export default function AdminDashboard() {
         setUser(user);
         await fetchStats();
       } catch (err) {
-        console.error("Unexpected error:", err);
+        console.error("Error connecting to Supabase:", err);
         setConnectionStatus("error");
-        navigate("/auth");
       }
     };
 
-    fetchUserAndStats();
+    init();
   }, [navigate]);
 
   // Fetch stats function
@@ -116,20 +106,13 @@ export default function AdminDashboard() {
       const monthlyRevenue =
         monthly?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
 
-      setStats({
-        totalOrders: totalOrders || 0,
-        pendingOrders: pendingOrders || 0,
-        prescriptions: prescriptions || 0,
-        generalPrescriptions: generalPrescriptions || 0,
-        monthlyRevenue,
-      });
+      setStats({ totalOrders, pendingOrders, prescriptions, generalPrescriptions, monthlyRevenue });
     } catch (err) {
       console.error("Error fetching stats:", err);
-      setConnectionStatus("error");
     }
   };
 
-  // Real-time updates
+  // Subscribe to real-time updates
   useEffect(() => {
     const ordersSub = supabase
       .channel("orders-channel")
@@ -138,11 +121,7 @@ export default function AdminDashboard() {
 
     const prescriptionsSub = supabase
       .channel("prescriptions-channel")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "prescriptions" },
-        fetchStats
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "prescriptions" }, fetchStats)
       .subscribe();
 
     return () => {
@@ -152,17 +131,11 @@ export default function AdminDashboard() {
   }, []);
 
   if (!user || connectionStatus === "checking") {
-    return (
-      <p className="text-gray-500 text-center mt-10">Checking database connection...</p>
-    );
+    return <p className="text-gray-500 text-center mt-10">Checking database connection...</p>;
   }
 
   if (connectionStatus === "error") {
-    return (
-      <p className="text-red-500 text-center mt-10">
-        ⚠ Could not connect to Supabase. Please check API keys and network.
-      </p>
-    );
+    return <p className="text-red-500 text-center mt-10">⚠ Could not connect to Supabase. Please check API keys and network.</p>;
   }
 
   return (
@@ -171,28 +144,18 @@ export default function AdminDashboard() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-8">
-        <div className="bg-white shadow rounded-lg p-4 text-center">
-          <p className="text-gray-500">Regular Orders</p>
-          <p className="text-xl font-semibold">{stats.totalOrders}</p>
-        </div>
-        <div className="bg-white shadow rounded-lg p-4 text-center">
-          <p className="text-gray-500">Pending Orders</p>
-          <p className="text-xl font-semibold">{stats.pendingOrders}</p>
-        </div>
-        <div className="bg-white shadow rounded-lg p-4 text-center">
-          <p className="text-gray-500">Prescription Orders</p>
-          <p className="text-xl font-semibold">{stats.prescriptions}</p>
-        </div>
-        <div className="bg-white shadow rounded-lg p-4 text-center">
-          <p className="text-gray-500">General Prescriptions</p>
-          <p className="text-xl font-semibold">{stats.generalPrescriptions}</p>
-        </div>
-        <div className="bg-white shadow rounded-lg p-4 text-center">
-          <p className="text-gray-500">Monthly Revenue</p>
-          <p className="text-xl font-semibold">
-            KSh {stats.monthlyRevenue.toLocaleString("en-KE")}
-          </p>
-        </div>
+        {[
+          { label: "Regular Orders", value: stats.totalOrders },
+          { label: "Pending Orders", value: stats.pendingOrders },
+          { label: "Prescription Orders", value: stats.prescriptions },
+          { label: "General Prescriptions", value: stats.generalPrescriptions },
+          { label: "Monthly Revenue", value: `KSh ${stats.monthlyRevenue.toLocaleString("en-KE")}` },
+        ].map((card, idx) => (
+          <div key={idx} className="bg-white shadow rounded-lg p-4 text-center hover:shadow-lg transition">
+            <p className="text-gray-500">{card.label}</p>
+            <p className="text-xl font-semibold">{card.value}</p>
+          </div>
+        ))}
       </div>
 
       {/* Tabs */}
