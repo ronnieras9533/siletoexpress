@@ -148,7 +148,14 @@ const Checkout = () => {
   const handlePrescriptionUpload = async (orderId: string) => {
     if (prescriptionFiles.length === 0) return;
     try {
-      console.log('Uploading prescriptions for order:', orderId, 'Files:', prescriptionFiles);
+      console.log('Uploading prescriptions for order:', orderId, 'Files:', prescriptionFiles, 'User ID:', user!.id);
+      const { data: orderExists } = await supabase
+        .from('orders')
+        .select('id')
+        .eq('id', orderId)
+        .single();
+      if (!orderExists) throw new Error('Invalid order ID');
+
       for (const file of prescriptionFiles) {
         const fileExt = file.name.split('.').pop() || 'jpg';
         const fileName = `${orderId}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
