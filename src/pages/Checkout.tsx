@@ -357,4 +357,36 @@ const Checkout = () => {
                       onError={handlePaymentError}
                       beforePay={async () => {
                         const order = await createOrder();
-                        if (!order) throw new
+                        if (!order) throw new Error('Order creation failed');
+                        return { ...order, orderId: order.id };
+                      }}
+                    />
+                  ) : (
+                    <PesapalPaymentButton
+                      amount={total}
+                      currency="KES"
+                      customerInfo={{ email: email, phone: phoneNumber, name: user?.email || 'Customer' }}
+                      formData={{ phone: phoneNumber, address: deliveryAddress, city: county, county: county, notes: deliveryInstructions }}
+                      prescriptionId={null}
+                      onSuccess={handlePaymentSuccess}
+                      onError={handlePaymentError}
+                      paymentType="card"
+                      beforePay={async () => {
+                        const order = await createOrder();
+                        if (!order) throw new Error('Order creation failed');
+                        return order;
+                      }}
+                    />
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+      <Footer />
+    </div>
+  );
+};
+
+export default Checkout;
