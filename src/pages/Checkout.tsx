@@ -68,23 +68,31 @@ const Checkout = () => {
 
   const validateForm = (): boolean => {
     if (!deliveryAddress.trim()) {
-      toast({ title: "Error", description: "Please enter your delivery address", variant: "destructive" });
+      toast({ title: "Error", description: "Delivery address is required", variant: "destructive" });
       return false;
     }
     if (!county) {
-      toast({ title: "Error", description: "Please select your county", variant: "destructive" });
+      toast({ title: "Error", description: "County is required", variant: "destructive" });
       return false;
     }
     if (!phoneNumber.trim()) {
-      toast({ title: "Error", description: "Please enter your phone number", variant: "destructive" });
+      toast({ title: "Error", description: "Phone number is required", variant: "destructive" });
+      return false;
+    }
+    if (!/^\+?\d{10,14}$/.test(phoneNumber.trim())) {
+      toast({ title: "Error", description: "Please enter a valid phone number (10-14 digits)", variant: "destructive" });
       return false;
     }
     if (!email.trim()) {
-      toast({ title: "Error", description: "Please enter your email address", variant: "destructive" });
+      toast({ title: "Error", description: "Email address is required", variant: "destructive" });
+      return false;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      toast({ title: "Error", description: "Please enter a valid email address", variant: "destructive" });
       return false;
     }
     if (requiresPrescription && prescriptionFiles.length === 0) {
-      toast({ title: "Error", description: "Please upload prescription files for prescription items", variant: "destructive" });
+      toast({ title: "Error", description: "Prescription files are required for this order", variant: "destructive" });
       return false;
     }
     return true;
@@ -173,7 +181,8 @@ const Checkout = () => {
     toast({ title: "Payment Failed", description: error, variant: "destructive" });
   };
 
-  const handlePrescriptionUploaded = () => {
+  const handlePrescriptionUploaded = (file: File) => {
+    setPrescriptionFiles([file]);
     toast({ title: "Success", description: "Prescription uploaded successfully" });
   };
 
