@@ -45,19 +45,15 @@ const Checkout = () => {
     }
     const needsPrescription = items.some(item => item.prescription_required);
     setRequiresPrescription(needsPrescription);
+  }, [user, navigate, items]);
 
-    if (county) {
-      calculateDeliveryFee();
-    }
-  }, [user, navigate, items, county, subtotal]);
-
-  const calculateDeliveryFee = () => {
-    const neighboringCounties = ['Kiambu', 'Machakos', 'Kajiado']; // Add more if needed
-    let fee = 300; // Default for rest of counties
-    if (county === 'Nairobi') {
-      fee = 0; // Free for Nairobi
-    } else if (neighboringCounties.includes(county)) {
-      fee = 200; // Neighboring
+  const calculateDeliveryFee = (selectedCounty: string) => {
+    const neighboringCounties = ['Kiambu', 'Machakos', 'Kajiado'];
+    let fee = 300;
+    if (selectedCounty === 'Nairobi') {
+      fee = 0;
+    } else if (neighboringCounties.includes(selectedCounty)) {
+      fee = 200;
     }
     setDeliveryFee(fee);
   };
@@ -230,7 +226,13 @@ const Checkout = () => {
                 </div>
                 <div>
                   <Label htmlFor="county">County *</Label>
-                  <KenyaCountiesSelect value={county} onValueChange={setCounty} />
+                  <KenyaCountiesSelect 
+                    value={county} 
+                    onValueChange={(selectedCounty) => {
+                      setCounty(selectedCounty);
+                      calculateDeliveryFee(selectedCounty);
+                    }} 
+                  />
                 </div>
                 <div>
                   <Label htmlFor="instructions">Delivery Instructions (Optional)</Label>
