@@ -22,7 +22,7 @@ const KENYA_COUNTIES = [
 const KenyaCountiesSelect: React.FC<KenyaCountiesSelectProps> = ({ value, onValueChange, required = false }) => {
   return (
     <div>
-      <Label htmlFor="county">County {required && <span className="text-red-500">*</span>}</Label>
+      <Label htmlFor="county">County * {required && <span className="text-red-500">*</span>}</Label>
       <Select value={value} onValueChange={onValueChange} required={required}>
         <SelectTrigger>
           <SelectValue placeholder="Select your county" />
