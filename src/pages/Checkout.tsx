@@ -231,8 +231,8 @@ const Checkout = () => {
                   <Textarea id="address" placeholder="Enter your full delivery address" value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} rows={3} />
                 </div>
                 <div>
-                  <Label htmlFor="county">County *</Label>
-                  <KenyaCountiesSelect value={} onValueChange={setCounty} />
+            
+                  <KenyaCountiesSelect value={county} onValueChange={setCounty} />
                 </div>
                 <div>
                   <Label htmlFor="instructions">Delivery Instructions (Optional)</Label>
