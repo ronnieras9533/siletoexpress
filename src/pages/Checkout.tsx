@@ -232,7 +232,7 @@ const Checkout = () => {
                 </div>
                 <div>
                   <Label htmlFor="county">County *</Label>
-                  <KenyaCountiesSelect value={county} onValueChange={setCounty} />
+                  <KenyaCountiesSelect value={} onValueChange={setCounty} />
                 </div>
                 <div>
                   <Label htmlFor="instructions">Delivery Instructions (Optional)</Label>
