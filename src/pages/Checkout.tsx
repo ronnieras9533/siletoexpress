@@ -123,8 +123,6 @@ const Checkout = () => {
 
       if (orderError) throw orderError;
 
-      console.log('Order created:', order);
-
       const orderItems = items.map(item => ({
         order_id: order.id,
         product_id: item.id,
@@ -151,7 +149,6 @@ const Checkout = () => {
     if (prescriptionFiles.length === 0) return;
     try {
       console.log('Uploading prescriptions for order:', orderId, 'Files:', prescriptionFiles, 'User ID:', user!.id);
-      await new Promise(resolve => setTimeout(resolve, 500)); // Small delay to ensure order commit
       const { data: orderExists } = await supabase
         .from('orders')
         .select('id')
@@ -349,7 +346,7 @@ const Checkout = () => {
                       paymentData={{
                         amount: total,
                         phoneNumber: phoneNumber,
-                        orderId: order ? order.id : '', // Ensure orderId is passed
+                        orderId: '',
                         accountReference: `Order-${Date.now()}`,
                         transactionDesc: 'SiletoExpress Order Payment'
                       }}
@@ -357,7 +354,7 @@ const Checkout = () => {
                       onError={handlePaymentError}
                       beforePay={async () => {
                         const order = await createOrder();
-                        if (!order) throw new Error('Order creation failed');
+                        if (!order) throw new Error('Order could not be created.');
                         return { ...order, orderId: order.id };
                       }}
                     />
@@ -373,7 +370,7 @@ const Checkout = () => {
                       paymentType="card"
                       beforePay={async () => {
                         const order = await createOrder();
-                        if (!order) throw new Error('Order creation failed');
+                        if (!order) throw new Error('Order could not be created.');
                         return order;
                       }}
                     />
