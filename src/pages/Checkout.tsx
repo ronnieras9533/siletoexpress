@@ -123,8 +123,6 @@ const Checkout = () => {
 
       if (orderError) throw orderError;
 
-      console.log('Order created:', order);
-
       const orderItems = items.map(item => ({
         order_id: order.id,
         product_id: item.id,
@@ -149,51 +147,24 @@ const Checkout = () => {
 
   const handlePrescriptionUpload = async (orderId: string) => {
     if (prescriptionFiles.length === 0) return;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        console.log(`Uploading prescriptions for order: ${orderId}, Attempt: ${attempt + 1}`, 'Files:', prescriptionFiles, 'User ID:', user!.id);
-        await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Incremental delay
-        const { data: orderExists } = await supabase
-          .from('orders')
-          .select('id')
-          .eq('id', orderId)
-          .single();
-        if (!orderExists) throw new Error('Invalid order ID');
+    try {
+      for (const file of prescriptionFiles) {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${orderId}-${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage.from('prescriptions').upload(fileName, file);
+        if (uploadError) throw uploadError;
 
-        for (const file of prescriptionFiles) {
-          const fileExt = file.name.split('.').pop() || 'jpg';
-          const fileName = `${orderId}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
-          console.log('Uploading file:', fileName);
-          const { error: uploadError } = await supabase.storage
-            .from('prescriptions')
-            .upload(fileName, file, { upsert: false });
-          if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
-
-          const { data } = supabase.storage.from('prescriptions').getPublicUrl(fileName);
-          console.log('File uploaded, public URL:', data.publicUrl);
-          const { error: insertError } = await supabase.from('prescriptions').insert({
-            user_id: user!.id,
-            order_id: orderId,
-            image_url: data.publicUrl,
-            status: 'pending'
-          });
-          if (insertError) throw new Error(`Database insert failed: ${insertError.message}`);
-        }
-        toast({
-          title: "Success",
-          description: "Prescriptions uploaded successfully",
+        const { data } = supabase.storage.from('prescriptions').getPublicUrl(fileName);
+        await supabase.from('prescriptions').insert({
+          user_id: user!.id,
+          order_id: orderId,
+          image_url: data.publicUrl,
+          status: 'pending'
         });
-        return; // Exit on success
-      } catch (error) {
-        console.error('Error uploading prescriptions:', error);
-        if (attempt === 2) {
-          toast({
-            title: "Warning",
-            description: `Order created but prescription upload failed after 3 attempts. Please contact support with order ID: ${orderId}. Error: ${error.message}`,
-            variant: "destructive"
-          });
-        }
       }
+    } catch (error) {
+      console.error('Error uploading prescriptions:', error);
+      toast({ title: "Warning", description: "Order created but prescription upload failed. Please contact support.", variant: "destructive" });
     }
   };
 
@@ -211,7 +182,6 @@ const Checkout = () => {
   };
 
   const handlePrescriptionUploaded = (file: File) => {
-    console.log('Received file in Checkout:', file);
     setPrescriptionFiles([file]);
     toast({ title: "Success", description: "Prescription uploaded successfully" });
   };
@@ -229,7 +199,9 @@ const Checkout = () => {
             <ShoppingCart className="mx-auto h-12 w-12 text-gray-400 mb-4" />
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Your cart is empty</h2>
             <p className="text-gray-600 mb-6">Add some products to your cart to continue with checkout.</p>
-            <Button onClick={() => navigate('/products')}>Browse Products</Button>
+            <Button onClick={() => navigate('/products')}>
+              Start Shopping
+            </Button>
           </div>
         </div>
         <Footer />
@@ -240,6 +212,7 @@ const Checkout = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
+      
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Checkout</h1>
@@ -354,7 +327,7 @@ const Checkout = () => {
                       paymentData={{
                         amount: total,
                         phoneNumber: phoneNumber,
-                        orderId: order ? order.id : '', // Ensure orderId is passed
+                        orderId: '',
                         accountReference: `Order-${Date.now()}`,
                         transactionDesc: 'SiletoExpress Order Payment'
                       }}
@@ -362,10 +335,9 @@ const Checkout = () => {
                       onError={handlePaymentError}
                       beforePay={async () => {
                         const order = await createOrder();
-                        if (!order) throw new Error('Order creation failed');
+                        if (!order) throw new Error('Order could not be created.');
                         return { ...order, orderId: order.id };
                       }}
-                      timeout={30000} // 30-second timeout
                     />
                   ) : (
                     <PesapalPaymentButton
@@ -379,10 +351,9 @@ const Checkout = () => {
                       paymentType="card"
                       beforePay={async () => {
                         const order = await createOrder();
-                        if (!order) throw new Error('Order creation failed');
+                        if (!order) throw new Error('Order could not be created.');
                         return order;
                       }}
-                      timeout={30000} // 30-second timeout
                     />
                   )}
                 </div>
@@ -391,6 +362,7 @@ const Checkout = () => {
           </div>
         </div>
       </div>
+      
       <Footer />
     </div>
   );
