@@ -9,36 +9,32 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 
 import AdminOrdersTable from "../components/AdminOrdersTable";
-import AdminPrescriptionOrdersTable from "../components/AdminPrescriptionOrdersTable";
 import AdminPrescriptionsTable from "../components/AdminPrescriptionsTable";
 import AdminProductManagement from "../components/AdminProductManagement";
 import AdminUserManagement from "../components/AdminUserManagement";
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState<"0" | "1" | "2" | "3" | "4">("0");
+  const [tab, setTab] = useState<"0" | "1" | "2" | "3">("0");
   const [connectionStatus, setConnectionStatus] = useState<"checking" | "ok" | "error">("checking");
   const [user, setUser] = useState<any>(null);
 
   const [stats, setStats] = useState({
     totalOrders: 0,
     pendingOrders: 0,
-    prescriptions: 0,
     generalPrescriptions: 0,
     monthlyRevenue: 0,
   });
 
-  // Fetch initial user & stats
   useEffect(() => {
     const init = async () => {
       try {
-        const { data: testData, error: testError } = await supabase
+        const { error: testError } = await supabase
           .from("orders")
           .select("*")
           .limit(1);
 
         if (testError) throw testError;
-
         setConnectionStatus("ok");
 
         const {
@@ -72,7 +68,6 @@ export default function AdminDashboard() {
     init();
   }, [navigate]);
 
-  // Fetch stats function
   const fetchStats = async () => {
     try {
       const { count: totalOrders } = await supabase
@@ -85,11 +80,6 @@ export default function AdminDashboard() {
         .select("*", { count: "exact", head: true })
         .eq("status", "pending")
         .neq("type", "prescription");
-
-      const { count: prescriptions } = await supabase
-        .from("orders")
-        .select("*", { count: "exact", head: true })
-        .eq("type", "prescription");
 
       const { count: generalPrescriptions } = await supabase
         .from("prescriptions")
@@ -106,13 +96,12 @@ export default function AdminDashboard() {
       const monthlyRevenue =
         monthly?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
 
-      setStats({ totalOrders, pendingOrders, prescriptions, generalPrescriptions, monthlyRevenue });
+      setStats({ totalOrders, pendingOrders, generalPrescriptions, monthlyRevenue });
     } catch (err) {
       console.error("Error fetching stats:", err);
     }
   };
 
-  // Subscribe to real-time updates
   useEffect(() => {
     const ordersSub = supabase
       .channel("orders-channel")
@@ -140,14 +129,13 @@ export default function AdminDashboard() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6 text-center">Admin Dashboard</h1>
+      <h1 className="text-3xl font-bold mb-6 text-center">Pharmacist Dashboard</h1>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8">
         {[
           { label: "Regular Orders", value: stats.totalOrders },
           { label: "Pending Orders", value: stats.pendingOrders },
-          { label: "Prescription Orders", value: stats.prescriptions },
           { label: "General Prescriptions", value: stats.generalPrescriptions },
           { label: "Monthly Revenue", value: `KSh ${stats.monthlyRevenue.toLocaleString("en-KE")}` },
         ].map((card, idx) => (
@@ -162,10 +150,9 @@ export default function AdminDashboard() {
       <Tabs value={tab} onValueChange={(val) => setTab(val as any)}>
         <TabsList>
           <TabsTrigger value="0">Orders</TabsTrigger>
-          <TabsTrigger value="1">Prescription Orders</TabsTrigger>
-          <TabsTrigger value="2">General Prescriptions</TabsTrigger>
-          <TabsTrigger value="3">Product Management</TabsTrigger>
-          <TabsTrigger value="4">User Management</TabsTrigger>
+          <TabsTrigger value="1">General Prescriptions</TabsTrigger>
+          <TabsTrigger value="2">Product Management</TabsTrigger>
+          <TabsTrigger value="3">User Management</TabsTrigger>
         </TabsList>
 
         <TabsContent value="0">
@@ -173,18 +160,14 @@ export default function AdminDashboard() {
         </TabsContent>
 
         <TabsContent value="1">
-          <AdminPrescriptionOrdersTable />
-        </TabsContent>
-
-        <TabsContent value="2">
           <AdminPrescriptionsTable />
         </TabsContent>
 
-        <TabsContent value="3">
+        <TabsContent value="2">
           <AdminProductManagement />
         </TabsContent>
 
-        <TabsContent value="4">
+        <TabsContent value="3">
           <AdminUserManagement />
         </TabsContent>
       </Tabs>
