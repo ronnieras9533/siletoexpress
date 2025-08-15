@@ -45,22 +45,21 @@ const Checkout = () => {
     }
     const needsPrescription = items.some(item => item.prescription_required);
     setRequiresPrescription(needsPrescription);
-  }, [user, navigate, items]);
 
-  // Automatically update delivery fee when county changes
-  useEffect(() => {
     if (county) {
-      calculateDeliveryFee(county);
+      calculateDeliveryFee();
     }
-  }, [county]);
+  }, [user, navigate, items, county, subtotal]);
 
-  const calculateDeliveryFee = (selectedCounty: string) => {
-    const neighboringCounties = ['Kiambu', 'Machakos', 'Kajiado'];
-    let fee = 300; // Default fee
-    if (selectedCounty === 'Nairobi') {
-      fee = 0;
-    } else if (neighboringCounties.includes(selectedCounty)) {
-      fee = 200;
+  const calculateDeliveryFee = () => {
+    const normalizedCounty = county.trim().toLowerCase();
+    const neighboringCounties = ['kiambu', 'machakos', 'kajiado'];
+
+    let fee = 300; // Default for other counties
+    if (normalizedCounty === 'nairobi') {
+      fee = 0; // Free for Nairobi
+    } else if (neighboringCounties.includes(normalizedCounty)) {
+      fee = 200; // Neighboring
     }
     setDeliveryFee(fee);
   };
@@ -198,7 +197,9 @@ const Checkout = () => {
             <ShoppingCart className="mx-auto h-12 w-12 text-gray-400 mb-4" />
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Your cart is empty</h2>
             <p className="text-gray-600 mb-6">Add some products to your cart to continue with checkout.</p>
-            <Button onClick={() => navigate('/products')}>Start Shopping</Button>
+            <Button onClick={() => navigate('/products')}>
+              Start Shopping
+            </Button>
           </div>
         </div>
         <Footer />
@@ -209,6 +210,7 @@ const Checkout = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
+      
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Checkout</h1>
@@ -216,14 +218,12 @@ const Checkout = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Order Form */}
+          {/* Left side - form */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Delivery Information */}
+            {/* Delivery info */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MapPin className="h-5 w-5" />Delivery Information
-                </CardTitle>
+                <CardTitle className="flex items-center gap-2"><MapPin className="h-5 w-5" />Delivery Information</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
@@ -241,12 +241,10 @@ const Checkout = () => {
               </CardContent>
             </Card>
 
-            {/* Contact Information */}
+            {/* Contact info */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Phone className="h-5 w-5" />Contact Information
-                </CardTitle>
+                <CardTitle className="flex items-center gap-2"><Phone className="h-5 w-5" />Contact Information</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
@@ -260,33 +258,23 @@ const Checkout = () => {
               </CardContent>
             </Card>
 
-            {/* Prescription Upload */}
+            {/* Prescription */}
             {requiresPrescription && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />Prescription Required<Badge variant="destructive">Required</Badge>
-                  </CardTitle>
+                  <CardTitle className="flex items-center gap-2"><FileText className="h-5 w-5" />Prescription Required<Badge variant="destructive">Required</Badge></CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Some items in your cart require a prescription. Please upload your prescription files below.
-                  </p>
-                  <OrderPrescriptionUpload 
-                    onPrescriptionUploaded={handlePrescriptionUploaded} 
-                    onCancel={handlePrescriptionCancel} 
-                    prescriptionItems={items.filter(item => item.prescription_required).map(item => ({ id: item.id, name: item.name }))} 
-                  />
+                  <p className="text-sm text-gray-600 mb-4">Some items in your cart require a prescription. Please upload your prescription files below.</p>
+                  <OrderPrescriptionUpload onPrescriptionUploaded={handlePrescriptionUploaded} onCancel={handlePrescriptionCancel} prescriptionItems={items.filter(item => item.prescription_required).map(item => ({ id: item.id, name: item.name }))} />
                 </CardContent>
               </Card>
             )}
 
-            {/* Payment Method */}
+            {/* Payment method */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5" />Payment Method
-                </CardTitle>
+                <CardTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5" />Payment Method</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -304,7 +292,7 @@ const Checkout = () => {
             </Card>
           </div>
 
-          {/* Order Summary */}
+          {/* Right side - summary */}
           <div className="lg:col-span-1">
             <Card className="sticky top-6">
               <CardHeader>
@@ -373,6 +361,7 @@ const Checkout = () => {
           </div>
         </div>
       </div>
+      
       <Footer />
     </div>
   );
