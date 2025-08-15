@@ -148,23 +148,37 @@ const Checkout = () => {
   const handlePrescriptionUpload = async (orderId: string) => {
     if (prescriptionFiles.length === 0) return;
     try {
+      console.log('Uploading prescriptions for order:', orderId, 'Files:', prescriptionFiles);
       for (const file of prescriptionFiles) {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${orderId}-${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage.from('prescriptions').upload(fileName, file);
-        if (uploadError) throw uploadError;
+        const fileExt = file.name.split('.').pop() || 'jpg';
+        const fileName = `${orderId}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${fileExt}`;
+        console.log('Uploading file:', fileName);
+        const { error: uploadError } = await supabase.storage
+          .from('prescriptions')
+          .upload(fileName, file, { upsert: false });
+        if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
 
         const { data } = supabase.storage.from('prescriptions').getPublicUrl(fileName);
-        await supabase.from('prescriptions').insert({
+        console.log('File uploaded, public URL:', data.publicUrl);
+        const { error: insertError } = await supabase.from('prescriptions').insert({
           user_id: user!.id,
           order_id: orderId,
           image_url: data.publicUrl,
           status: 'pending'
         });
+        if (insertError) throw new Error(`Database insert failed: ${insertError.message}`);
       }
+      toast({
+        title: "Success",
+        description: "Prescriptions uploaded successfully",
+      });
     } catch (error) {
       console.error('Error uploading prescriptions:', error);
-      toast({ title: "Warning", description: "Order created but prescription upload failed. Please contact support.", variant: "destructive" });
+      toast({
+        title: "Warning",
+        description: `Order created but prescription upload failed. Please contact support with order ID: ${orderId}. Error: ${error.message}`,
+        variant: "destructive"
+      });
     }
   };
 
@@ -182,6 +196,7 @@ const Checkout = () => {
   };
 
   const handlePrescriptionUploaded = (file: File) => {
+    console.log('Received file in Checkout:', file);
     setPrescriptionFiles([file]);
     toast({ title: "Success", description: "Prescription uploaded successfully" });
   };
