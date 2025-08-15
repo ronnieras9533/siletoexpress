@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { Image as ImageIcon, UploadCloud, Loader2 } from "lucide-react";
 
-const MAX_FILE_MB = 8; // keep small for mobile uploads
+const MAX_FILE_MB = 8;
 const ACCEPTED_MIME = [
   "image/jpeg",
   "image/jpg",
@@ -88,7 +88,6 @@ const PrescriptionUpload: React.FC = () => {
     try {
       const path = `${user.id}/${Date.now()}-${file.name}`;
 
-      // 1) Upload to Storage bucket: 'prescriptions'
       const { error: uploadError } = await supabase
         .storage
         .from("prescriptions")
@@ -96,16 +95,14 @@ const PrescriptionUpload: React.FC = () => {
 
       if (uploadError) throw uploadError;
 
-      // 2) Get public URL (assumes bucket is public). If not, switch to signed URL flow
       const { data: pub } = supabase.storage.from("prescriptions").getPublicUrl(path);
       const imageUrl = pub?.publicUrl;
       if (!imageUrl) throw new Error("Failed to resolve public URL for uploaded image");
 
-      // 3) Insert DB record
       const { error: insertError } = await supabase.from("prescriptions").insert({
         user_id: user.id,
         image_url: imageUrl,
-        status: "pending", // enum default, but set explicitly for clarity
+        status: "pending",
         order_id: null,
         admin_notes: null
       });
@@ -115,8 +112,7 @@ const PrescriptionUpload: React.FC = () => {
       toast({ title: "Prescription uploaded", description: "We'll review it shortly and get back to you." });
       resetForm();
 
-      // Optional: take user to their prescriptions page
-      navigate("/my-orders-and-prescriptions");
+      navigate("/my-orders-prescriptions");
     } catch (err: any) {
       console.error("Prescription upload failed:", err);
       toast({
