@@ -32,7 +32,7 @@ const Checkout = () => {
   const [deliveryInstructions, setDeliveryInstructions] = useState('');
   const [deliveryFee, setDeliveryFee] = useState(0);
   const [requiresPrescription, setRequiresPrescription] = useState(false);
-  const [prescriptionFiles, setPrescriptionFiles] = useState<File[]>([]);
+  const [prescriptionIds, setPrescriptionIds] = useState<string[]>([]);
   const [paymentMethod, setPaymentMethod] = useState('mpesa');
 
   const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -91,8 +91,8 @@ const Checkout = () => {
       toast({ title: "Error", description: "Please enter a valid email address", variant: "destructive" });
       return false;
     }
-    if (requiresPrescription && prescriptionFiles.length === 0) {
-      toast({ title: "Error", description: "Prescription files are required for this order", variant: "destructive" });
+    if (requiresPrescription && prescriptionIds.length === 0) {
+      toast({ title: "Error", description: "Prescription is required for this order", variant: "destructive" });
       return false;
     }
     return true;
@@ -132,8 +132,8 @@ const Checkout = () => {
       const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
       if (itemsError) throw itemsError;
 
-      if (requiresPrescription && prescriptionFiles.length > 0) {
-        await handlePrescriptionUpload(order.id);
+      if (requiresPrescription && prescriptionIds.length > 0) {
+        await linkPrescriptions(order.id);
       }
       return order;
     } catch (error) {
@@ -145,34 +145,18 @@ const Checkout = () => {
     }
   };
 
-  const handlePrescriptionUpload = async (orderId: string) => {
-    if (prescriptionFiles.length === 0) return;
-    for (const file of prescriptionFiles) {
-      let fileName;
-      try {
-        const fileExt = file.name.split('.').pop();
-        fileName = `${orderId}-${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage.from('prescriptions').upload(fileName, file);
-        if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
-      } catch (error) {
-        console.error('Error uploading file to storage:', error);
-        toast({ title: "Warning", description: `Order created but file upload to storage failed: ${error.message}. Please contact support.`, variant: "destructive" });
-        return; // Stop if upload fails
+  const linkPrescriptions = async (orderId: string) => {
+    try {
+      for (const presId of prescriptionIds) {
+        const { error } = await supabase
+          .from('prescriptions')
+          .update({ order_id: orderId })
+          .eq('id', presId);
+        if (error) throw error;
       }
-
-      try {
-        const { data: urlData } = supabase.storage.from('prescriptions').getPublicUrl(fileName);
-        const { error: insertError } = await supabase.from('prescriptions').insert({
-          user_id: user!.id,
-          order_id: orderId,
-          image_url: urlData.publicUrl,
-          status: 'pending'
-        });
-        if (insertError) throw new Error(`Insert failed: ${insertError.message}`);
-      } catch (error) {
-        console.error('Error inserting prescription record:', error);
-        toast({ title: "Warning", description: `Order created but prescription record insert failed: ${error.message}. Please contact support.`, variant: "destructive" });
-      }
+    } catch (error) {
+      console.error('Error linking prescriptions:', error);
+      toast({ title: "Warning", description: `Order created but failed to link prescription: ${error.message || 'Unknown error'}. Please contact support.`, variant: "destructive" });
     }
   };
 
@@ -195,13 +179,13 @@ const Checkout = () => {
     toast({ title: "Payment Failed", description: error, variant: "destructive" });
   };
 
-  const handlePrescriptionUploaded = (file: File) => {
-    setPrescriptionFiles([file]);
+  const handlePrescriptionUploaded = (prescriptionId: string) => {
+    setPrescriptionIds([prescriptionId]);
     toast({ title: "Success", description: "Prescription uploaded successfully" });
   };
 
   const handlePrescriptionCancel = () => {
-    setPrescriptionFiles([]);
+    setPrescriptionIds([]);
   };
 
   if (items.length === 0) {
