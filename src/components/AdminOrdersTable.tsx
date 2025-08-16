@@ -1,148 +1,89 @@
-// src/components/AdminOrdersTable.tsx
-import React, { useEffect, useState } from 'react';
-import { Button } from '@/components/ui';
-import MpesaPaymentButton from '@/components/payments/MpesaPaymentButton';
-import { updateOrderStatus, fetchOrders } from '@/services/ordersService';
-import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-interface Order {
-  id: string;
-  user_id: string;
-  status: 'pending' | 'confirmed' | 'delivered';
-  payment_status: 'pending' | 'paid' | 'failed';
-  total_amount: number;
-  phone_number?: string;
-}
-
-const AdminOrdersTable: React.FC = () => {
-  const [orders, setOrders] = useState<Order[]>([]);
+export default function AdminOrdersTable() {
+  const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const { toast } = useToast();
-
-  const loadOrders = async () => {
-    setLoading(true);
-    try {
-      const data = await fetchOrders();
-      setOrders(data);
-    } catch (err) {
-      console.error('Error fetching orders', err);
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch orders.',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleMarkPaid = async (orderId: string) => {
-    setUpdatingId(orderId);
-    try {
-      await updateOrderStatus(orderId, { payment_status: 'paid' });
-      toast({ title: 'Success', description: 'Order marked as paid.' });
-      await loadOrders();
-    } catch (err: any) {
-      console.error('Error updating order', err);
-      toast({
-        title: 'Error',
-        description: err?.message || 'Failed to update order.',
-        variant: 'destructive',
-      });
-    } finally {
-      setUpdatingId(null);
-    }
-  };
-
-  const handleStatusChange = async (orderId: string, newStatus: Order['status']) => {
-    setUpdatingId(orderId);
-    try {
-      await updateOrderStatus(orderId, { status: newStatus });
-      toast({ title: 'Success', description: 'Order status updated.' });
-      await loadOrders();
-    } catch (err: any) {
-      console.error('Error updating order status', err);
-      toast({
-        title: 'Error',
-        description: err?.message || 'Failed to update status.',
-        variant: 'destructive',
-      });
-    } finally {
-      setUpdatingId(null);
-    }
-  };
 
   useEffect(() => {
-    loadOrders();
+    fetchOrders();
   }, []);
 
-  if (loading) return <Loader2 className="animate-spin h-6 w-6" />;
+  const fetchOrders = async () => {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching orders:", error);
+    } else {
+      setOrders(data || []);
+    }
+    setLoading(false);
+  };
+
+  const markAsPaid = async (orderId: string) => {
+    const { data, error } = await supabase
+      .from("orders")
+      .update({ payment_status: "paid" }) // Update payment_status, not order_status
+      .eq("id", orderId);
+
+    if (error) {
+      console.error("Error marking order as paid:", error);
+    } else {
+      console.log("Order marked as paid:", data);
+      fetchOrders(); // Refresh table
+    }
+  };
+
+  const updateOrderStatus = async (orderId: string, status: string) => {
+    const { data, error } = await supabase
+      .from("orders")
+      .update({ status }) // Only allowed values: 'pending', 'confirmed', 'delivered'
+      .eq("id", orderId);
+
+    if (error) {
+      console.error("Error updating order status:", error);
+    } else {
+      console.log("Order status updated:", data);
+      fetchOrders();
+    }
+  };
+
+  if (loading) return <p>Loading orders...</p>;
 
   return (
-    <table className="w-full border">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>User</th>
-          <th>Total</th>
-          <th>Payment</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {orders.map((order) => (
-          <tr key={order.id} className="border-t">
-            <td>{order.id}</td>
-            <td>{order.user_id}</td>
-            <td>KES {order.total_amount.toLocaleString()}</td>
-            <td>{order.payment_status}</td>
-            <td>{order.status}</td>
-            <td className="flex gap-2">
-              {/* Mark as Paid button for unpaid orders */}
-              {order.payment_status === 'pending' && (
-                <Button
-                  onClick={() => handleMarkPaid(order.id)}
-                  disabled={updatingId === order.id}
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                >
-                  {updatingId === order.id ? 'Updating...' : 'Mark as Paid'}
-                </Button>
-              )}
+    <div>
+      {orders.map((order) => (
+        <Card key={order.id} className="mb-4">
+          <CardHeader>
+            <CardTitle>Order {order.id}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>Total: {order.total_amount} {order.currency}</p>
+            <p>Status: {order.status}</p>
+            <p>Payment Status: {order.payment_status}</p>
 
-              {/* Change order tracking status */}
-              <select
-                value={order.status}
-                onChange={(e) => handleStatusChange(order.id, e.target.value as Order['status'])}
-                disabled={updatingId === order.id}
+            {order.payment_status !== "paid" && (
+              <Button onClick={() => markAsPaid(order.id)}>Mark as Paid</Button>
+            )}
+
+            {["pending", "confirmed", "delivered"].map((s) => (
+              <Button
+                key={s}
+                onClick={() => updateOrderStatus(order.id, s)}
+                disabled={order.status === s}
+                className="ml-2"
               >
-                <option value="pending">Pending</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="delivered">Delivered</option>
-              </select>
-
-              {/* Optional: M-PESA payment button if payment is pending */}
-              {order.payment_status === 'pending' && order.phone_number && (
-                <MpesaPaymentButton
-                  paymentData={{
-                    amount: order.total_amount,
-                    phoneNumber: order.phone_number,
-                    orderId: order.id,
-                  }}
-                  onSuccess={() => loadOrders()}
-                  onError={(err) =>
-                    toast({ title: 'Payment Error', description: err, variant: 'destructive' })
-                  }
-                />
-              )}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+                Set {s}
+              </Button>
+            ))}
+          </CardContent>
+        </Card>
+      ))}
+    </div>
   );
-};
-
-export default AdminOrdersTable;
+}
