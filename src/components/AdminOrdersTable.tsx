@@ -9,7 +9,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Eye, MapPin, Phone, Clock, Package, Truck, CheckCircle, FileText, Image } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import OrderStatusStepper from './OrderStatusStepper';
-import { Input } from '@/components/ui/input';
 
 interface Order {
   id: string;
@@ -285,140 +284,62 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
 };
 
 /** Reusable Order Card Component */
-const OrderCard = ({ order, getStatusColor, getPaymentStatusColor, getStatusIcon, formatStatus, setSelectedOrder, setSelectedPrescription, handleStatusUpdate }: any) => {
-  const [newStatus, setNewStatus] = useState('');
-  const [newNote, setNewNote] = useState('');
-  const [newLocation, setNewLocation] = useState('');
-
-  const handleTrackingUpdate = async () => {
-    if (!newStatus) {
-      toast({
-        title: "Error",
-        description: "Please select a new status",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    try {
-      // Insert new tracking entry
-      const { error: trackError } = await supabase
-        .from('order_tracking')
-        .insert({
-          order_id: order.id,
-          status: newStatus,
-          note: newNote || null,
-          location: newLocation || null,
-          created_at: new Date().toISOString()  // Automatically set timestamp if not handled by Supabase
-        });
-
-      if (trackError) throw trackError;
-
-      // Update main order status (reuses existing handleStatusUpdate)
-      handleStatusUpdate(order.id, newStatus);
-
-      // Reset form fields
-      setNewStatus('');
-      setNewNote('');
-      setNewLocation('');
-
-      // Optional: Close dialog or refresh stepper (if needed)
-    } catch (error) {
-      console.error('Error updating tracking status:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update tracking status",
-        variant: "destructive"
-      });
-    }
-  };
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex justify-between items-start">
-          <div>
-            <CardTitle className="text-lg">Order #{order.id.slice(-8)}</CardTitle>
-            <p className="text-sm text-gray-600 mt-1">
-              {order.profiles?.full_name || 'Unknown User'} • {new Date(order.created_at).toLocaleDateString()}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge className={getStatusColor(order.status)}>
-              {getStatusIcon(order.status)}
-              <span className="ml-1">{formatStatus(order.status)}</span>
-            </Badge>
-            <Badge className={getPaymentStatusColor(order.payment_status)}>
-              {formatStatus(order.payment_status)}
-            </Badge>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" onClick={() => setSelectedOrder(order)}>
-                  <Eye className="h-4 w-4 mr-1" />
-                  View
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Order Details #{order.id.slice(-8)}</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-6">
-                  <OrderStatusStepper currentStatus={order.status} orderTracking={order.order_tracking} />
-                  {/* Order summary, delivery, items, prescriptions sections can go here */}
-                  {/* Add status update form */}
-                  <div className="border-t pt-4">
-                    <h3 className="text-lg font-semibold mb-4">Update Tracking Status</h3>
-                    <div className="space-y-4">
-                      <Select value={newStatus} onValueChange={setNewStatus}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select new status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="confirmed">Confirmed</SelectItem>
-                          <SelectItem value="processing">Processing</SelectItem>
-                          <SelectItem value="shipped">Shipped</SelectItem>
-                          <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
-                          <SelectItem value="delivered">Delivered</SelectItem>
-                          <SelectItem value="cancelled">Cancelled</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Input 
-                        placeholder="Note (optional)" 
-                        value={newNote} 
-                        onChange={(e) => setNewNote(e.target.value)} 
-                      />
-                      <Input 
-                        placeholder="Location (optional)" 
-                        value={newLocation} 
-                        onChange={(e) => setNewLocation(e.target.value)} 
-                      />
-                      <Button onClick={handleTrackingUpdate}>Update Status</Button>
-                    </div>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
+const OrderCard = ({ order, getStatusColor, getPaymentStatusColor, getStatusIcon, formatStatus, setSelectedOrder, setSelectedPrescription, handleStatusUpdate }: any) => (
+  <Card>
+    <CardHeader className="pb-3">
+      <div className="flex justify-between items-start">
+        <div>
+          <CardTitle className="text-lg">Order #{order.id.slice(-8)}</CardTitle>
+          <p className="text-sm text-gray-600 mt-1">
+            {order.profiles?.full_name || 'Unknown User'} • {new Date(order.created_at).toLocaleDateString()}
+          </p>
         </div>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <div>
-            <p className="text-gray-600">Total Amount</p>
-            <p className="font-medium">{order.currency || 'KES'} {order.total_amount.toLocaleString()}</p>
-          </div>
-          <div>
-            <p className="text-gray-600">Items</p>
-            <p className="font-medium">{order.order_items.length} item(s)</p>
-          </div>
-          <div>
-            <p className="text-gray-600">County</p>
-            <p className="font-medium">{order.county || 'Not specified'}</p>
-          </div>
+        <div className="flex items-center gap-2">
+          <Badge className={getStatusColor(order.status)}>
+            {getStatusIcon(order.status)}
+            <span className="ml-1">{formatStatus(order.status)}</span>
+          </Badge>
+          <Badge className={getPaymentStatusColor(order.payment_status)}>
+            {formatStatus(order.payment_status)}
+          </Badge>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" onClick={() => setSelectedOrder(order)}>
+                <Eye className="h-4 w-4 mr-1" />
+                View
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Order Details #{order.id.slice(-8)}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-6">
+                <OrderStatusStepper currentStatus={order.status} orderTracking={order.order_tracking} />
+                {/* Order summary, delivery, items, prescriptions, status update */}
+                {/* You can reuse the same detail cards from your original file here */}
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
-      </CardContent>
-    </Card>
-  );
-};
+      </div>
+    </CardHeader>
+    <CardContent>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+        <div>
+          <p className="text-gray-600">Total Amount</p>
+          <p className="font-medium">{order.currency || 'KES'} {order.total_amount.toLocaleString()}</p>
+        </div>
+        <div>
+          <p className="text-gray-600">Items</p>
+          <p className="font-medium">{order.order_items.length} item(s)</p>
+        </div>
+        <div>
+          <p className="text-gray-600">County</p>
+          <p className="font-medium">{order.county || 'Not specified'}</p>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+);
 
 export default AdminOrdersTable;
