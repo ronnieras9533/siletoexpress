@@ -1,143 +1,155 @@
 // src/pages/Checkout.tsx
-
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { useCart } from "@/contexts/CartContext";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const counties = [
+  "Nairobi",
+  "Kiambu",
+  "Machakos",
+  "Kajiado",
+  "Mombasa",
+  "Nakuru",
+  "Kisumu",
+  "Uasin Gishu",
+  "Meru",
+  "Eldoret",
+  "Other",
+];
 
 const Checkout: React.FC = () => {
-  const navigate = useNavigate();
   const { user } = useAuth();
-  const { items, clearCart, subtotal } = useCart();
-
+  const navigate = useNavigate();
+  const [cart, setCart] = useState<any[]>([]);
   const [county, setCounty] = useState("");
-  const [deliveryFee, setDeliveryFee] = useState(0);
-  const [requiresPrescription, setRequiresPrescription] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [deliveryFee, setDeliveryFee] = useState<number>(0);
+  const [subtotal, setSubtotal] = useState<number>(0);
 
-  const totalAmount = subtotal + deliveryFee;
-
-  // --- Delivery Fee Calculation ---
   useEffect(() => {
-    if (!user) {
-      navigate("/auth");
-      return;
-    }
+    const fetchCart = async () => {
+      if (!user) return;
+      const { data, error } = await supabase.from("cart").select("*").eq("user_id", user.id);
+      if (error) {
+        console.error("Error fetching cart:", error);
+      } else {
+        setCart(data || []);
+        const total = (data || []).reduce(
+          (sum: number, item: any) => sum + item.price * item.quantity,
+          0
+        );
+        setSubtotal(total);
+      }
+    };
+    fetchCart();
+  }, [user]);
 
-    const needsPrescription = items.some(item => item.prescription_required);
-    setRequiresPrescription(needsPrescription);
-
+  useEffect(() => {
     if (county) {
       calculateDeliveryFee();
     }
-  }, [user, navigate, items, county]);
+  }, [county]);
 
   const calculateDeliveryFee = () => {
     const neighboringCounties = ["Kiambu", "Machakos", "Kajiado"];
-    let fee = 300; // default for other counties
-
+    let fee = 300; // default
     if (county === "Nairobi") {
-      fee = 0; // Free for Nairobi
+      fee = 0;
     } else if (neighboringCounties.includes(county)) {
-      fee = 200; // Neighboring counties discounted rate
+      fee = 200;
     }
-
     setDeliveryFee(fee);
   };
 
+  const total = subtotal + (deliveryFee || 0);
+
   const handlePlaceOrder = async () => {
     if (!user) {
-      navigate("/auth");
+      navigate("/login");
       return;
     }
 
-    setIsLoading(true);
+    const { error } = await supabase.from("orders").insert([
+      {
+        user_id: user.id,
+        items: cart,
+        county,
+        delivery_fee: deliveryFee,
+        subtotal,
+        total,
+        status: "Pending",
+      },
+    ]);
 
-    try {
-      const { error } = await supabase.from("orders").insert([
-        {
-          user_id: user.id,
-          items,
-          subtotal,
-          delivery_fee: deliveryFee,
-          total: totalAmount,
-          county,
-          order_type: requiresPrescription ? "prescription" : "regular",
-          status: "pending",
-          payment_status: "unpaid",
-        },
-      ]);
-
-      if (error) throw error;
-
-      clearCart();
+    if (error) {
+      console.error("Error placing order:", error);
+    } else {
+      await supabase.from("cart").delete().eq("user_id", user.id);
       navigate("/orders");
-    } catch (err) {
-      console.error("Error placing order:", err);
-      alert("Something went wrong while placing your order.");
-    } finally {
-      setIsLoading(false);
     }
   };
 
   return (
-    <div className="max-w-3xl mx-auto p-4">
+    <div className="max-w-md mx-auto mt-10">
       <Card>
         <CardHeader>
           <CardTitle>Checkout</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {/* County Selection */}
-          <div>
-            <label className="block mb-2 text-sm font-medium">Select County</label>
-            <Select value={county} onValueChange={setCounty}>
-              <SelectTrigger>
-                <SelectValue placeholder="Choose your county" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Nairobi">Nairobi</SelectItem>
-                <SelectItem value="Kiambu">Kiambu</SelectItem>
-                <SelectItem value="Machakos">Machakos</SelectItem>
-                <SelectItem value="Kajiado">Kajiado</SelectItem>
-                <SelectItem value="Mombasa">Mombasa</SelectItem>
-                <SelectItem value="Nakuru">Nakuru</SelectItem>
-                <SelectItem value="Other">Other</SelectItem>
-              </SelectContent>
-            </Select>
+        <CardContent>
+          <div className="space-y-4">
+            {/* County Selector */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Select County</label>
+              <Select onValueChange={setCounty}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose your county" />
+                </SelectTrigger>
+                <SelectContent>
+                  {counties.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Order Summary */}
+            <div className="text-sm">
+              <p>
+                Subtotal: <span className="font-semibold">KES {subtotal}</span>
+              </p>
+              <p>
+                Delivery Fee:{" "}
+                <span className="font-semibold">
+                  {deliveryFee === 0
+                    ? "Free (Nairobi)"
+                    : `KES ${deliveryFee}`}
+                </span>
+              </p>
+              {deliveryFee === 200 && (
+                <p className="text-xs text-green-600">
+                  Discounted delivery for neighboring counties!
+                </p>
+              )}
+              <p>
+                Total:{" "}
+                <span className="font-bold">KES {isNaN(total) ? 0 : total}</span>
+              </p>
+            </div>
+
+            {/* Place Order Button */}
+            <Button
+              className="w-full"
+              onClick={handlePlaceOrder}
+              disabled={!county}
+            >
+              Place Order
+            </Button>
           </div>
-
-          {/* Order Summary */}
-          <div className="space-y-2">
-            <p>Subtotal: <strong>KES {subtotal}</strong></p>
-            <p>
-              Delivery Fee:{" "}
-              <strong>
-                {deliveryFee === 0
-                  ? "Free (Nairobi)"
-                  : `KES ${deliveryFee}`}
-              </strong>
-            </p>
-            <p>Total: <strong>KES {totalAmount}</strong></p>
-          </div>
-
-          {requiresPrescription && (
-            <p className="text-red-500 text-sm">
-              This order includes prescription-only items. Please ensure you have uploaded a valid prescription.
-            </p>
-          )}
-
-          <Button
-            onClick={handlePlaceOrder}
-            disabled={isLoading || !county}
-            className="w-full"
-          >
-            {isLoading ? "Placing Order..." : "Place Order"}
-          </Button>
         </CardContent>
       </Card>
     </div>
