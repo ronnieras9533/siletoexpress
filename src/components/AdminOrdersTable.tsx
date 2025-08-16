@@ -1,267 +1,128 @@
-import React, { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import React, { useState } from 'react';
+import { Table, Button } from '@/components/ui';
+import MpesaPaymentButton from '@/components/payments/MpesaPaymentButton';
+import { updateOrderStatus, updatePaymentStatus } from '@/services/ordersService';
 import { useToast } from '@/hooks/use-toast';
-import { Eye, Clock, Package, Truck, CheckCircle } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import OrderStatusStepper from './OrderStatusStepper';
-import { Input } from '@/components/ui/input';
-import MpesaPaymentButton from './payments/MpesaPaymentButton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface Order {
   id: string;
-  user_id: string;
-  total_amount: number;
   status: string;
-  payment_status: string;
-  created_at: string;
-  phone_number: string | null;
-  delivery_address: string | null;
-  county: string | null;
-  delivery_instructions: string | null;
-  delivery_fee: number | null;
-  payment_method: string | null;
-  currency: string | null;
-  requires_prescription: boolean | null;
-  profiles: { full_name: string; email: string } | null;
-  order_items: { quantity: number; price: number; products: { name: string; prescription_required: boolean } }[];
-  order_tracking: { status: string; created_at: string; note: string | null; location: string | null }[];
-  prescriptions?: { id: string; image_url: string; status: string; admin_notes: string | null; created_at: string }[];
+  payment_status: 'pending' | 'paid' | 'failed';
+  total_amount: number;
+  phone_number?: string;
+  delivery_address?: string;
 }
 
 interface AdminOrdersTableProps {
-  orderType?: 'regular' | 'all';
-  onStatusUpdate?: (orderId: string, newStatus: string) => void;
+  orders: Order[];
+  refetchOrders: () => void;
 }
 
-const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', onStatusUpdate }) => {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [selectedPrescription, setSelectedPrescription] = useState<any>(null);
+const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orders, refetchOrders }) => {
   const { toast } = useToast();
+  const [loadingOrderId, setLoadingOrderId] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchOrders();
-  }, [orderType]);
-
-  const fetchOrders = async () => {
+  const handleMarkAsPaid = async (orderId: string) => {
     try {
-      let query = supabase
-        .from('orders')
-        .select(`
-          *,
-          order_items (
-            quantity,
-            price,
-            products (name, prescription_required)
-          ),
-          order_tracking (
-            status,
-            created_at,
-            note,
-            location
-          ),
-          prescriptions (
-            id,
-            image_url,
-            status,
-            admin_notes,
-            created_at
-          )
-        `)
-        .order('created_at', { ascending: false });
-
-      if (orderType === 'regular') {
-        query = query.or('requires_prescription.is.null,requires_prescription.eq.false');
-      }
-
-      const { data: ordersData, error } = await query;
-      if (error) throw error;
-
-      if (ordersData?.length) {
-        const userIds = ordersData.map(order => order.user_id);
-        const { data: profilesData } = await supabase
-          .from('profiles')
-          .select('id, full_name, email')
-          .in('id', userIds);
-
-        const ordersWithProfiles = ordersData.map(order => ({
-          ...order,
-          profiles: profilesData?.find(profile => profile.id === order.user_id) || null,
-        }));
-
-        setOrders(ordersWithProfiles);
-      } else {
-        setOrders([]);
-      }
+      setLoadingOrderId(orderId);
+      await updatePaymentStatus(orderId, 'paid');
+      toast({ title: 'Payment Updated', description: 'Order marked as paid.' });
+      refetchOrders();
     } catch (error) {
-      console.error('Error fetching orders:', error);
-      toast({ title: 'Error', description: 'Failed to fetch orders', variant: 'destructive' });
+      console.error(error);
+      toast({ title: 'Error', description: 'Failed to mark as paid.', variant: 'destructive' });
     } finally {
-      setLoading(false);
+      setLoadingOrderId(null);
     }
   };
 
-  const handleStatusUpdate = async (orderId: string, newStatus: string) => {
+  const handleStatusChange = async (orderId: string, newStatus: string) => {
     try {
-      // Only allow valid statuses
-      const validStatuses = ['pending','confirmed','processing','shipped','out_for_delivery','delivered','cancelled'];
-      if (!validStatuses.includes(newStatus)) throw new Error('Invalid order status');
-
-      const { error } = await supabase.from('orders').update({ status: newStatus }).eq('id', orderId);
-      if (error) throw error;
-
-      toast({ title: 'Success', description: `Order status updated to ${newStatus}` });
-      fetchOrders();
-      onStatusUpdate?.(orderId, newStatus);
+      setLoadingOrderId(orderId);
+      await updateOrderStatus(orderId, newStatus);
+      toast({ title: 'Status Updated', description: `Order status updated to ${newStatus}.` });
+      refetchOrders();
     } catch (error) {
-      console.error('Error updating order status:', error);
-      toast({ title: 'Error', description: 'Failed to update order status', variant: 'destructive' });
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'confirmed': return 'bg-blue-100 text-blue-800';
-      case 'processing': return 'bg-purple-100 text-purple-800';
-      case 'shipped': return 'bg-indigo-100 text-indigo-800';
-      case 'out_for_delivery': return 'bg-orange-100 text-orange-800';
-      case 'delivered': return 'bg-green-100 text-green-800';
-      case 'cancelled': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getPaymentStatusColor = (paymentStatus: string) => {
-    switch (paymentStatus) {
-      case 'paid': return 'bg-green-100 text-green-800';
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'failed': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'pending': return <Clock className="h-4 w-4" />;
-      case 'confirmed': return <CheckCircle className="h-4 w-4" />;
-      case 'processing': return <Package className="h-4 w-4" />;
-      case 'shipped': return <Truck className="h-4 w-4" />;
-      case 'out_for_delivery': return <Truck className="h-4 w-4" />;
-      case 'delivered': return <CheckCircle className="h-4 w-4" />;
-      default: return <Clock className="h-4 w-4" />;
-    }
-  };
-
-  const formatStatus = (status: string) =>
-    status.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-
-  if (loading) return <div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>;
-
-  const paidOrders = orders.filter(o => o.payment_status === 'paid');
-  const unpaidOrders = orders.filter(o => o.payment_status !== 'paid');
-
-  return (
-    <div className="space-y-4">
-      <Tabs defaultValue="paid">
-        <TabsList>
-          <TabsTrigger value="paid">Paid Orders ({paidOrders.length})</TabsTrigger>
-          <TabsTrigger value="unpaid">Unpaid Orders ({unpaidOrders.length})</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="paid">
-          {paidOrders.length === 0 ? <div className="text-center py-8">No Paid Orders Found</div> :
-            <div className="grid gap-4">{paidOrders.map(order => (
-              <OrderCard key={order.id} order={order} getStatusColor={getStatusColor} getPaymentStatusColor={getPaymentStatusColor} getStatusIcon={getStatusIcon} formatStatus={formatStatus} setSelectedOrder={setSelectedOrder} setSelectedPrescription={setSelectedPrescription} handleStatusUpdate={handleStatusUpdate} />
-            ))}</div>
-          }
-        </TabsContent>
-
-        <TabsContent value="unpaid">
-          {unpaidOrders.length === 0 ? <div className="text-center py-8">No Unpaid Orders Found</div> :
-            <div className="grid gap-4">{unpaidOrders.map(order => (
-              <OrderCard key={order.id} order={order} getStatusColor={getStatusColor} getPaymentStatusColor={getPaymentStatusColor} getStatusIcon={getStatusIcon} formatStatus={formatStatus} setSelectedOrder={setSelectedOrder} setSelectedPrescription={setSelectedPrescription} handleStatusUpdate={handleStatusUpdate} />
-            ))}</div>
-          }
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-};
-
-/** Reusable Order Card Component */
-const OrderCard = ({ order, getStatusColor, getPaymentStatusColor, getStatusIcon, formatStatus, setSelectedOrder, setSelectedPrescription, handleStatusUpdate }: any) => {
-  const [newStatus, setNewStatus] = useState('');
-  const [newNote, setNewNote] = useState('');
-  const [newLocation, setNewLocation] = useState('');
-  const { toast } = useToast();
-
-  const handleTrackingUpdate = async () => {
-    if (!newStatus) {
-      toast({ title: 'Error', description: 'Please select a new status', variant: 'destructive' });
-      return;
-    }
-    try {
-      const { error: trackError } = await supabase.from('order_tracking').insert({
-        order_id: order.id,
-        status: newStatus,
-        note: newNote || null,
-        location: newLocation || null,
-        created_at: new Date().toISOString(),
-      });
-      if (trackError) throw trackError;
-      handleStatusUpdate(order.id, newStatus);
-      setNewStatus(''); setNewNote(''); setNewLocation('');
-    } catch (error) {
-      console.error('Error updating tracking status:', error);
-      toast({ title: 'Error', description: 'Failed to update tracking status', variant: 'destructive' });
+      console.error(error);
+      toast({ title: 'Error', description: 'Failed to update status.', variant: 'destructive' });
+    } finally {
+      setLoadingOrderId(null);
     }
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-3 flex justify-between items-start">
-        <div>
-          <CardTitle className="text-lg">Order #{order.id.slice(-8)}</CardTitle>
-          <p className="text-sm text-gray-600 mt-1">{order.profiles?.full_name || 'Unknown User'} • {new Date(order.created_at).toLocaleDateString()}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge className={getStatusColor(order.status)}>{getStatusIcon(order.status)}<span className="ml-1">{formatStatus(order.status)}</span></Badge>
-          <Badge className={getPaymentStatusColor(order.payment_status)}>{formatStatus(order.payment_status)}</Badge>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" onClick={() => setSelectedOrder(order)}>View</Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-              <DialogHeader><DialogTitle>Order Details #{order.id.slice(-8)}</DialogTitle></DialogHeader>
-              <OrderStatusStepper currentStatus={order.status} orderTracking={order.order_tracking} />
-              <div className="border-t pt-4 space-y-4">
-                <Select value={newStatus} onValueChange={setNewStatus}>
-                  <SelectTrigger><SelectValue placeholder="Select new status" /></SelectTrigger>
-                  <SelectContent>
-                    {['confirmed','processing','shipped','out_for_delivery','delivered','cancelled'].map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Input placeholder="Note (optional)" value={newNote} onChange={e => setNewNote(e.target.value)} />
-                <Input placeholder="Location (optional)" value={newLocation} onChange={e => setNewLocation(e.target.value)} />
-                <Button onClick={handleTrackingUpdate}>Update Status</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </CardHeader>
-      <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-        <div><p className="text-gray-600">Total Amount</p><p className="font-medium">{order.currency || 'KES'} {order.total_amount.toLocaleString()}</p></div>
-        <div><p className="text-gray-600">Items</p><p className="font-medium">{order.order_items.length} item(s)</p></div>
-        <div><p className="text-gray-600">County</p><p className="font-medium">{order.county || 'Not specified'}</p></div>
-      </CardContent>
-    </Card>
+    <Table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Status</th>
+          <th>Payment</th>
+          <th>Amount</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {orders.map((order) => (
+          <tr key={order.id}>
+            <td>{order.id.slice(0, 8)}</td>
+            <td>{order.status}</td>
+            <td>{order.payment_status}</td>
+            <td>KES {order.total_amount.toLocaleString()}</td>
+            <td className="flex gap-2">
+              {/* Show Mark as Paid only for unpaid orders */}
+              {order.payment_status === 'pending' && (
+                <Button
+                  onClick={() => handleMarkAsPaid(order.id)}
+                  disabled={loadingOrderId === order.id}
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  Mark as Paid
+                </Button>
+              )}
+
+              {/* Example status update buttons */}
+              {['confirmed', 'delivered'].map((statusOption) => (
+                <Button
+                  key={statusOption}
+                  onClick={() => handleStatusChange(order.id, statusOption)}
+                  disabled={loadingOrderId === order.id || order.status === statusOption}
+                  size="sm"
+                >
+                  {statusOption.charAt(0).toUpperCase() + statusOption.slice(1)}
+                </Button>
+              ))}
+
+              {/* Optionally, show M-PESA button */}
+              {order.payment_status === 'pending' && (
+                <MpesaPaymentButton
+                  paymentData={{
+                    amount: order.total_amount,
+                    phoneNumber: order.phone_number || '',
+                    orderId: order.id,
+                  }}
+                  onSuccess={() => refetchOrders()}
+                  onError={(err) => toast({ title: 'Payment Failed', description: err, variant: 'destructive' })}
+                />
+              )}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+
+      {/* Accessibility fix for dialogs */}
+      <Dialog>
+        <DialogContent aria-describedby="order-dialog-desc">
+          <DialogHeader>
+            <DialogTitle>Order Details</DialogTitle>
+          </DialogHeader>
+          <p id="order-dialog-desc" className="sr-only">
+            Order details and status update dialog.
+          </p>
+        </DialogContent>
+      </Dialog>
+    </Table>
   );
 };
 
