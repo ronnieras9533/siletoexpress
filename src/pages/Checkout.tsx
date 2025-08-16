@@ -52,13 +52,11 @@ const Checkout = () => {
   }, [user, navigate, items, county, subtotal]);
 
   const calculateDeliveryFee = () => {
-    const normalizedCounty = county.trim().toLowerCase();
-    const neighboringCounties = ['kiambu', 'machakos', 'kajiado'];
-
-    let fee = 300; // Default for other counties
-    if (normalizedCounty === 'nairobi') {
+    const neighboringCounties = ['Kiambu', 'Machakos', 'Kajiado']; // Add more if needed
+    let fee = 300; // Default for rest of counties
+    if (county === 'Nairobi') {
       fee = 0; // Free for Nairobi
-    } else if (neighboringCounties.includes(normalizedCounty)) {
+    } else if (neighboringCounties.includes(county)) {
       fee = 200; // Neighboring
     }
     setDeliveryFee(fee);
@@ -166,7 +164,13 @@ const Checkout = () => {
     }
   };
 
-  const handlePaymentSuccess = (receiptNumber?: string) => {
+  const handlePaymentSuccess = async (receiptNumber?: string, order?: any) => {
+    if (order) {
+      await supabase
+        .from('orders')
+        .update({ payment_status: 'paid' })
+        .eq('id', order.id);
+    }
     toast({
       title: "Payment Successful",
       description: receiptNumber ? `Payment completed. Receipt: ${receiptNumber}` : "Your payment has been processed successfully."
@@ -218,9 +222,9 @@ const Checkout = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left side - form */}
+          {/* Order Form */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Delivery info */}
+            {/* Delivery Information */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><MapPin className="h-5 w-5" />Delivery Information</CardTitle>
@@ -231,7 +235,7 @@ const Checkout = () => {
                   <Textarea id="address" placeholder="Enter your full delivery address" value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} rows={3} />
                 </div>
                 <div>
-            
+                  <Label htmlFor="county">County *</Label>
                   <KenyaCountiesSelect value={county} onValueChange={setCounty} />
                 </div>
                 <div>
@@ -241,7 +245,7 @@ const Checkout = () => {
               </CardContent>
             </Card>
 
-            {/* Contact info */}
+            {/* Contact Information */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Phone className="h-5 w-5" />Contact Information</CardTitle>
@@ -258,7 +262,7 @@ const Checkout = () => {
               </CardContent>
             </Card>
 
-            {/* Prescription */}
+            {/* Prescription Upload */}
             {requiresPrescription && (
               <Card>
                 <CardHeader>
@@ -271,7 +275,7 @@ const Checkout = () => {
               </Card>
             )}
 
-            {/* Payment method */}
+            {/* Payment Method */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5" />Payment Method</CardTitle>
@@ -279,12 +283,12 @@ const Checkout = () => {
               <CardContent>
                 <div className="space-y-3">
                   <label className="flex items-center space-x-3">
-                    <input type="radio" name="payment" value="mpesa" checked={paymentMethod === 'mpesa'} onChange={(e) => setPaymentMethod(e.target.value)} />
+                    <input type="radio" name="payment" value="mpesa" checked={paymentMethod === 'mpesa'} onChange={(e) => setPaymentMethod(e.target.value)} className="text-blue-600" />
                     <span>M-Pesa</span>
                     <Badge variant="secondary">Recommended</Badge>
                   </label>
                   <label className="flex items-center space-x-3">
-                    <input type="radio" name="payment" value="pesapal" checked={paymentMethod === 'pesapal'} onChange={(e) => setPaymentMethod(e.target.value)} />
+                    <input type="radio" name="payment" value="pesapal" checked={paymentMethod === 'pesapal'} onChange={(e) => setPaymentMethod(e.target.value)} className="text-blue-600" />
                     <span>Pesapal (Card/Mobile Money)</span>
                   </label>
                 </div>
@@ -292,7 +296,7 @@ const Checkout = () => {
             </Card>
           </div>
 
-          {/* Right side - summary */}
+          {/* Order Summary */}
           <div className="lg:col-span-1">
             <Card className="sticky top-6">
               <CardHeader>
@@ -330,7 +334,7 @@ const Checkout = () => {
                         accountReference: `Order-${Date.now()}`,
                         transactionDesc: 'SiletoExpress Order Payment'
                       }}
-                      onSuccess={handlePaymentSuccess}
+                      onSuccess={(receiptNumber) => handlePaymentSuccess(receiptNumber)}
                       onError={handlePaymentError}
                       beforePay={async () => {
                         const order = await createOrder();
@@ -345,7 +349,7 @@ const Checkout = () => {
                       customerInfo={{ email: email, phone: phoneNumber, name: user?.email || 'Customer' }}
                       formData={{ phone: phoneNumber, address: deliveryAddress, city: county, county: county, notes: deliveryInstructions }}
                       prescriptionId={null}
-                      onSuccess={handlePaymentSuccess}
+                      onSuccess={(receiptNumber) => handlePaymentSuccess(receiptNumber)}
                       onError={handlePaymentError}
                       paymentType="card"
                       beforePay={async () => {
