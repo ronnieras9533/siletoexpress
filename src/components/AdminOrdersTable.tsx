@@ -6,9 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Eye, MapPin, Phone, Clock, Package, Truck, CheckCircle, FileText, Image } from 'lucide-react';
+import { Eye, Clock, Package, Truck, CheckCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import OrderStatusStepper from './OrderStatusStepper';
+import { Input } from '@/components/ui/input';
 
 interface Order {
   id: string;
@@ -57,6 +58,8 @@ interface AdminOrdersTableProps {
   onStatusUpdate?: (orderId: string, newStatus: string) => void;
 }
 
+const validOrderStatuses = ['pending','confirmed','processing','shipped','out_for_delivery','delivered','cancelled'];
+
 const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', onStatusUpdate }) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,7 +98,6 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
         `)
         .order('created_at', { ascending: false });
 
-      // Filter based on order type
       if (orderType === 'regular') {
         query = query.or('requires_prescription.is.null,requires_prescription.eq.false');
       }
@@ -121,11 +123,7 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
       }
     } catch (error) {
       console.error('Error fetching orders:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch orders",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: "Failed to fetch orders", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -140,20 +138,12 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
 
       if (error) throw error;
 
-      toast({
-        title: "Success",
-        description: `Order status updated to ${newStatus}`,
-      });
-
-      fetchOrders();
+      toast({ title: "Success", description: `Order status updated to ${newStatus}` });
+      fetchOrders(); // Auto-refresh after status change
       if (onStatusUpdate) onStatusUpdate(orderId, newStatus);
     } catch (error) {
       console.error('Error updating order status:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update order status",
-        variant: "destructive"
-      });
+      toast({ title: "Error", description: "Failed to update order status", variant: "destructive" });
     }
   };
 
@@ -194,13 +184,7 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
   const formatStatus = (status: string) =>
     status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  if (loading) return <div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>;
 
   const paidOrders = orders.filter(order => order.payment_status === 'paid');
   const unpaidOrders = orders.filter(order => order.payment_status !== 'paid');
@@ -213,69 +197,26 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
           <TabsTrigger value="unpaid">Unpaid Orders ({unpaidOrders.length})</TabsTrigger>
         </TabsList>
 
-        {/* Paid Orders Tab */}
         <TabsContent value="paid">
-          {paidOrders.length === 0 ? (
-            <div className="text-center py-8">
-              <Package className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Paid Orders Found</h3>
-              <p className="text-gray-600">No paid {orderType === 'regular' ? 'regular' : ''} orders to display</p>
-            </div>
-          ) : (
-            <div className="grid gap-4">
-              {paidOrders.map(order => (
-                <OrderCard key={order.id} order={order} getStatusColor={getStatusColor} getPaymentStatusColor={getPaymentStatusColor} getStatusIcon={getStatusIcon} formatStatus={formatStatus} setSelectedOrder={setSelectedOrder} setSelectedPrescription={setSelectedPrescription} handleStatusUpdate={handleStatusUpdate} />
-              ))}
-            </div>
-          )}
+          {paidOrders.length === 0 ? <div className="text-center py-8">No Paid Orders Found</div> :
+            <div className="grid gap-4">{paidOrders.map(order => (
+              <OrderCard key={order.id} order={order} getStatusColor={getStatusColor} getPaymentStatusColor={getPaymentStatusColor} getStatusIcon={getStatusIcon} formatStatus={formatStatus} setSelectedOrder={setSelectedOrder} setSelectedPrescription={setSelectedPrescription} handleStatusUpdate={handleStatusUpdate} fetchOrders={fetchOrders} />
+            ))}</div>}
         </TabsContent>
 
-        {/* Unpaid Orders Tab */}
         <TabsContent value="unpaid">
-          {unpaidOrders.length === 0 ? (
-            <div className="text-center py-8">
-              <Package className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Unpaid Orders Found</h3>
-              <p className="text-gray-600">No unpaid {orderType === 'regular' ? 'regular' : ''} orders to display</p>
-            </div>
-          ) : (
-            <div className="grid gap-4">
-              {unpaidOrders.map(order => (
-                <OrderCard key={order.id} order={order} getStatusColor={getStatusColor} getPaymentStatusColor={getPaymentStatusColor} getStatusIcon={getStatusIcon} formatStatus={formatStatus} setSelectedOrder={setSelectedOrder} setSelectedPrescription={setSelectedPrescription} handleStatusUpdate={handleStatusUpdate} />
-              ))}
-            </div>
-          )}
+          {unpaidOrders.length === 0 ? <div className="text-center py-8">No Unpaid Orders Found</div> :
+            <div className="grid gap-4">{unpaidOrders.map(order => (
+              <OrderCard key={order.id} order={order} getStatusColor={getStatusColor} getPaymentStatusColor={getPaymentStatusColor} getStatusIcon={getStatusIcon} formatStatus={formatStatus} setSelectedOrder={setSelectedOrder} setSelectedPrescription={setSelectedPrescription} handleStatusUpdate={handleStatusUpdate} fetchOrders={fetchOrders} />
+            ))}</div>}
         </TabsContent>
       </Tabs>
 
-      {/* Prescription Image Modal */}
       {selectedPrescription && (
         <Dialog open={!!selectedPrescription} onOpenChange={() => setSelectedPrescription(null)}>
           <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Prescription Image</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <img src={selectedPrescription.image_url} alt="Prescription" className="w-full max-h-96 object-contain rounded" />
-              <div className="text-sm space-y-2">
-                <div>
-                  <span className="font-medium">Status:</span>
-                  <Badge className={`ml-2 ${getStatusColor(selectedPrescription.status)}`}>
-                    {selectedPrescription.status.toUpperCase()}
-                  </Badge>
-                </div>
-                {selectedPrescription.admin_notes && (
-                  <div>
-                    <span className="font-medium">Admin Notes:</span>
-                    <p className="text-gray-600 mt-1">{selectedPrescription.admin_notes}</p>
-                  </div>
-                )}
-                <div>
-                  <span className="font-medium">Upload Date:</span>
-                  <span className="ml-2">{new Date(selectedPrescription.created_at).toLocaleDateString()}</span>
-                </div>
-              </div>
-            </div>
+            <DialogHeader><DialogTitle>Prescription Image</DialogTitle></DialogHeader>
+            <img src={selectedPrescription.image_url} alt="Prescription" className="w-full max-h-96 object-contain rounded" />
           </DialogContent>
         </Dialog>
       )}
@@ -283,63 +224,94 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
   );
 };
 
-/** Reusable Order Card Component */
-const OrderCard = ({ order, getStatusColor, getPaymentStatusColor, getStatusIcon, formatStatus, setSelectedOrder, setSelectedPrescription, handleStatusUpdate }: any) => (
-  <Card>
-    <CardHeader className="pb-3">
-      <div className="flex justify-between items-start">
+const OrderCard = ({ order, getStatusColor, getPaymentStatusColor, getStatusIcon, formatStatus, setSelectedOrder, setSelectedPrescription, handleStatusUpdate, fetchOrders }: any) => {
+  const [newStatus, setNewStatus] = useState('');
+  const [newNote, setNewNote] = useState('');
+  const [newLocation, setNewLocation] = useState('');
+  const { toast } = useToast();
+
+  const handleTrackingUpdate = async () => {
+    if (!newStatus) return toast({ title: "Error", description: "Please select a new status", variant: "destructive" });
+    try {
+      const { error: trackError } = await supabase.from('order_tracking').insert({
+        order_id: order.id,
+        status: newStatus,
+        note: newNote || null,
+        location: newLocation || null,
+        created_at: new Date().toISOString()
+      });
+      if (trackError) throw trackError;
+      await handleStatusUpdate(order.id, newStatus);
+      setNewStatus(''); setNewNote(''); setNewLocation('');
+    } catch (error) {
+      console.error(error);
+      toast({ title: "Error", description: "Failed to update tracking status", variant: "destructive" });
+    }
+  };
+
+  const handleMarkPaid = async () => {
+    try {
+      const { error } = await supabase.from('orders').update({ payment_status: 'paid' }).eq('id', order.id);
+      if (error) throw error;
+      toast({ title: "Success", description: "Payment status updated to Paid" });
+      fetchOrders(); // Auto-refresh after marking as paid
+    } catch (error) {
+      console.error(error);
+      toast({ title: "Error", description: "Failed to mark as paid", variant: "destructive" });
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3 flex justify-between items-start">
         <div>
           <CardTitle className="text-lg">Order #{order.id.slice(-8)}</CardTitle>
-          <p className="text-sm text-gray-600 mt-1">
-            {order.profiles?.full_name || 'Unknown User'} • {new Date(order.created_at).toLocaleDateString()}
-          </p>
+          <p className="text-sm text-gray-600 mt-1">{order.profiles?.full_name || 'Unknown User'} • {new Date(order.created_at).toLocaleDateString()}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge className={getStatusColor(order.status)}>
-            {getStatusIcon(order.status)}
-            <span className="ml-1">{formatStatus(order.status)}</span>
-          </Badge>
-          <Badge className={getPaymentStatusColor(order.payment_status)}>
-            {formatStatus(order.payment_status)}
-          </Badge>
+          <Badge className={getStatusColor(order.status)}>{getStatusIcon(order.status)} <span className="ml-1">{formatStatus(order.status)}</span></Badge>
+          <Badge className={getPaymentStatusColor(order.payment_status)}>{formatStatus(order.payment_status)}</Badge>
+
           <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" onClick={() => setSelectedOrder(order)}>
-                <Eye className="h-4 w-4 mr-1" />
-                View
-              </Button>
-            </DialogTrigger>
+            <DialogTrigger asChild><Button variant="outline" size="sm" onClick={() => setSelectedOrder(order)}>View</Button></DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Order Details #{order.id.slice(-8)}</DialogTitle>
-              </DialogHeader>
+              <DialogHeader><DialogTitle>Order Details #{order.id.slice(-8)}</DialogTitle></DialogHeader>
               <div className="space-y-6">
                 <OrderStatusStepper currentStatus={order.status} orderTracking={order.order_tracking} />
-                {/* Order summary, delivery, items, prescriptions, status update */}
-                {/* You can reuse the same detail cards from your original file here */}
+
+                <div className="border-t pt-4">
+                  <h3 className="text-lg font-semibold mb-4">Update Tracking Status</h3>
+                  <Select value={newStatus} onValueChange={setNewStatus}>
+                    <SelectTrigger><SelectValue placeholder="Select new status" /></SelectTrigger>
+                    <SelectContent>
+                      {validOrderStatuses.map(s => <SelectItem key={s} value={s}>{s.split('_').map(w => w[0].toUpperCase()+w.slice(1)).join(' ')}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Input placeholder="Note (optional)" value={newNote} onChange={(e)=>setNewNote(e.target.value)} />
+                  <Input placeholder="Location (optional)" value={newLocation} onChange={(e)=>setNewLocation(e.target.value)} />
+                  <Button onClick={handleTrackingUpdate}>Update Status</Button>
+                </div>
+
+                {order.payment_status !== 'paid' && (
+                  <div className="border-t pt-4">
+                    <h3 className="text-lg font-semibold mb-4">Payment</h3>
+                    <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleMarkPaid}>Mark as Paid</Button>
+                  </div>
+                )}
               </div>
             </DialogContent>
           </Dialog>
         </div>
-      </div>
-    </CardHeader>
-    <CardContent>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-        <div>
-          <p className="text-gray-600">Total Amount</p>
-          <p className="font-medium">{order.currency || 'KES'} {order.total_amount.toLocaleString()}</p>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div><p className="text-gray-600">Total Amount</p><p className="font-medium">{order.currency || 'KES'} {order.total_amount.toLocaleString()}</p></div>
+          <div><p className="text-gray-600">Items</p><p className="font-medium">{order.order_items.length} item(s)</p></div>
+          <div><p className="text-gray-600">County</p><p className="font-medium">{order.county || 'Not specified'}</p></div>
         </div>
-        <div>
-          <p className="text-gray-600">Items</p>
-          <p className="font-medium">{order.order_items.length} item(s)</p>
-        </div>
-        <div>
-          <p className="text-gray-600">County</p>
-          <p className="font-medium">{order.county || 'Not specified'}</p>
-        </div>
-      </div>
-    </CardContent>
-  </Card>
-);
+      </CardContent>
+    </Card>
+  );
+};
 
 export default AdminOrdersTable;
