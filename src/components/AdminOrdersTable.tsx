@@ -52,10 +52,11 @@ interface Order {
 
 interface AdminOrdersTableProps {
   orderType?: 'regular' | 'all';
+  paymentStatusFilter?: 'paid' | 'pending';
   onStatusUpdate?: (orderId: string, newStatus: string) => void;
 }
 
-const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', onStatusUpdate }) => {
+const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', paymentStatusFilter, onStatusUpdate }) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -64,7 +65,7 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
 
   useEffect(() => {
     fetchOrders();
-  }, [orderType]);
+  }, [orderType, paymentStatusFilter]);
 
   const fetchOrders = async () => {
     try {
@@ -96,6 +97,11 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
       // Filter based on order type
       if (orderType === 'regular') {
         query = query.or('requires_prescription.is.null,requires_prescription.eq.false');
+      }
+
+      // Filter based on payment status
+      if (paymentStatusFilter) {
+        query = query.eq('payment_status', paymentStatusFilter);
       }
 
       const { data: ordersData, error } = await query;
@@ -140,7 +146,7 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
     try {
       const { error } = await supabase
         .from('orders')
-        .update({ status: newStatus as any })
+        .update({ status: newStatus })
         .eq('id', orderId);
 
       if (error) throw error;
@@ -157,11 +163,11 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
       if (onStatusUpdate) {
         onStatusUpdate(orderId, newStatus);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating order status:', error);
       toast({
         title: "Error",
-        description: "Failed to update order status",
+        description: error?.message || "Failed to update order status",
         variant: "destructive"
       });
     }
