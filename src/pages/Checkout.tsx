@@ -51,7 +51,7 @@ const Checkout = () => {
     } else {
       setDeliveryFee(0); // Default to 0 when no county is selected
     }
-  }, [user, navigate, items, county]); // Removed subtotal from deps as it's derived from items
+  }, [user, navigate, items, county]);
 
   const calculateDeliveryFee = () => {
     console.log('Calculating delivery fee for county:', county); // Debug log
@@ -147,24 +147,32 @@ const Checkout = () => {
 
   const handlePrescriptionUpload = async (orderId: string) => {
     if (prescriptionFiles.length === 0) return;
-    try {
-      for (const file of prescriptionFiles) {
+    for (const file of prescriptionFiles) {
+      let fileName;
+      try {
         const fileExt = file.name.split('.').pop();
-        const fileName = `${orderId}-${Date.now()}.${fileExt}`;
+        fileName = `${orderId}-${Date.now()}.${fileExt}`;
         const { error: uploadError } = await supabase.storage.from('prescriptions').upload(fileName, file);
-        if (uploadError) throw uploadError;
+        if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+      } catch (error) {
+        console.error('Error uploading file to storage:', error);
+        toast({ title: "Warning", description: `Order created but file upload to storage failed: ${error.message}. Please contact support.`, variant: "destructive" });
+        return; // Stop if upload fails
+      }
 
-        const { data } = supabase.storage.from('prescriptions').getPublicUrl(fileName);
-        await supabase.from('prescriptions').insert({
+      try {
+        const { data: urlData } = supabase.storage.from('prescriptions').getPublicUrl(fileName);
+        const { error: insertError } = await supabase.from('prescriptions').insert({
           user_id: user!.id,
           order_id: orderId,
-          image_url: data.publicUrl,
+          image_url: urlData.publicUrl,
           status: 'pending'
         });
+        if (insertError) throw new Error(`Insert failed: ${insertError.message}`);
+      } catch (error) {
+        console.error('Error inserting prescription record:', error);
+        toast({ title: "Warning", description: `Order created but prescription record insert failed: ${error.message}. Please contact support.`, variant: "destructive" });
       }
-    } catch (error) {
-      console.error('Error uploading prescriptions:', error);
-      toast({ title: "Warning", description: "Order created but prescription upload failed. Please contact support.", variant: "destructive" });
     }
   };
 
