@@ -77,7 +77,8 @@ const AdminDashboard = () => {
         .from('orders')
         .select('total_amount')
         .gte('created_at', firstDayOfMonth)
-        .lte('created_at', lastDayOfMonth);
+        .lte('created_at', lastDayOfMonth)
+        .eq('payment_status', 'paid');
       if (error) throw error;
       return data?.reduce((sum, order) => sum + order.total_amount, 0) || 0;
     },
@@ -94,7 +95,7 @@ const AdminDashboard = () => {
     try {
       const { error } = await supabase
         .from('orders')
-        .update({ status: newStatus as any })
+        .update({ status: newStatus })
         .eq('id', orderId);
       if (error) throw error;
     } catch (error) {
@@ -181,22 +182,46 @@ const AdminDashboard = () => {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="orders" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="orders">All Orders</TabsTrigger>
+        <Tabs defaultValue="all-orders" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-7">
+            <TabsTrigger value="all-orders">All Orders</TabsTrigger>
+            <TabsTrigger value="paid-orders">Paid Orders</TabsTrigger>
+            <TabsTrigger value="pending-payments">Pending Payments</TabsTrigger>
             <TabsTrigger value="prescription-orders">Prescription Orders</TabsTrigger>
             <TabsTrigger value="prescriptions">Prescriptions</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="products">Products</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="orders">
+          <TabsContent value="all-orders">
             <Card>
               <CardHeader>
                 <CardTitle>All Orders</CardTitle>
               </CardHeader>
               <CardContent>
                 <AdminOrdersTable />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="paid-orders">
+            <Card>
+              <CardHeader>
+                <CardTitle>Paid Orders</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AdminOrdersTable paymentStatusFilter="paid" />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="pending-payments">
+            <Card>
+              <CardHeader>
+                <CardTitle>Pending Payments</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AdminOrdersTable paymentStatusFilter="pending" />
               </CardContent>
             </Card>
           </TabsContent>
