@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, Clock, Package, Truck, CheckCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -150,7 +150,7 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
       if (error) throw error;
 
       toast({ title: "Success", description: `Order status updated to ${newStatus}` });
-      fetchOrders(); // Auto-refresh after status change
+      fetchOrders();
       if (onStatusUpdate) onStatusUpdate(orderId, newStatus);
     } catch (error) {
       console.error('Error updating order status:', error);
@@ -224,15 +224,6 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
             ))}</div>}
         </TabsContent>
       </Tabs>
-
-      {selectedPrescription && (
-        <Dialog open={!!selectedPrescription} onOpenChange={() => setSelectedPrescription(null)}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader><DialogTitle>Prescription Image</DialogTitle></DialogHeader>
-            <img src={selectedPrescription.image_url} alt="Prescription" className="w-full max-h-96 object-contain rounded" />
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   );
 };
@@ -268,18 +259,16 @@ const OrderCard = ({ order, getStatusColor, getPaymentStatusColor, getStatusIcon
         .from('payments')
         .update({ status: 'paid' })
         .eq('order_id', order.id);
-
       if (paymentError) throw paymentError;
 
       const { error: orderError } = await supabase
         .from('orders')
-        .update({ status: 'approved' })
+        .update({ status: 'approved' }) // ✅ valid enum
         .eq('id', order.id);
-
       if (orderError) throw orderError;
 
       toast({ title: "Success", description: "Order marked as paid and approved" });
-      fetchOrders(); // Auto-refresh after marking as paid
+      fetchOrders();
     } catch (error) {
       console.error('Error marking as paid:', error);
       toast({ title: "Error", description: "Failed to mark as paid", variant: "destructive" });
@@ -300,7 +289,10 @@ const OrderCard = ({ order, getStatusColor, getPaymentStatusColor, getStatusIcon
           <Dialog>
             <DialogTrigger asChild><Button variant="outline" size="sm" onClick={() => setSelectedOrder(order)}>View</Button></DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-              <DialogHeader><DialogTitle>Order Details #{order.id.slice(-8)}</DialogTitle></DialogHeader>
+              <DialogHeader>
+                <DialogTitle>Order Details #{order.id.slice(-8)}</DialogTitle>
+                <DialogDescription>View and update the order details, payment, and tracking status.</DialogDescription>
+              </DialogHeader>
               <div className="space-y-6">
                 <OrderStatusStepper currentStatus={order.status} orderTracking={order.order_tracking} />
 
