@@ -48,16 +48,18 @@ const Checkout = () => {
 
     if (county) {
       calculateDeliveryFee();
+    } else {
+      setDeliveryFee(0); // Explicitly default to 0 when no county is selected
     }
   }, [user, navigate, items, county, subtotal]);
 
   const calculateDeliveryFee = () => {
-    const neighboringCounties = ['Kiambu', 'Machakos', 'Kajiado']; // Add more if needed
-    let fee = 300; // Default for rest of counties
+    const neighboringCounties = ['Kiambu', 'Machakos', 'Kajiado'];
+    let fee = 300; // Default for other counties
     if (county === 'Nairobi') {
-      fee = 0; // Free for Nairobi
+      fee = 0;
     } else if (neighboringCounties.includes(county)) {
-      fee = 200; // Neighboring
+      fee = 200;
     }
     setDeliveryFee(fee);
   };
@@ -318,9 +320,8 @@ const Checkout = () => {
 
                 <div className="border-t pt-3 space-y-2">
                   <div className="flex justify-between"><span>Subtotal</span><span>KES {subtotal.toLocaleString()}</span></div>
-                  <div className="flex justify-between"><span>Delivery Fee</span><span>KES {deliveryFee.toLocaleString()}</span></div>
-                  {deliveryFee === 0 && <p className="text-xs text-green-600">Free delivery for Nairobi!</p>}
-                  {deliveryFee === 200 && <p className="text-xs text-green-600">Discounted delivery for neighboring counties!</p>}
+                  <div className="flex justify-between"><span>Delivery Fee</span><span>{deliveryFee === 0 ? 'Free (Nairobi)' : `KES ${deliveryFee.toLocaleString()}`}</span></div>
+                  {deliveryFee === 200 && <p className="text-xs text-green-600">Discounted delivery for neighboring counties</p>}
                   <div className="flex justify-between font-bold text-lg border-t pt-2"><span>Total</span><span>KES {total.toLocaleString()}</span></div>
                 </div>
 
