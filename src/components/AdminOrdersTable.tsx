@@ -15,6 +15,7 @@ interface Order {
   user_id: string;
   total_amount: number;
   status: string;
+  payment_status: string;
   created_at: string;
   phone_number: string | null;
   delivery_address: string | null;
@@ -163,6 +164,31 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
       toast({
         title: "Error",
         description: error?.message || "Failed to update order status",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handlePaymentStatusUpdate = async (orderId: string, newPaymentStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ payment_status: newPaymentStatus })
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `Payment status updated to ${newPaymentStatus}`,
+      });
+
+      fetchOrders();
+    } catch (error: any) {
+      console.error('Error updating payment status:', error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to update payment status",
         variant: "destructive"
       });
     }
@@ -409,7 +435,7 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
                               </Card>
                             )}
 
-                            {/* Status Update */}
+                            {/* Order Status Update */}
                             <Card>
                               <CardHeader>
                                 <CardTitle className="text-lg">Update Order Status</CardTitle>
@@ -435,6 +461,33 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
                                   </Select>
                                   <p className="text-sm text-gray-600">
                                     Current status: <span className="font-medium">{formatStatus(selectedOrder.status)}</span>
+                                  </p>
+                                </div>
+                              </CardContent>
+                            </Card>
+
+                            {/* Payment Status Update */}
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="text-lg">Update Payment Status</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <div className="flex items-center gap-4">
+                                  <Select
+                                    value={selectedOrder.payment_status}
+                                    onValueChange={(value) => handlePaymentStatusUpdate(selectedOrder.id, value)}
+                                  >
+                                    <SelectTrigger className="w-48">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="pending">Pending</SelectItem>
+                                      <SelectItem value="paid">Paid</SelectItem>
+                                      <SelectItem value="failed">Failed</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <p className="text-sm text-gray-600">
+                                    Current payment status: <span className="font-medium">{formatStatus(selectedOrder.payment_status)}</span>
                                   </p>
                                 </div>
                               </CardContent>
