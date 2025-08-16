@@ -10,6 +10,7 @@ import { Eye, Clock, Package, Truck, CheckCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import OrderStatusStepper from './OrderStatusStepper';
 import { Input } from '@/components/ui/input';
+import MpesaPaymentButton from '../payments/MpesaPaymentButton';
 
 interface Order {
   id: string;
@@ -57,8 +58,6 @@ interface AdminOrdersTableProps {
   orderType?: 'regular' | 'all';
   onStatusUpdate?: (orderId: string, newStatus: string) => void;
 }
-
-const validOrderStatuses = ['pending','confirmed','processing','shipped','out_for_delivery','delivered','cancelled'];
 
 const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', onStatusUpdate }) => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -123,27 +122,66 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
       }
     } catch (error) {
       console.error('Error fetching orders:', error);
-      toast({ title: "Error", description: "Failed to fetch orders", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: "Failed to fetch orders",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
   };
 
+  /** Update shipping status (status column) */
   const handleStatusUpdate = async (orderId: string, newStatus: string) => {
     try {
       const { error } = await supabase
         .from('orders')
-        .update({ status: newStatus as any })
+        .update({ status: newStatus })
         .eq('id', orderId);
 
       if (error) throw error;
 
-      toast({ title: "Success", description: `Order status updated to ${newStatus}` });
-      fetchOrders(); // Auto-refresh after status change
+      toast({
+        title: "Success",
+        description: `Order status updated to ${newStatus}`,
+      });
+
+      fetchOrders();
       if (onStatusUpdate) onStatusUpdate(orderId, newStatus);
     } catch (error) {
       console.error('Error updating order status:', error);
-      toast({ title: "Error", description: "Failed to update order status", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: "Failed to update order status",
+        variant: "destructive"
+      });
+    }
+  };
+
+  /** Mark payment as paid (payment_status column) */
+  const handleMarkPaid = async (orderId: string) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ payment_status: 'paid' })
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Payment status updated to Paid",
+      });
+
+      fetchOrders();
+    } catch (error) {
+      console.error('Error marking order as paid:', error);
+      toast({
+        title: "Error",
+        description: "Failed to mark as paid",
+        variant: "destructive"
+      });
     }
   };
 
@@ -184,7 +222,13 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
   const formatStatus = (status: string) =>
     status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 
-  if (loading) return <div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   const paidOrders = orders.filter(order => order.payment_status === 'paid');
   const unpaidOrders = orders.filter(order => order.payment_status !== 'paid');
@@ -198,25 +242,83 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
         </TabsList>
 
         <TabsContent value="paid">
-          {paidOrders.length === 0 ? <div className="text-center py-8">No Paid Orders Found</div> :
-            <div className="grid gap-4">{paidOrders.map(order => (
-              <OrderCard key={order.id} order={order} getStatusColor={getStatusColor} getPaymentStatusColor={getPaymentStatusColor} getStatusIcon={getStatusIcon} formatStatus={formatStatus} setSelectedOrder={setSelectedOrder} setSelectedPrescription={setSelectedPrescription} handleStatusUpdate={handleStatusUpdate} fetchOrders={fetchOrders} />
-            ))}</div>}
+          {paidOrders.length === 0 ? (
+            <div className="text-center py-8">
+              <p>No paid orders found</p>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {paidOrders.map(order => (
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  getStatusColor={getStatusColor}
+                  getPaymentStatusColor={getPaymentStatusColor}
+                  getStatusIcon={getStatusIcon}
+                  formatStatus={formatStatus}
+                  setSelectedOrder={setSelectedOrder}
+                  setSelectedPrescription={setSelectedPrescription}
+                  handleStatusUpdate={handleStatusUpdate}
+                  handleMarkPaid={handleMarkPaid} // pass for payment
+                />
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="unpaid">
-          {unpaidOrders.length === 0 ? <div className="text-center py-8">No Unpaid Orders Found</div> :
-            <div className="grid gap-4">{unpaidOrders.map(order => (
-              <OrderCard key={order.id} order={order} getStatusColor={getStatusColor} getPaymentStatusColor={getPaymentStatusColor} getStatusIcon={getStatusIcon} formatStatus={formatStatus} setSelectedOrder={setSelectedOrder} setSelectedPrescription={setSelectedPrescription} handleStatusUpdate={handleStatusUpdate} fetchOrders={fetchOrders} />
-            ))}</div>}
+          {unpaidOrders.length === 0 ? (
+            <div className="text-center py-8">
+              <p>No unpaid orders found</p>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {unpaidOrders.map(order => (
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  getStatusColor={getStatusColor}
+                  getPaymentStatusColor={getPaymentStatusColor}
+                  getStatusIcon={getStatusIcon}
+                  formatStatus={formatStatus}
+                  setSelectedOrder={setSelectedOrder}
+                  setSelectedPrescription={setSelectedPrescription}
+                  handleStatusUpdate={handleStatusUpdate}
+                  handleMarkPaid={handleMarkPaid} // pass for payment
+                />
+              ))}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
       {selectedPrescription && (
         <Dialog open={!!selectedPrescription} onOpenChange={() => setSelectedPrescription(null)}>
           <DialogContent className="max-w-2xl">
-            <DialogHeader><DialogTitle>Prescription Image</DialogTitle></DialogHeader>
-            <img src={selectedPrescription.image_url} alt="Prescription" className="w-full max-h-96 object-contain rounded" />
+            <DialogHeader>
+              <DialogTitle>Prescription Image</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <img src={selectedPrescription.image_url} alt="Prescription" className="w-full max-h-96 object-contain rounded" />
+              <div className="text-sm space-y-2">
+                <div>
+                  <span className="font-medium">Status:</span>
+                  <Badge className={`ml-2 ${getStatusColor(selectedPrescription.status)}`}>
+                    {selectedPrescription.status.toUpperCase()}
+                  </Badge>
+                </div>
+                {selectedPrescription.admin_notes && (
+                  <div>
+                    <span className="font-medium">Admin Notes:</span>
+                    <p className="text-gray-600 mt-1">{selectedPrescription.admin_notes}</p>
+                  </div>
+                )}
+                <div>
+                  <span className="font-medium">Upload Date:</span>
+                  <span className="ml-2">{new Date(selectedPrescription.created_at).toLocaleDateString()}</span>
+                </div>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       )}
@@ -224,40 +326,37 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
   );
 };
 
-const OrderCard = ({ order, getStatusColor, getPaymentStatusColor, getStatusIcon, formatStatus, setSelectedOrder, setSelectedPrescription, handleStatusUpdate, fetchOrders }: any) => {
+/** Order Card Component */
+const OrderCard = ({ order, getStatusColor, getPaymentStatusColor, getStatusIcon, formatStatus, setSelectedOrder, setSelectedPrescription, handleStatusUpdate, handleMarkPaid }: any) => {
   const [newStatus, setNewStatus] = useState('');
   const [newNote, setNewNote] = useState('');
   const [newLocation, setNewLocation] = useState('');
   const { toast } = useToast();
 
   const handleTrackingUpdate = async () => {
-    if (!newStatus) return toast({ title: "Error", description: "Please select a new status", variant: "destructive" });
+    if (!newStatus) {
+      toast({ title: "Error", description: "Please select a new status", variant: "destructive" });
+      return;
+    }
+
     try {
-      const { error: trackError } = await supabase.from('order_tracking').insert({
-        order_id: order.id,
-        status: newStatus,
-        note: newNote || null,
-        location: newLocation || null,
-        created_at: new Date().toISOString()
-      });
+      const { error: trackError } = await supabase
+        .from('order_tracking')
+        .insert({
+          order_id: order.id,
+          status: newStatus,
+          note: newNote || null,
+          location: newLocation || null,
+          created_at: new Date().toISOString()
+        });
+
       if (trackError) throw trackError;
-      await handleStatusUpdate(order.id, newStatus);
+
+      handleStatusUpdate(order.id, newStatus);
       setNewStatus(''); setNewNote(''); setNewLocation('');
     } catch (error) {
-      console.error(error);
+      console.error('Error updating tracking status:', error);
       toast({ title: "Error", description: "Failed to update tracking status", variant: "destructive" });
-    }
-  };
-
-  const handleMarkPaid = async () => {
-    try {
-      const { error } = await supabase.from('orders').update({ payment_status: 'paid' }).eq('id', order.id);
-      if (error) throw error;
-      toast({ title: "Success", description: "Payment status updated to Paid" });
-      fetchOrders(); // Auto-refresh after marking as paid
-    } catch (error) {
-      console.error(error);
-      toast({ title: "Error", description: "Failed to mark as paid", variant: "destructive" });
     }
   };
 
@@ -271,43 +370,59 @@ const OrderCard = ({ order, getStatusColor, getPaymentStatusColor, getStatusIcon
         <div className="flex items-center gap-2">
           <Badge className={getStatusColor(order.status)}>{getStatusIcon(order.status)} <span className="ml-1">{formatStatus(order.status)}</span></Badge>
           <Badge className={getPaymentStatusColor(order.payment_status)}>{formatStatus(order.payment_status)}</Badge>
-
           <Dialog>
-            <DialogTrigger asChild><Button variant="outline" size="sm" onClick={() => setSelectedOrder(order)}>View</Button></DialogTrigger>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" onClick={() => setSelectedOrder(order)}>View</Button>
+            </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
               <DialogHeader><DialogTitle>Order Details #{order.id.slice(-8)}</DialogTitle></DialogHeader>
               <div className="space-y-6">
                 <OrderStatusStepper currentStatus={order.status} orderTracking={order.order_tracking} />
 
+                {order.payment_status !== 'paid' && order.phone_number && (
+                  <MpesaPaymentButton
+                    paymentData={{ amount: order.total_amount, phoneNumber: order.phone_number, orderId: order.id }}
+                    onSuccess={() => handleMarkPaid(order.id)}
+                    onError={(err) => toast({ title: 'Payment Error', description: err, variant: 'destructive' })}
+                  />
+                )}
+
                 <div className="border-t pt-4">
                   <h3 className="text-lg font-semibold mb-4">Update Tracking Status</h3>
-                  <Select value={newStatus} onValueChange={setNewStatus}>
-                    <SelectTrigger><SelectValue placeholder="Select new status" /></SelectTrigger>
-                    <SelectContent>
-                      {validOrderStatuses.map(s => <SelectItem key={s} value={s}>{s.split('_').map(w => w[0].toUpperCase()+w.slice(1)).join(' ')}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <Input placeholder="Note (optional)" value={newNote} onChange={(e)=>setNewNote(e.target.value)} />
-                  <Input placeholder="Location (optional)" value={newLocation} onChange={(e)=>setNewLocation(e.target.value)} />
-                  <Button onClick={handleTrackingUpdate}>Update Status</Button>
-                </div>
-
-                {order.payment_status !== 'paid' && (
-                  <div className="border-t pt-4">
-                    <h3 className="text-lg font-semibold mb-4">Payment</h3>
-                    <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleMarkPaid}>Mark as Paid</Button>
+                  <div className="space-y-4">
+                    <Select value={newStatus} onValueChange={setNewStatus}>
+                      <SelectTrigger><SelectValue placeholder="Select new status" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="confirmed">Confirmed</SelectItem>
+                        <SelectItem value="processing">Processing</SelectItem>
+                        <SelectItem value="shipped">Shipped</SelectItem>
+                        <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
+                        <SelectItem value="delivered">Delivered</SelectItem>
+                        <SelectItem value="cancelled">Cancelled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input placeholder="Note (optional)" value={newNote} onChange={(e) => setNewNote(e.target.value)} />
+                    <Input placeholder="Location (optional)" value={newLocation} onChange={(e) => setNewLocation(e.target.value)} />
+                    <Button onClick={handleTrackingUpdate}>Update Status</Button>
                   </div>
-                )}
+                </div>
               </div>
             </DialogContent>
           </Dialog>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <div><p className="text-gray-600">Total Amount</p><p className="font-medium">{order.currency || 'KES'} {order.total_amount.toLocaleString()}</p></div>
-          <div><p className="text-gray-600">Items</p><p className="font-medium">{order.order_items.length} item(s)</p></div>
-          <div><p className="text-gray-600">County</p><p className="font-medium">{order.county || 'Not specified'}</p></div>
+      <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+        <div>
+          <p className="text-gray-600">Total Amount</p>
+          <p className="font-medium">{order.currency || 'KES'} {order.total_amount.toLocaleString()}</p>
+        </div>
+        <div>
+          <p className="text-gray-600">Items</p>
+          <p className="font-medium">{order.order_items.length} item(s)</p>
+        </div>
+        <div>
+          <p className="text-gray-600">County</p>
+          <p className="font-medium">{order.county || 'Not specified'}</p>
         </div>
       </CardContent>
     </Card>
