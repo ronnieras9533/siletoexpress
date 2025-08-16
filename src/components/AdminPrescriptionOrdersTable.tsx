@@ -1,25 +1,34 @@
-// src/components/ui/AdminOrdersTable.tsx
+// src/components/AdminOrdersTable.tsx
+
 import React, { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import PrescriptionViewer from "@/components/ui/PrescriptionViewer";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
-interface Order {
+type Order = {
   id: string;
-  user_id: string;
+  total: number;
   status: string;
   payment_status: string;
-  total_amount: number;
+  order_type: "regular" | "prescription";
   created_at: string;
-  requires_prescription: boolean;
   prescription_url?: string;
-}
+  customer_name?: string;
+  customer_email?: string;
+  customer_phone?: string;
+  shipping_address?: string;
+};
 
-const AdminOrdersTable: React.FC = () => {
+export default function AdminOrdersTable() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   useEffect(() => {
     fetchOrders();
@@ -32,130 +41,175 @@ const AdminOrdersTable: React.FC = () => {
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (error) console.error("Error fetching orders:", error);
-    else setOrders(data || []);
+    if (error) {
+      console.error("Error fetching orders:", error);
+    } else {
+      setOrders(data as Order[]);
+    }
     setLoading(false);
   };
 
-  const updateOrderStatus = async (orderId: string, newStatus: string) => {
+  const updateStatus = async (id: string, status: string) => {
     const { error } = await supabase
       .from("orders")
-      .update({ status: newStatus })
-      .eq("id", orderId);
+      .update({ status })
+      .eq("id", id);
 
     if (error) {
-      console.error("Error updating order status:", error);
-      return;
+      console.error("Error updating status:", error);
+    } else {
+      fetchOrders();
     }
-    fetchOrders();
   };
 
-  const updatePaymentStatus = async (orderId: string, newStatus: string) => {
+  const markAsPaid = async (id: string) => {
     const { error } = await supabase
       .from("orders")
-      .update({ payment_status: newStatus })
-      .eq("id", orderId);
+      .update({ payment_status: "paid" })
+      .eq("id", id);
 
     if (error) {
-      console.error("Error updating payment status:", error);
-      return;
+      console.error("Error marking paid:", error);
+    } else {
+      fetchOrders();
     }
-    fetchOrders();
   };
 
   return (
     <div className="p-4">
-      <h2 className="text-xl font-bold mb-4">All Orders</h2>
+      <h2 className="text-lg font-bold mb-4">All Orders</h2>
+
       {loading ? (
         <p>Loading orders...</p>
       ) : (
-        <table className="w-full border-collapse border rounded-lg shadow-md">
-          <thead>
-            <tr className="bg-gray-100">
-              <th className="border p-2">ID</th>
-              <th className="border p-2">Created At</th>
-              <th className="border p-2">Amount (KES)</th>
-              <th className="border p-2">Order Type</th>
-              <th className="border p-2">Order Status</th>
-              <th className="border p-2">Payment Status</th>
-              <th className="border p-2">Prescription</th>
-              <th className="border p-2">Actions</th>
+        <table className="min-w-full border border-gray-200">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="px-4 py-2 text-left">Order</th>
+              <th className="px-4 py-2 text-left">Total</th>
+              <th className="px-4 py-2 text-left">Status</th>
+              <th className="px-4 py-2 text-left">Payment</th>
+              <th className="px-4 py-2 text-left">Type</th>
+              <th className="px-4 py-2 text-left">Created</th>
+              <th className="px-4 py-2 text-left">Prescription</th>
+              <th className="px-4 py-2 text-left">Actions</th>
             </tr>
           </thead>
           <tbody>
             {orders.map((order) => (
-              <tr key={order.id} className="text-center">
-                <td className="border p-2">{order.id}</td>
-                <td className="border p-2">
+              <tr key={order.id} className="border-t">
+                <td className="px-4 py-2">#{order.id.slice(0, 6)}</td>
+                <td className="px-4 py-2">KES {order.total}</td>
+                <td className="px-4 py-2">{order.status}</td>
+                <td className="px-4 py-2">{order.payment_status}</td>
+                <td className="px-4 py-2 capitalize">{order.order_type}</td>
+                <td className="px-4 py-2">
                   {new Date(order.created_at).toLocaleString()}
                 </td>
-                <td className="border p-2">{order.total_amount}</td>
-                <td className="border p-2">
-                  {order.requires_prescription ? "Prescription Order" : "Regular Order"}
-                </td>
-                <td className="border p-2">
-                  <Select
-                    onValueChange={(value) => updateOrderStatus(order.id, value)}
-                    defaultValue={order.status}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="confirmed">Confirmed</SelectItem>
-                      <SelectItem value="delivered">Delivered</SelectItem>
-                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </td>
-                <td className="border p-2">
-                  <Select
-                    onValueChange={(value) => updatePaymentStatus(order.id, value)}
-                    defaultValue={order.payment_status}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select payment" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="paid">Paid</SelectItem>
-                      <SelectItem value="failed">Failed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </td>
-                <td className="border p-2">
-                  {order.requires_prescription ? (
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline">View Prescription</Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Prescription</DialogTitle>
-                        </DialogHeader>
-                        <PrescriptionViewer orderId={order.id} />
-                      </DialogContent>
-                    </Dialog>
+                <td className="px-4 py-2">
+                  {order.order_type === "prescription" &&
+                  order.prescription_url ? (
+                    <a
+                      href={order.prescription_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 underline"
+                    >
+                      View Prescription
+                    </a>
                   ) : (
-                    "N/A"
+                    "-"
                   )}
                 </td>
-                <td className="border p-2">
-                  <Button
-                    variant="secondary"
-                    onClick={() => fetchOrders()}
-                  >
-                    Refresh
+                <td className="px-4 py-2 flex items-center gap-2">
+                  {/* View button opens modal */}
+                  <Button variant="outline" onClick={() => setSelectedOrder(order)}>
+                    View
                   </Button>
+
+                  {/* Tracking status dropdown */}
+                  <select
+                    value={order.status}
+                    onChange={(e) => updateStatus(order.id, e.target.value)}
+                    className="border rounded px-2 py-1"
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="processing">Processing</option>
+                    <option value="shipped">Shipped</option>
+                    <option value="completed">Completed</option>
+                  </select>
+
+                  {/* Mark as Paid */}
+                  {order.payment_status !== "paid" && (
+                    <Button onClick={() => markAsPaid(order.id)}>Mark Paid</Button>
+                  )}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
+
+      {/* Modal for viewing order details */}
+      <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Order Details</DialogTitle>
+          </DialogHeader>
+          {selectedOrder && (
+            <div className="space-y-2">
+              <p>
+                <strong>Order ID:</strong> #{selectedOrder.id}
+              </p>
+              <p>
+                <strong>Total:</strong> KES {selectedOrder.total}
+              </p>
+              <p>
+                <strong>Status:</strong> {selectedOrder.status}
+              </p>
+              <p>
+                <strong>Payment:</strong> {selectedOrder.payment_status}
+              </p>
+              <p>
+                <strong>Type:</strong> {selectedOrder.order_type}
+              </p>
+              <p>
+                <strong>Created:</strong>{" "}
+                {new Date(selectedOrder.created_at).toLocaleString()}
+              </p>
+              {selectedOrder.customer_name && (
+                <p>
+                  <strong>Customer:</strong> {selectedOrder.customer_name} (
+                  {selectedOrder.customer_email}, {selectedOrder.customer_phone})
+                </p>
+              )}
+              {selectedOrder.shipping_address && (
+                <p>
+                  <strong>Shipping Address:</strong>{" "}
+                  {selectedOrder.shipping_address}
+                </p>
+              )}
+              {selectedOrder.order_type === "prescription" &&
+                selectedOrder.prescription_url && (
+                  <p>
+                    <strong>Prescription:</strong>{" "}
+                    <a
+                      href={selectedOrder.prescription_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 underline"
+                    >
+                      View Prescription
+                    </a>
+                  </p>
+                )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setSelectedOrder(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
-};
-
-export default AdminOrdersTable;
+}
