@@ -49,16 +49,18 @@ const Checkout = () => {
     if (county) {
       calculateDeliveryFee();
     } else {
-      setDeliveryFee(0); // Explicitly default to 0 when no county is selected
+      setDeliveryFee(0); // Default to 0 when no county is selected
     }
-  }, [user, navigate, items, county, subtotal]);
+  }, [user, navigate, items, county]); // Removed subtotal from deps as it's derived from items
 
   const calculateDeliveryFee = () => {
-    const neighboringCounties = ['Kiambu', 'Machakos', 'Kajiado'];
+    console.log('Calculating delivery fee for county:', county); // Debug log
+    const countyLower = county.trim().toLowerCase();
+    const neighboringCounties = ['kiambu', 'machakos', 'kajiado'];
     let fee = 300; // Default for other counties
-    if (county === 'Nairobi') {
+    if (countyLower === 'nairobi') {
       fee = 0;
-    } else if (neighboringCounties.includes(county)) {
+    } else if (neighboringCounties.includes(countyLower)) {
       fee = 200;
     }
     setDeliveryFee(fee);
@@ -136,7 +138,7 @@ const Checkout = () => {
       return order;
     } catch (error) {
       console.error('Error creating order:', error);
-      toast({ title: "Error", description: "Failed to create order. Please try again.", variant: "destructive" });
+      toast({ title: "Error", description: `Failed to create order: ${error.message || 'Unknown error'}. Please try again.`, variant: "destructive" });
       return null;
     } finally {
       setLoading(false);
@@ -238,7 +240,10 @@ const Checkout = () => {
                 </div>
                 <div>
                   <Label htmlFor="county">County *</Label>
-                  <KenyaCountiesSelect value={county} onValueChange={setCounty} />
+                  <KenyaCountiesSelect value={county} onValueChange={(value) => {
+                    setCounty(value);
+                    console.log('Selected county:', value); // Debug log for county value
+                  }} />
                 </div>
                 <div>
                   <Label htmlFor="instructions">Delivery Instructions (Optional)</Label>
