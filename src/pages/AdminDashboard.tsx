@@ -1,3 +1,4 @@
+// src/pages/AdminDashboard.tsx
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -182,9 +183,8 @@ const AdminDashboard = () => {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="all-orders" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-7">
-            <TabsTrigger value="all-orders">All Orders</TabsTrigger>
+        <Tabs defaultValue="paid-orders" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="paid-orders">Paid Orders</TabsTrigger>
             <TabsTrigger value="pending-payments">Pending Payments</TabsTrigger>
             <TabsTrigger value="prescription-orders">Prescription Orders</TabsTrigger>
@@ -192,17 +192,6 @@ const AdminDashboard = () => {
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="products">Products</TabsTrigger>
           </TabsList>
-
-          <TabsContent value="all-orders">
-            <Card>
-              <CardHeader>
-                <CardTitle>All Orders</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <AdminOrdersTable />
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           <TabsContent value="paid-orders">
             <Card>
