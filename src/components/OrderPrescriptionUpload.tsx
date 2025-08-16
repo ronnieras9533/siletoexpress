@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Upload, FileText, CheckCircle, X } from 'lucide-react';
 
 interface OrderPrescriptionUploadProps {
-  onPrescriptionUploaded: (file: File) => void;
+  onPrescriptionUploaded: (prescriptionId: string) => void;
   onCancel: () => void;
   prescriptionItems: Array<{ id: string; name: string }>;
 }
@@ -93,7 +94,7 @@ const OrderPrescriptionUpload: React.FC<OrderPrescriptionUploadProps> = ({
         description: "You can now proceed with your order.",
       });
 
-      onPrescriptionUploaded(file);
+      onPrescriptionUploaded(prescription.id);
     } catch (error) {
       console.error('Error uploading prescription:', error);
       toast({

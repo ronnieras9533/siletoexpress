@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -126,14 +127,15 @@ const Cart = () => {
                   <span>Subtotal</span>
                   <span>KES {getTotalPrice().toLocaleString()}</span>
                 </div>
-
-                {/* Removed delivery fee row */}
-
+                <div className="flex justify-between">
+                  <span>Delivery</span>
+                  <span>{getTotalPrice() >= 2000 ? 'Free' : 'KES 200'}</span>
+                </div>
                 <div className="border-t pt-4">
                   <div className="flex justify-between font-bold text-lg">
                     <span>Total</span>
                     <span className="text-blue-600">
-                      KES {getTotalPrice().toLocaleString()}
+                      KES {(getTotalPrice() + (getTotalPrice() >= 2000 ? 0 : 200)).toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -147,6 +149,12 @@ const Cart = () => {
                     <p className="text-sm text-yellow-700 mt-1">
                       Some items require prescription verification before delivery
                     </p>
+                  </div>
+                )}
+
+                {getTotalPrice() >= 2000 && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <p className="text-green-800 font-medium">🎉 Free delivery unlocked!</p>
                   </div>
                 )}
 
