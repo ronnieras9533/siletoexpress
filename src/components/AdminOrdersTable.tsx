@@ -1,3 +1,4 @@
+// src/components/AdminOrdersTable.tsx
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
@@ -94,12 +95,10 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
         `)
         .order('created_at', { ascending: false });
 
-      // Filter based on order type
       if (orderType === 'regular') {
         query = query.or('requires_prescription.is.null,requires_prescription.eq.false');
       }
 
-      // Filter based on payment status
       if (paymentStatusFilter) {
         query = query.eq('payment_status', paymentStatusFilter);
       }
@@ -109,7 +108,6 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
       if (error) throw error;
 
       if (ordersData && ordersData.length > 0) {
-        // Fetch profiles separately to avoid join issues
         const userIds = ordersData.map(order => order.user_id);
         const { data: profilesData, error: profilesError } = await supabase
           .from('profiles')
@@ -120,7 +118,6 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
           console.error('Error fetching profiles:', profilesError);
         }
 
-        // Combine orders with profiles
         const ordersWithProfiles = ordersData.map(order => ({
           ...order,
           profiles: profilesData?.find(profile => profile.id === order.user_id) || null
@@ -156,10 +153,8 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
         description: `Order status updated to ${newStatus}`,
       });
 
-      // Refresh orders
       fetchOrders();
       
-      // Call parent callback
       if (onStatusUpdate) {
         onStatusUpdate(orderId, newStatus);
       }
