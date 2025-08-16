@@ -10,6 +10,9 @@ import { Eye, Clock, Package, Truck, CheckCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import OrderStatusStepper from './OrderStatusStepper';
 import { Input } from '@/components/ui/input';
+import type { Database } from '@/integrations/supabase/types';
+
+type OrderStatus = Database['public']['Enums']['order_status'];
 
 interface Order {
   id: string;
@@ -58,7 +61,7 @@ interface AdminOrdersTableProps {
   onStatusUpdate?: (orderId: string, newStatus: string) => void;
 }
 
-const validOrderStatuses = ['pending','confirmed','processing','shipped','out_for_delivery','delivered','cancelled'];
+const validOrderStatuses: OrderStatus[] = ['pending', 'approved', 'confirmed', 'processing', 'shipped', 'out_for_delivery', 'delivered', 'cancelled'];
 
 const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', onStatusUpdate }) => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -94,6 +97,9 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
             status,
             admin_notes,
             created_at
+          ),
+          payments (
+            status
           )
         `)
         .order('created_at', { ascending: false });
@@ -114,7 +120,8 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
 
         const ordersWithProfiles = ordersData.map(order => ({
           ...order,
-          profiles: profilesData?.find(profile => profile.id === order.user_id) || null
+          profiles: profilesData?.find(profile => profile.id === order.user_id) || null,
+          payment_status: order.payments?.[0]?.status || 'pending'
         }));
 
         setOrders(ordersWithProfiles);
@@ -129,11 +136,15 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
     }
   };
 
-  const handleStatusUpdate = async (orderId: string, newStatus: string) => {
+  const handleStatusUpdate = async (orderId: string, newStatus: OrderStatus) => {
+    if (!validOrderStatuses.includes(newStatus)) {
+      toast({ title: "Error", description: "Invalid order status selected", variant: "destructive" });
+      return;
+    }
     try {
       const { error } = await supabase
         .from('orders')
-        .update({ status: newStatus as any })
+        .update({ status: newStatus })
         .eq('id', orderId);
 
       if (error) throw error;
@@ -150,6 +161,7 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'approved': return 'bg-green-100 text-green-800';
       case 'confirmed': return 'bg-blue-100 text-blue-800';
       case 'processing': return 'bg-purple-100 text-purple-800';
       case 'shipped': return 'bg-indigo-100 text-indigo-800';
@@ -172,6 +184,7 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'pending': return <Clock className="h-4 w-4" />;
+      case 'approved': return <CheckCircle className="h-4 w-4" />;
       case 'confirmed': return <CheckCircle className="h-4 w-4" />;
       case 'processing': return <Package className="h-4 w-4" />;
       case 'shipped': return <Truck className="h-4 w-4" />;
@@ -251,12 +264,24 @@ const OrderCard = ({ order, getStatusColor, getPaymentStatusColor, getStatusIcon
 
   const handleMarkPaid = async () => {
     try {
-      const { error } = await supabase.from('orders').update({ payment_status: 'paid' }).eq('id', order.id);
-      if (error) throw error;
-      toast({ title: "Success", description: "Payment status updated to Paid" });
+      const { error: paymentError } = await supabase
+        .from('payments')
+        .update({ status: 'paid' })
+        .eq('order_id', order.id);
+
+      if (paymentError) throw paymentError;
+
+      const { error: orderError } = await supabase
+        .from('orders')
+        .update({ status: 'approved' })
+        .eq('id', order.id);
+
+      if (orderError) throw orderError;
+
+      toast({ title: "Success", description: "Order marked as paid and approved" });
       fetchOrders(); // Auto-refresh after marking as paid
     } catch (error) {
-      console.error(error);
+      console.error('Error marking as paid:', error);
       toast({ title: "Error", description: "Failed to mark as paid", variant: "destructive" });
     }
   };
@@ -284,7 +309,7 @@ const OrderCard = ({ order, getStatusColor, getPaymentStatusColor, getStatusIcon
                   <Select value={newStatus} onValueChange={setNewStatus}>
                     <SelectTrigger><SelectValue placeholder="Select new status" /></SelectTrigger>
                     <SelectContent>
-                      {validOrderStatuses.map(s => <SelectItem key={s} value={s}>{s.split('_').map(w => w[0].toUpperCase()+w.slice(1)).join(' ')}</SelectItem>)}
+                      {validOrderStatuses.map(s => <SelectItem key={s} value={s}>{formatStatus(s)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <Input placeholder="Note (optional)" value={newNote} onChange={(e)=>setNewNote(e.target.value)} />
