@@ -1,280 +1,508 @@
-import React, { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
+import { Eye, MapPin, Phone, Clock, Package, Truck, CheckCircle, FileText, Image } from 'lucide-react';
+import OrderStatusStepper from './OrderStatusStepper';
 
-type Order = {
+interface Order {
   id: string;
   user_id: string;
-  status: string;             // enum order_status
-  payment_status: string;     // "pending" | "paid" | "failed"
   total_amount: number;
-  currency: string | null;
+  status: string;
   created_at: string;
+  phone_number: string | null;
+  delivery_address: string | null;
+  county: string | null;
+  delivery_instructions: string | null;
+  delivery_fee: number | null;
+  payment_method: string | null;
+  currency: string | null;
   requires_prescription: boolean | null;
-};
+  profiles: {
+    full_name: string;
+    email: string;
+  } | null;
+  order_items: {
+    quantity: number;
+    price: number;
+    products: {
+      name: string;
+      prescription_required: boolean;
+    };
+  }[];
+  order_tracking: {
+    status: string;
+    created_at: string;
+    note: string | null;
+    location: string | null;
+  }[];
+  prescriptions?: {
+    id: string;
+    image_url: string;
+    status: string;
+    admin_notes: string | null;
+    created_at: string;
+  }[];
+}
 
-type OrderItem = {
-  id: string;
-  order_id: string;
-  quantity: number;
-  price: number;
-  products: {
-    name: string;
-    image_url?: string | null;
-  };
-};
+interface AdminOrdersTableProps {
+  orderType?: 'regular' | 'all';
+  onStatusUpdate?: (orderId: string, newStatus: string) => void;
+}
 
-type Profile = {
-  id: string;
-  full_name: string | null;
-  email: string | null;
-  phone?: string | null;
-};
-
-const VALID_ORDER_STATUSES = ["pending", "confirmed", "delivered"] as const;
-// Keep it tight to avoid enum errors.
-
-export default function AdminOrdersTable() {
+const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', onStatusUpdate }) => {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  // modal state
+  const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [customer, setCustomer] = useState<Profile | null>(null);
+  const [selectedPrescription, setSelectedPrescription] = useState<any>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [orderType]);
 
   const fetchOrders = async () => {
-    setLoading(true);
-    // REGULAR orders only: requires_prescription = false OR null
-    let query = supabase
-      .from("orders")
-      .select("*")
-      .or("requires_prescription.is.null,requires_prescription.eq.false")
-      .order("created_at", { ascending: false });
+    try {
+      let query = supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            quantity,
+            price,
+            products (name, prescription_required)
+          ),
+          order_tracking (
+            status,
+            created_at,
+            note,
+            location
+          ),
+          prescriptions (
+            id,
+            image_url,
+            status,
+            admin_notes,
+            created_at
+          )
+        `)
+        .order('created_at', { ascending: false });
 
-    const { data, error } = await query;
-    if (error) {
-      console.error("Error fetching regular orders:", error);
-    } else {
-      setOrders(data || []);
+      // Filter based on order type
+      if (orderType === 'regular') {
+        query = query.or('requires_prescription.is.null,requires_prescription.eq.false');
+      }
+
+      const { data: ordersData, error } = await query;
+
+      if (error) throw error;
+
+      if (ordersData && ordersData.length > 0) {
+        // Fetch profiles separately to avoid join issues
+        const userIds = ordersData.map(order => order.user_id);
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', userIds);
+
+        if (profilesError) {
+          console.error('Error fetching profiles:', profilesError);
+        }
+
+        // Combine orders with profiles
+        const ordersWithProfiles = ordersData.map(order => ({
+          ...order,
+          profiles: profilesData?.find(profile => profile.id === order.user_id) || null
+        }));
+
+        setOrders(ordersWithProfiles);
+      } else {
+        setOrders([]);
+      }
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch orders",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  };
-
-  const openOrderDetails = async (order: Order) => {
-    setSelectedOrder(order);
-
-    // Items + product info
-    const { data: items, error: itemsErr } = await supabase
-      .from("order_items")
-      .select("id, order_id, quantity, price, products(name, image_url)")
-      .eq("order_id", order.id);
-    if (itemsErr) console.error("Error fetching order_items:", itemsErr);
-    setOrderItems(items || []);
-
-    // Customer profile
-    const { data: profile, error: profErr } = await supabase
-      .from("profiles")
-      .select("id, full_name, email")
-      .eq("id", order.user_id)
-      .single();
-    if (profErr) console.error("Error fetching profile:", profErr);
-    setCustomer(profile || null);
   };
 
   const handleStatusUpdate = async (orderId: string, newStatus: string) => {
-    // Protect against undefined IDs and invalid enum values.
-    if (!orderId) return console.error("No orderId passed to handleStatusUpdate");
-    if (!VALID_ORDER_STATUSES.includes(newStatus as any)) {
-      console.error("Invalid enum for order_status:", newStatus);
-      return;
-    }
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: newStatus as any })
+        .eq('id', orderId);
 
-    const { error } = await supabase
-      .from("orders")
-      .update({ status: newStatus })
-      .eq("id", orderId);
+      if (error) throw error;
 
-    if (error) {
-      console.error("Error updating status:", error);
-      return;
+      toast({
+        title: "Success",
+        description: `Order status updated to ${newStatus}`,
+      });
+
+      // Refresh orders
+      fetchOrders();
+      
+      // Call parent callback
+      if (onStatusUpdate) {
+        onStatusUpdate(orderId, newStatus);
+      }
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update order status",
+        variant: "destructive"
+      });
     }
-    await fetchOrders();
-    if (selectedOrder && selectedOrder.id === orderId) {
-      setSelectedOrder({ ...selectedOrder, status: newStatus });
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'confirmed': return 'bg-blue-100 text-blue-800';
+      case 'processing': return 'bg-purple-100 text-purple-800';
+      case 'shipped': return 'bg-indigo-100 text-indigo-800';
+      case 'out_for_delivery': return 'bg-orange-100 text-orange-800';
+      case 'delivered': return 'bg-green-100 text-green-800';
+      case 'cancelled': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const handleMarkPaid = async (order: Order) => {
-    if (!order?.id) return;
-
-    // Only update payment_status here. Do NOT set status="paid".
-    const { error } = await supabase
-      .from("orders")
-      .update({ payment_status: "paid" })
-      .eq("id", order.id);
-
-    if (error) {
-      console.error("Error updating payment_status:", error);
-      return;
-    }
-    await fetchOrders();
-    if (selectedOrder && selectedOrder.id === order.id) {
-      setSelectedOrder({ ...selectedOrder, payment_status: "paid" });
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'pending': return <Clock className="h-4 w-4" />;
+      case 'confirmed': return <CheckCircle className="h-4 w-4" />;
+      case 'processing': return <Package className="h-4 w-4" />;
+      case 'shipped': return <Truck className="h-4 w-4" />;
+      case 'out_for_delivery': return <Truck className="h-4 w-4" />;
+      case 'delivered': return <CheckCircle className="h-4 w-4" />;
+      default: return <Clock className="h-4 w-4" />;
     }
   };
+
+  const formatStatus = (status: string) => {
+    return status.split('_').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ');
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
-    <Card className="p-4">
-      <CardContent>
-        <h2 className="text-xl font-semibold mb-4">Regular Orders</h2>
-
-        {loading ? (
-          <p>Loading…</p>
-        ) : orders.length === 0 ? (
-          <p>No regular orders found.</p>
-        ) : (
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr>
-                <th className="border-b p-2">Order</th>
-                <th className="border-b p-2">Total</th>
-                <th className="border-b p-2">Status</th>
-                <th className="border-b p-2">Payment</th>
-                <th className="border-b p-2">Created</th>
-                <th className="border-b p-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((o) => (
-                <tr key={o.id}>
-                  <td className="border-b p-2">#{o.id.slice(-8)}</td>
-                  <td className="border-b p-2">
-                    {o.currency || "KES"} {Number(o.total_amount).toLocaleString()}
-                  </td>
-                  <td className="border-b p-2 capitalize">{o.status.replace(/_/g, " ")}</td>
-                  <td className="border-b p-2 capitalize">{o.payment_status}</td>
-                  <td className="border-b p-2">
-                    {new Date(o.created_at).toLocaleString()}
-                  </td>
-                  <td className="border-b p-2">
-                    <div className="flex gap-2 items-center">
-                      <Button size="sm" variant="outline" onClick={() => openOrderDetails(o)}>
-                        View
-                      </Button>
-                      <Select
-                        defaultValue={o.status}
-                        onValueChange={(val) => handleStatusUpdate(o.id, val)}
-                      >
-                        <SelectTrigger className="w-[160px]">
-                          <SelectValue placeholder="Update status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {VALID_ORDER_STATUSES.map((s) => (
-                            <SelectItem key={s} value={s}>
-                              {s.replace(/_/g, " ")}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {o.payment_status !== "paid" && (
-                        <Button size="sm" onClick={() => handleMarkPaid(o)}>
-                          Mark Paid
-                        </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-
-        {/* Details Modal */}
-        <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
-          <DialogContent className="max-w-3xl">
-            <DialogHeader>
-              <DialogTitle>
-                Order Details {selectedOrder ? `#${selectedOrder.id.slice(-8)}` : ""}
-              </DialogTitle>
-            </DialogHeader>
-
-            {selectedOrder && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
+    <div className="space-y-4">
+      {orders.length === 0 ? (
+        <div className="text-center py-8">
+          <Package className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Orders Found</h3>
+          <p className="text-gray-600">No {orderType === 'regular' ? 'regular' : ''} orders to display</p>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {orders.map((order) => (
+            <Card key={order.id}>
+              <CardHeader className="pb-3">
+                <div className="flex justify-between items-start">
                   <div>
-                    <p><strong>Status:</strong> {selectedOrder.status}</p>
-                    <p><strong>Payment:</strong> {selectedOrder.payment_status}</p>
-                    <p>
-                      <strong>Total:</strong> {selectedOrder.currency || "KES"}{" "}
-                      {Number(selectedOrder.total_amount).toLocaleString()}
+                    <CardTitle className="text-lg">Order #{order.id.slice(-8)}</CardTitle>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {order.profiles?.full_name || 'Unknown User'} • {new Date(order.created_at).toLocaleDateString()}
                     </p>
                   </div>
-                  <div>
-                    <p><strong>Created:</strong> {new Date(selectedOrder.created_at).toLocaleString()}</p>
-                    <p>
-                      <strong>Prescription Required:</strong>{" "}
-                      {selectedOrder.requires_prescription ? "Yes" : "No"}
-                    </p>
+                  <div className="flex items-center gap-2">
+                    <Badge className={getStatusColor(order.status)}>
+                      {getStatusIcon(order.status)}
+                      <span className="ml-1">{formatStatus(order.status)}</span>
+                    </Badge>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => setSelectedOrder(order)}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          View
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle>Order Details #{order.id.slice(-8)}</DialogTitle>
+                        </DialogHeader>
+                        
+                        {selectedOrder && (
+                          <div className="space-y-6">
+                            {/* Order Progress */}
+                            <OrderStatusStepper
+                              currentStatus={selectedOrder.status}
+                              orderTracking={selectedOrder.order_tracking}
+                            />
+
+                            {/* Customer & Order Info */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle className="text-lg">Customer Information</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                  <div>
+                                    <p className="font-medium">{selectedOrder.profiles?.full_name || 'Unknown User'}</p>
+                                    <p className="text-sm text-gray-600">{selectedOrder.profiles?.email || 'No email'}</p>
+                                  </div>
+                                  {selectedOrder.phone_number && (
+                                    <div className="flex items-center gap-2">
+                                      <Phone className="h-4 w-4 text-gray-500" />
+                                      <span className="text-sm">{selectedOrder.phone_number}</span>
+                                    </div>
+                                  )}
+                                </CardContent>
+                              </Card>
+
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle className="text-lg">Order Summary</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                  <div className="flex justify-between">
+                                    <span>Total Amount:</span>
+                                    <span className="font-medium">{selectedOrder.currency || 'KES'} {selectedOrder.total_amount.toLocaleString()}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span>Payment Method:</span>
+                                    <span className="font-medium">{selectedOrder.payment_method || 'Not specified'}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span>Delivery Fee:</span>
+                                    <span className="font-medium">{selectedOrder.delivery_fee === 0 ? 'Free' : `${selectedOrder.currency || 'KES'} ${selectedOrder.delivery_fee?.toLocaleString() || 0}`}</span>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            </div>
+
+                            {/* Delivery Information */}
+                            {selectedOrder.county && (
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle className="text-lg flex items-center gap-2">
+                                    <MapPin className="h-5 w-5" />
+                                    Delivery Information
+                                  </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                  <div>
+                                    <p className="font-medium">County:</p>
+                                    <p className="text-sm text-gray-600">{selectedOrder.county}</p>
+                                  </div>
+                                  {selectedOrder.delivery_address && (
+                                    <div>
+                                      <p className="font-medium">Address:</p>
+                                      <p className="text-sm text-gray-600">{selectedOrder.delivery_address}</p>
+                                    </div>
+                                  )}
+                                  {selectedOrder.delivery_instructions && (
+                                    <div>
+                                      <p className="font-medium">Delivery Instructions:</p>
+                                      <p className="text-sm text-gray-600">{selectedOrder.delivery_instructions}</p>
+                                    </div>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            )}
+
+                            {/* Order Items */}
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="text-lg">Order Items</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <div className="space-y-3">
+                                  {selectedOrder.order_items.map((item, index) => (
+                                    <div key={index} className="flex justify-between items-center py-2 border-b last:border-b-0">
+                                      <div className="flex-1">
+                                        <p className="font-medium">{item.products.name}</p>
+                                        <p className="text-sm text-gray-600">
+                                          Qty: {item.quantity} × {selectedOrder.currency || 'KES'} {item.price}
+                                        </p>
+                                        {item.products.prescription_required && (
+                                          <Badge variant="outline" className="text-xs mt-1">
+                                            Prescription Required
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <span className="font-medium">
+                                        {selectedOrder.currency || 'KES'} {(item.quantity * item.price).toLocaleString()}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </CardContent>
+                            </Card>
+
+                            {/* Prescriptions Section */}
+                            {selectedOrder.requires_prescription && selectedOrder.prescriptions && selectedOrder.prescriptions.length > 0 && (
+                              <Card>
+                                <CardHeader>
+                                  <CardTitle className="text-lg flex items-center gap-2">
+                                    <FileText className="h-5 w-5" />
+                                    Prescriptions
+                                  </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                  <div className="space-y-3">
+                                    {selectedOrder.prescriptions.map((prescription) => (
+                                      <div key={prescription.id} className="border rounded-lg p-3">
+                                        <div className="flex items-center justify-between mb-2">
+                                          <Badge className={getStatusColor(prescription.status)}>
+                                            {prescription.status.toUpperCase()}
+                                          </Badge>
+                                          <span className="text-xs text-gray-500">
+                                            {new Date(prescription.created_at).toLocaleDateString()}
+                                          </span>
+                                        </div>
+                                        
+                                        <div className="flex gap-3">
+                                          <img 
+                                            src={prescription.image_url} 
+                                            alt="Prescription"
+                                            className="w-16 h-16 object-cover rounded cursor-pointer hover:opacity-80"
+                                            onClick={() => setSelectedPrescription(prescription)}
+                                          />
+                                          <div className="flex-1 min-w-0">
+                                            {prescription.admin_notes && (
+                                              <p className="text-sm text-gray-600 mb-2">
+                                                <span className="font-medium">Notes:</span> {prescription.admin_notes}
+                                              </p>
+                                            )}
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={() => setSelectedPrescription(prescription)}
+                                              className="mt-2"
+                                            >
+                                              <Image className="h-3 w-3 mr-1" />
+                                              View Prescription
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            )}
+
+                            {/* Status Update */}
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="text-lg">Update Order Status</CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <div className="flex items-center gap-4">
+                                  <Select
+                                    value={selectedOrder.status}
+                                    onValueChange={(value) => handleStatusUpdate(selectedOrder.id, value)}
+                                  >
+                                    <SelectTrigger className="w-48">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="pending">Pending</SelectItem>
+                                      <SelectItem value="confirmed">Confirmed</SelectItem>
+                                      <SelectItem value="processing">Processing</SelectItem>
+                                      <SelectItem value="shipped">Shipped</SelectItem>
+                                      <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
+                                      <SelectItem value="delivered">Delivered</SelectItem>
+                                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <p className="text-sm text-gray-600">
+                                    Current status: <span className="font-medium">{formatStatus(selectedOrder.status)}</span>
+                                  </p>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </div>
+                        )}
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-600">Total Amount</p>
+                    <p className="font-medium">{order.currency || 'KES'} {order.total_amount.toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">Items</p>
+                    <p className="font-medium">{order.order_items.length} item(s)</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">County</p>
+                    <p className="font-medium">{order.county || 'Not specified'}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
-                {customer && (
-                  <div className="border-t pt-3">
-                    <h3 className="font-semibold mb-2">Customer</h3>
-                    <p>{customer.full_name || "Unknown"}</p>
-                    <p className="text-sm text-gray-600">{customer.email || ""}</p>
+      {/* Prescription Image Modal */}
+      {selectedPrescription && (
+        <Dialog open={!!selectedPrescription} onOpenChange={() => setSelectedPrescription(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Prescription Image</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <img 
+                src={selectedPrescription.image_url} 
+                alt="Prescription"
+                className="w-full max-h-96 object-contain rounded"
+              />
+              <div className="text-sm space-y-2">
+                <div>
+                  <span className="font-medium">Status:</span> 
+                  <Badge className={`ml-2 ${getStatusColor(selectedPrescription.status)}`}>
+                    {selectedPrescription.status.toUpperCase()}
+                  </Badge>
+                </div>
+                {selectedPrescription.admin_notes && (
+                  <div>
+                    <span className="font-medium">Admin Notes:</span> 
+                    <p className="text-gray-600 mt-1">{selectedPrescription.admin_notes}</p>
                   </div>
                 )}
-
-                {orderItems.length > 0 && (
-                  <div className="border-t pt-3">
-                    <h3 className="font-semibold mb-2">Items</h3>
-                    <ul className="space-y-2">
-                      {orderItems.map((it) => (
-                        <li key={it.id} className="flex items-center gap-3">
-                          {it.products?.image_url ? (
-                            <img
-                              src={it.products.image_url}
-                              alt={it.products.name}
-                              className="w-12 h-12 rounded object-cover"
-                            />
-                          ) : null}
-                          <div>
-                            <div className="font-medium">{it.products?.name}</div>
-                            <div className="text-sm text-gray-600">
-                              Qty: {it.quantity} • Price: {selectedOrder.currency || "KES"}{" "}
-                              {Number(it.price).toLocaleString()}
-                            </div>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                <div>
+                  <span className="font-medium">Upload Date:</span> 
+                  <span className="ml-2">{new Date(selectedPrescription.created_at).toLocaleDateString()}</span>
+                </div>
               </div>
-            )}
+            </div>
           </DialogContent>
         </Dialog>
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
-}
+};
+
+export default AdminOrdersTable;
