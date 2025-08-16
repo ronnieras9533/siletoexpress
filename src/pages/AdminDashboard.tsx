@@ -17,7 +17,6 @@ import AdminPrescriptionOrdersTable from '@/components/AdminPrescriptionOrdersTa
 import AdminPrescriptionsTable from '@/components/AdminPrescriptionsTable';
 import AdminUserManagement from '@/components/AdminUserManagement';
 import AdminProductManagement from '@/components/AdminProductManagement';
-import AdminAnalytics from '@/components/AdminAnalytics'; // Add this import
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
@@ -185,14 +184,13 @@ const AdminDashboard = () => {
 
         {/* Tabs */}
         <Tabs defaultValue="paid-orders" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-7"> {/* Changed to grid-cols-7 */}
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="paid-orders">Paid Orders</TabsTrigger>
             <TabsTrigger value="pending-payments">Pending Payments</TabsTrigger>
             <TabsTrigger value="prescription-orders">Prescription Orders</TabsTrigger>
             <TabsTrigger value="prescriptions">Prescriptions</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="products">Products</TabsTrigger>
-            <TabsTrigger value="analytics">Analytics</TabsTrigger> {/* Added Analytics tab */}
           </TabsList>
 
           <TabsContent value="paid-orders">
@@ -260,17 +258,6 @@ const AdminDashboard = () => {
               </CardContent>
             </Card>
           </TabsContent>
-
-          <TabsContent value="analytics">
-            <Card>
-              <CardHeader>
-                <CardTitle>Analytics</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <AdminAnalytics />
-              </CardContent>
-            </Card>
-          </TabsContent> {/* Added Analytics content */}
         </Tabs>
       </div>
 
