@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -86,7 +85,7 @@ const FeaturedProducts = () => {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {products.map((product) => (
             <Card key={product.id} className="group hover:shadow-lg transition-shadow duration-200">
               <CardContent className="p-4">
@@ -140,6 +139,29 @@ const FeaturedProducts = () => {
                     
                     <Link to={`/product/${product.id}`}>
                       <Button variant="outline" size="sm">
+                        View
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div className="text-center">
+          <Link to="/products">
+            <Button variant="outline" size="lg">
+              View All Products
+            </Button>
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export default FeaturedProducts;                      <Button variant="outline" size="sm">
                         View
                       </Button>
                     </Link>
