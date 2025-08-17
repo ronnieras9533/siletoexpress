@@ -161,6 +161,56 @@ const FeaturedProducts = () => {
   );
 };
 
+export default FeaturedProducts;                    <span className="text-xl font-bold text-blue-600">
+                      KES {product.price.toLocaleString()}
+                    </span>
+                    <Badge variant="secondary" className="text-xs">
+                      {product.category}
+                    </Badge>
+                  </div>
+
+                  {product.prescription_required && (
+                    <div className="flex items-center gap-1 text-red-600 text-sm">
+                      <AlertCircle size={14} />
+                      <span>Prescription Required</span>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      onClick={() => handleAddToCart(product)}
+                      disabled={product.stock === 0}
+                      className="flex-1"
+                      size="sm"
+                    >
+                      <ShoppingCart size={14} className="mr-1" />
+                      Add to Cart
+                    </Button>
+                    
+                    <Link to={`/product/${product.id}`}>
+                      <Button variant="outline" size="sm">
+                        View
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div className="text-center">
+          <Link to="/products">
+            <Button variant="outline" size="lg">
+              View All Products
+            </Button>
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+};
+
 export default FeaturedProducts;                      <Button variant="outline" size="sm">
                         View
                       </Button>
