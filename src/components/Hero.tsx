@@ -22,32 +22,29 @@ const Hero = () => {
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-transparent"></div>
       </div>
 
-      <div className="relative container mx-auto px-4 pt-12 pb-8 md:pt-20 md:pb-12">
+      <div className="relative container mx-auto px-4 pt-6 pb-4">
         <div className="max-w-4xl mx-auto">
           <div className="text-center">
-            {/* Trust Badge */}
-            <div className="inline-flex items-center bg-white/10 backdrop-blur-sm rounded-full px-4 py-2 mb-6">
-              <Shield className="h-4 w-4 mr-2" />
-              <span className="text-sm font-medium">
-                Licensed by Pharmacy & Poisons Board
-              </span>
+            {/* Trust Badge - Reduced size */}
+            <div className="inline-flex items-center bg-white/10 backdrop-blur-sm rounded-full px-3 py-1 mb-3 text-xs">
+              <Shield className="h-3 w-3 mr-1" />
+              <span>Licensed by Pharmacy & Poisons Board</span>
             </div>
 
-            {/* Main Headline */}
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold leading-tight mb-6">
+            {/* Main Headline - Reduced size */}
+            <h1 className="text-xl sm:text-2xl font-bold leading-tight mb-3">
               Your Trusted Online <br className="hidden sm:block" />
               <span className="text-blue-200">Pharmacy in Kenya</span>
             </h1>
 
-            {/* Subtitle */}
-            <p className="text-lg md:text-xl text-blue-100 mb-8 max-w-3xl mx-auto leading-relaxed">
-              Get authentic medicines delivered to your doorstep. From prescription
-              drugs to wellness products, we ensure quality healthcare for everyone.
+            {/* Subtitle - Reduced size */}
+            <p className="text-sm text-blue-100 mb-4 max-w-2xl mx-auto leading-snug">
+              Get authentic medicines delivered to your doorstep.
             </p>
           </div>
           
-          {/* Compact Search Bar */}
-          <div className="bg-white rounded-full p-1 max-w-lg mx-auto mb-10 shadow-lg">
+          {/* Compact Search Bar - Reduced by 80% */}
+          <div className="bg-white rounded-full p-0.5 max-w-xs mx-auto mb-4 shadow">
             <div className="flex">
               <div className="relative flex-1">
                 <Input
@@ -55,15 +52,15 @@ const Hero = () => {
                   placeholder="Search products..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-12 text-base pl-6 pr-12 border-0 bg-transparent text-gray-800 placeholder-gray-500 focus-visible:ring-0"
+                  className="h-8 text-sm pl-4 pr-8 border-0 bg-transparent text-gray-800 placeholder-gray-500 focus-visible:ring-0"
                   onKeyPress={(e) => e.key === "Enter" && handleSearch()}
                 />
-                <Search className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500 h-5 w-5" />
+                <Search className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 h-3 w-3" />
               </div>
               <Button
                 onClick={handleSearch}
                 disabled={!searchQuery.trim()}
-                className="h-12 w-24 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex-shrink-0"
+                className="h-8 w-16 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex-shrink-0 text-xs"
               >
                 Search
               </Button>
@@ -71,54 +68,41 @@ const Hero = () => {
           </div>
 
           <div className="text-center">
-            {/* CTA Button */}
-            <div className="mb-10">
+            {/* CTA Button - Reduced size */}
+            <div className="mb-4">
               <Button
                 onClick={() => navigate("/products")}
-                size="lg"
-                className="bg-white text-blue-700 hover:bg-blue-50 px-8 py-4 text-lg font-semibold rounded-lg shadow-lg transform hover:scale-105 transition-all duration-200"
+                className="bg-white text-blue-700 hover:bg-blue-50 px-4 py-2 text-sm font-semibold rounded-lg shadow"
               >
                 Browse Products
               </Button>
             </div>
 
-            {/* Trust Indicators - Updated to 2 columns on mobile */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mt-8">
-              <div className="flex flex-col items-center text-center p-3">
-                <CheckCircle className="h-8 w-8 md:h-10 md:w-10 text-blue-200 mb-2" />
-                <h3 className="font-semibold text-sm md:text-base mb-1">
-                  Verified Products
+            {/* Trust Indicators - Reduced size */}
+            <div className="grid grid-cols-4 gap-2 mt-4">
+              <div className="flex flex-col items-center text-center">
+                <CheckCircle className="h-4 w-4 text-blue-200 mb-1" />
+                <h3 className="font-semibold text-2xs mb-0.5">
+                  Verified
                 </h3>
-                <p className="text-blue-200 text-xs md:text-sm">
-                  Authentic medicines only
-                </p>
               </div>
-              <div className="flex flex-col items-center text-center p-3">
-                <Truck className="h-8 w-8 md:h-10 md:w-10 text-blue-200 mb-2" />
-                <h3 className="font-semibold text-sm md:text-base mb-1">
-                  Fast Delivery
+              <div className="flex flex-col items-center text-center">
+                <Truck className="h-4 w-4 text-blue-200 mb-1" />
+                <h3 className="font-semibold text-2xs mb-0.5">
+                  Fast
                 </h3>
-                <p className="text-blue-200 text-xs md:text-sm">
-                  Quick & reliable service
-                </p>
               </div>
-              <div className="flex flex-col items-center text-center p-3">
-                <Clock className="h-8 w-8 md:h-10 md:w-10 text-blue-200 mb-2" />
-                <h3 className="font-semibold text-sm md:text-base mb-1">
-                  24/7 Support
+              <div className="flex flex-col items-center text-center">
+                <Clock className="h-4 w-4 text-blue-200 mb-1" />
+                <h3 className="font-semibold text-2xs mb-0.5">
+                  24/7
                 </h3>
-                <p className="text-blue-200 text-xs md:text-sm">
-                  Always here to help
-                </p>
               </div>
-              <div className="flex flex-col items-center text-center p-3">
-                <Award className="h-8 w-8 md:h-10 md:w-10 text-blue-200 mb-2" />
-                <h3 className="font-semibold text-sm md:text-base mb-1">
-                  Licensed Pharmacy
+              <div className="flex flex-col items-center text-center">
+                <Award className="h-4 w-4 text-blue-200 mb-1" />
+                <h3 className="font-semibold text-2xs mb-0.5">
+                  Licensed
                 </h3>
-                <p className="text-blue-200 text-xs md:text-sm">
-                  Fully regulated & certified
-                </p>
               </div>
             </div>
           </div>
