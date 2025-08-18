@@ -98,8 +98,8 @@ const FeaturedProducts = () => {
               key={product.id}
               className="group hover:shadow-lg transition-shadow duration-200"
             >
-              <CardContent className="p-4">
-                <div className="aspect-square bg-gray-100 rounded-lg mb-4 overflow-hidden">
+              <CardContent className="p-2">
+                <div className="aspect-[2/1] bg-gray-100 rounded-lg mb-2 overflow-hidden">
                   {product.image_url ? (
                     <img
                       src={product.image_url}
@@ -111,6 +111,74 @@ const FeaturedProducts = () => {
                       <div className="text-center">
                         <ShoppingCart
                           size={32}
+                          className="mx-auto mb-2 opacity-50"
+                        />
+                        <span className="text-sm">No Image</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <h3 className="font-semibold text-base line-clamp-2">
+                    {product.name}
+                  </h3>
+                  <p className="text-gray-600 text-xs line-clamp-2">
+                    {product.description}
+                  </p>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg font-bold text-blue-600">
+                      KES {product.price.toLocaleString()}
+                    </span>
+                    <Badge variant="secondary" className="text-xs">
+                      {product.category}
+                    </Badge>
+                  </div>
+
+                  {product.prescription_required && (
+                    <div className="flex items-center gap-1 text-red-600 text-sm">
+                      <AlertCircle size={14} />
+                      <span>Prescription Required</span>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      onClick={() => handleAddToCart(product)}
+                      disabled={product.stock === 0}
+                      className="flex-1"
+                      size="sm"
+                    >
+                      <ShoppingCart size={14} className="mr-1" />
+                      Add to Cart
+                    </Button>
+
+                    <Link to={`/product/${product.id}`}>
+                      <Button variant="outline" size="sm">
+                        View
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div className="text-center">
+          <Link to="/products">
+            <Button variant="outline" size="lg">
+              View All Products
+            </Button>
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export default FeaturedProducts;                          size={32}
                           className="mx-auto mb-2 opacity-50"
                         />
                         <span className="text-sm">No Image</span>
