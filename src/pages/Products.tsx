@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -15,7 +15,6 @@ import Footer from '@/components/Footer';
 
 const Products = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const { addToCart } = useCart();
   const { toast } = useToast();
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || '');
@@ -25,8 +24,6 @@ const Products = () => {
   const { data: products = [], isLoading, error } = useQuery({
     queryKey: ['products', searchQuery, selectedCategory],
     queryFn: async () => {
-      console.log('Products: Starting products query');
-      
       let query = supabase
         .from('products')
         .select('*')
@@ -42,14 +39,10 @@ const Products = () => {
 
       const { data, error } = await query.order('created_at', { ascending: false });
 
-      console.log('Products: Query result:', { data, error });
-
       if (error) {
-        console.error('Products: Error fetching products:', error);
         throw error;
       }
 
-      console.log(`Products: Successfully fetched products: ${data?.length || 0}`);
       return data || [];
     },
   });
@@ -64,11 +57,9 @@ const Products = () => {
         .not('category', 'is', null);
 
       if (error) {
-        console.error('Error fetching categories:', error);
         throw error;
       }
 
-      // Get unique categories
       const uniqueCategories = [...new Set(data?.map(item => item.category).filter(Boolean))] as string[];
       return uniqueCategories;
     },
@@ -133,28 +124,28 @@ const Products = () => {
       <Header />
       
       <div className="container mx-auto py-8 px-4">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
           <h1 className="text-2xl font-bold">Products</h1>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center w-full md:w-auto">
             <Input
               type="text"
               placeholder="Search products..."
               value={searchQuery}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
               onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleSearch()}
-              className="max-w-sm"
+              className="flex-1 md:max-w-xs"
             />
-            <Button onClick={handleSearch}>Search</Button>
+            <Button onClick={handleSearch} className="ml-2">Search</Button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
           <div className="col-span-1">
-            <Card>
-              <CardHeader>
-                <CardTitle>Categories</CardTitle>
+            <Card className="sticky top-4">
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="text-lg">Categories</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 pt-0">
                 <Select 
                   value={selectedCategory || 'all'} 
                   onValueChange={handleCategoryChange}
@@ -193,14 +184,16 @@ const Products = () => {
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                 {products.map((product) => (
-                  <Card key={product.id} className="cursor-pointer hover:shadow-lg transition-shadow">
-                    <CardHeader>
-                      <CardTitle className="line-clamp-2">{product.name}</CardTitle>
+                  <Card key={product.id} className="h-full flex flex-col overflow-hidden hover:shadow-md transition-shadow">
+                    <CardHeader className="p-3 pb-1">
+                      <CardTitle className="line-clamp-2 text-sm font-medium h-10 flex items-center">
+                        {product.name}
+                      </CardTitle>
                     </CardHeader>
-                    <CardContent>
-                      <div className="aspect-square bg-gray-100 rounded-lg mb-4 overflow-hidden">
+                    <CardContent className="p-3 pt-0 flex flex-col flex-grow">
+                      <div className="aspect-square bg-gray-100 rounded-lg mb-2 overflow-hidden flex-shrink-0">
                         {product.image_url ? (
                           <img 
                             src={product.image_url} 
@@ -209,45 +202,44 @@ const Products = () => {
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-gray-400">
-                            <ShoppingCart size={32} className="opacity-50" />
+                            <ShoppingCart size={24} className="opacity-50" />
                           </div>
                         )}
                       </div>
                       
-                      <CardDescription className="line-clamp-2 mb-4">
-                        {product.description || 'No description available'}
-                      </CardDescription>
-                      
-                      <div className="flex items-center justify-between mb-4">
-                        <span className="font-bold text-xl text-blue-600">
-                          KES {product.price.toLocaleString()}
-                        </span>
-                        <Badge variant="secondary">{product.category}</Badge>
-                      </div>
-
-                      {product.prescription_required && (
-                        <div className="flex items-center gap-1 text-red-600 text-sm mb-4">
-                          <AlertCircle size={14} />
-                          <span>Prescription Required</span>
+                      <div className="mt-auto">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-bold text-blue-600">
+                            KES {product.price.toLocaleString()}
+                          </span>
+                          <Badge variant="secondary" className="text-xs truncate max-w-[70px]">
+                            {product.category}
+                          </Badge>
                         </div>
-                      )}
 
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={() => handleAddToCart(product)}
-                          disabled={product.stock === 0}
-                          className="flex-1"
-                          size="sm"
-                        >
-                          <ShoppingCart size={14} className="mr-1" />
-                          Add to Cart
-                        </Button>
-                        
-                        <Link to={`/product/${product.id}`}>
-                          <Button variant="outline" size="sm">
-                            View
+                        {product.prescription_required && (
+                          <div className="flex items-center gap-1 text-red-600 text-xs mb-2">
+                            <AlertCircle size={12} />
+                            <span>Prescription Required</span>
+                          </div>
+                        )}
+
+                        <div className="flex gap-2 mt-2">
+                          <Button
+                            onClick={() => handleAddToCart(product)}
+                            disabled={product.stock === 0}
+                            className="flex-1 text-xs px-2 py-1 h-8"
+                          >
+                            <ShoppingCart size={12} className="mr-1" />
+                            Add
                           </Button>
-                        </Link>
+                          
+                          <Link to={`/product/${product.id}`} className="flex-1">
+                            <Button variant="outline" className="text-xs px-2 py-1 h-8 w-full">
+                              View
+                            </Button>
+                          </Link>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
