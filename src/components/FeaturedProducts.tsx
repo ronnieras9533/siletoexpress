@@ -12,7 +12,7 @@ import { Link } from 'react-router-dom';
 const FeaturedProducts = () => {
   const { addToCart } = useCart();
   const { toast } = useToast();
-  
+
   const { data: products, isLoading } = useQuery({
     queryKey: ['featured-products'],
     queryFn: async () => {
@@ -23,7 +23,7 @@ const FeaturedProducts = () => {
         .eq('prescription_required', false)
         .limit(6)
         .order('created_at', { ascending: false });
-      
+
       if (error) throw error;
       return data || [];
     },
@@ -75,7 +75,6 @@ const FeaturedProducts = () => {
           </p>
         </div>
         
-        {/* Compact grid layout */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
           {products.map((product) => (
             <Card 
@@ -83,7 +82,6 @@ const FeaturedProducts = () => {
               className="group hover:shadow-md transition-shadow duration-200 h-full flex flex-col"
             >
               <CardContent className="p-3 flex flex-col h-full">
-                {/* Compact image container */}
                 <div className="aspect-[4/3] bg-gray-100 rounded mb-3 overflow-hidden flex items-center">
                   {product.image_url ? (
                     <img 
@@ -111,6 +109,56 @@ const FeaturedProducts = () => {
                     <span className="text-base font-bold text-blue-600">
                       KES {product.price.toLocaleString()}
                     </span>
+                    <Badge variant="secondary" className="text-xs">
+                      {product.category}
+                    </Badge>
+                  </div>
+                  
+                  {product.prescription_required && (
+                    <div className="flex items-center gap-1 text-red-600 text-xs">
+                      <AlertCircle size={12} />
+                      <span>Prescription Required</span>
+                    </div>
+                  )}
+                  
+                  <div className="flex gap-1.5 pt-2">
+                    <Button 
+                      onClick={() => handleAddToCart(product)}
+                      disabled={product.stock === 0}
+                      className="flex-1 text-xs py-1 px-2 h-8"
+                    >
+                      <ShoppingCart size={12} className="mr-1" />
+                      Add
+                    </Button>
+                    
+                    <Link to={`/product/${product.id}`} className="flex-1">
+                      <Button 
+                        variant="outline" 
+                        className="w-full text-xs py-1 px-2 h-8"
+                      >
+                        View
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        
+        <div className="text-center">
+          <Link to="/products">
+            <Button variant="outline" size="sm">
+              View All Products
+            </Button>
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export default FeaturedProducts;                    </span>
                     <Badge variant="secondary" className="text-xs">
                       {product.category}
                     </Badge>
