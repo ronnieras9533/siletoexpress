@@ -16,26 +16,15 @@ const FeaturedProducts = () => {
   const { data: products, isLoading } = useQuery({
     queryKey: ['featured-products'],
     queryFn: async () => {
-      console.log('FeaturedProducts: Starting products query');
-      
       const { data, error } = await supabase
         .from('products')
         .select('*')
         .gt('stock', 0)
-        .eq('prescription_required', false) // Exclude prescription drugs
+        .eq('prescription_required', false)
         .limit(6)
         .order('created_at', { ascending: false });
 
-      console.log('FeaturedProducts: Query result:', { data, error });
-
-      if (error) {
-        console.error('FeaturedProducts: Error fetching products:', error);
-        throw error;
-      }
-
-      console.log(
-        `FeaturedProducts: Successfully fetched products: ${data?.length || 0}`
-      );
+      if (error) throw error;
       return data || [];
     },
   });
@@ -50,7 +39,6 @@ const FeaturedProducts = () => {
       prescription_required: product.prescription_required,
       stock: product.stock,
     };
-
     addToCart(cartItem);
     toast({
       title: 'Added to cart!',
@@ -60,14 +48,12 @@ const FeaturedProducts = () => {
 
   if (isLoading) {
     return (
-      <section className="py-12 bg-white">
+      <section className="py-10 bg-white">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Featured Products
-            </h2>
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 mb-3">Featured Products</h2>
             <div className="flex justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
             </div>
           </div>
         </div>
@@ -80,82 +66,76 @@ const FeaturedProducts = () => {
   }
 
   return (
-    <section className="py-12 bg-white">
-      <div className="container mx-auto px-4">
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">
-            Featured Products
-          </h2>
-          <p className="text-gray-600 max-w-2xl mx-auto">
-            Discover our most popular healthcare products, carefully selected for
-            quality and effectiveness.
+    <section className="py-10 bg-white">
+      <div className="container mx-auto px-3">
+        <div className="text-center mb-6">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Featured Products</h2>
+          <p className="text-gray-600 max-w-2xl mx-auto text-sm">
+            Discover our popular healthcare products
           </p>
         </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
           {products.map((product) => (
-            <Card
-              key={product.id}
-              className="group hover:shadow-lg transition-shadow duration-200"
+            <Card 
+              key={product.id} 
+              className="group hover:shadow-md transition-shadow duration-200 h-full flex flex-col"
             >
-              <CardContent className="p-4">
-                <div className="aspect-square bg-gray-100 rounded-lg mb-4 overflow-hidden">
+              <CardContent className="p-3 flex flex-col h-full">
+                <div className="aspect-[4/3] bg-gray-100 rounded mb-3 overflow-hidden flex items-center">
                   {product.image_url ? (
-                    <img
-                      src={product.image_url}
+                    <img 
+                      src={product.image_url} 
                       alt={product.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-400">
-                      <div className="text-center">
-                        <ShoppingCart
-                          size={32}
-                          className="mx-auto mb-2 opacity-50"
-                        />
-                        <span className="text-sm">No Image</span>
-                      </div>
+                      <ShoppingCart size={24} className="opacity-50" />
                     </div>
                   )}
                 </div>
-
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-lg line-clamp-2">
+                
+                <div className="flex flex-col flex-grow space-y-1.5">
+                  <h3 className="font-semibold text-base line-clamp-1">
                     {product.name}
                   </h3>
-                  <p className="text-gray-600 text-sm line-clamp-2">
+                  
+                  <p className="text-gray-600 text-xs line-clamp-2">
                     {product.description}
                   </p>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-xl font-bold text-blue-600">
+                  
+                  <div className="flex items-center justify-between mt-auto">
+                    <span className="text-base font-bold text-blue-600">
                       KES {product.price.toLocaleString()}
                     </span>
                     <Badge variant="secondary" className="text-xs">
                       {product.category}
                     </Badge>
                   </div>
-
+                  
                   {product.prescription_required && (
-                    <div className="flex items-center gap-1 text-red-600 text-sm">
-                      <AlertCircle size={14} />
+                    <div className="flex items-center gap-1 text-red-600 text-xs">
+                      <AlertCircle size={12} />
                       <span>Prescription Required</span>
                     </div>
                   )}
-
-                  <div className="flex gap-2 pt-2">
-                    <Button
+                  
+                  <div className="flex gap-1.5 pt-2">
+                    <Button 
                       onClick={() => handleAddToCart(product)}
                       disabled={product.stock === 0}
-                      className="flex-1"
-                      size="sm"
+                      className="flex-1 text-xs py-1 px-2 h-8"
                     >
-                      <ShoppingCart size={14} className="mr-1" />
-                      Add to Cart
+                      <ShoppingCart size={12} className="mr-1" />
+                      Add
                     </Button>
-
-                    <Link to={`/product/${product.id}`}>
-                      <Button variant="outline" size="sm">
+                    
+                    <Link to={`/product/${product.id}`} className="flex-1">
+                      <Button 
+                        variant="outline" 
+                        className="w-full text-xs py-1 px-2 h-8"
+                      >
                         View
                       </Button>
                     </Link>
@@ -165,10 +145,10 @@ const FeaturedProducts = () => {
             </Card>
           ))}
         </div>
-
+        
         <div className="text-center">
           <Link to="/products">
-            <Button variant="outline" size="lg">
+            <Button variant="outline" size="sm">
               View All Products
             </Button>
           </Link>
