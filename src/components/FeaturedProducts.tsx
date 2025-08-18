@@ -60,14 +60,14 @@ const FeaturedProducts = () => {
 
   if (isLoading) {
     return (
-      <section className="py-12 bg-white">
+      <section className="py-6 bg-white">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+          <div className="text-center mb-4">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
               Featured Products
             </h2>
             <div className="flex justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
             </div>
           </div>
         </div>
@@ -80,26 +80,26 @@ const FeaturedProducts = () => {
   }
 
   return (
-    <section className="py-12 bg-white">
+    <section className="py-6 bg-white">
       <div className="container mx-auto px-4">
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">
+        <div className="text-center mb-4">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
             Featured Products
           </h2>
-          <p className="text-gray-600 max-w-2xl mx-auto">
+          <p className="text-gray-600 max-w-xl mx-auto text-sm">
             Discover our most popular healthcare products, carefully selected for
             quality and effectiveness.
           </p>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
           {products.map((product) => (
             <Card
               key={product.id}
-              className="group hover:shadow-lg transition-shadow duration-200"
+              className="group hover:shadow-md transition-shadow duration-200"
             >
-              <CardContent className="p-4">
-                <div className="aspect-square bg-gray-100 rounded-lg mb-4 overflow-hidden">
+              <CardContent className="p-2">
+                <div className="aspect-[4/3] bg-gray-100 rounded-lg mb-2 overflow-hidden">
                   {product.image_url ? (
                     <img
                       src={product.image_url}
@@ -110,36 +110,75 @@ const FeaturedProducts = () => {
                     <div className="w-full h-full flex items-center justify-center text-gray-400">
                       <div className="text-center">
                         <ShoppingCart
-                          size={32}
-                          className="mx-auto mb-2 opacity-50"
+                          size={28}
+                          className="mx-auto mb-1 opacity-50"
                         />
-                        <span className="text-sm">No Image</span>
+                        <span className="text-xs">No Image</span>
                       </div>
                     </div>
                   )}
                 </div>
 
-                <div className="space-y-2">
-                  <h3 className="font-semibold text-lg line-clamp-2">
+                <div className="space-y-1">
+                  <h3 className="font-semibold text-base line-clamp-2">
                     {product.name}
                   </h3>
-                  <p className="text-gray-600 text-sm line-clamp-2">
+                  <p className="text-gray-600 text-xs line-clamp-2">
                     {product.description}
                   </p>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-xl font-bold text-blue-600">
+                    <span className="text-lg font-bold text-blue-600">
                       KES {product.price.toLocaleString()}
                     </span>
-                    <Badge variant="secondary" className="text-xs">
+                    <Badge variant="secondary" className="text-[10px]">
                       {product.category}
                     </Badge>
                   </div>
 
                   {product.prescription_required && (
-                    <div className="flex items-center gap-1 text-red-600 text-sm">
-                      <AlertCircle size={14} />
+                    <div className="flex items-center gap-1 text-red-600 text-xs">
+                      <AlertCircle size={12} />
                       <span>Prescription Required</span>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      onClick={() => handleAddToCart(product)}
+                      disabled={product.stock === 0}
+                      className="flex-1"
+                      size="sm"
+                    >
+                      <ShoppingCart size={12} className="mr-1" />
+                      Add
+                    </Button>
+
+                    <Link to={`/product/${product.id}`}>
+                      <Button variant="outline" size="sm">
+                        View
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div className="text-center">
+          <Link to="/products">
+            <Button variant="outline" size="md">
+              View All
+            </Button>
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export default FeaturedProducts;                      <span>Prescription Required</span>
                     </div>
                   )}
 
