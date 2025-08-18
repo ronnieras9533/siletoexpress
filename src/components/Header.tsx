@@ -1,9 +1,7 @@
-
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingCart, User, Menu, X, Search } from 'lucide-react';
+import { ShoppingCart, User, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import LoginModal from '@/components/LoginModal';
@@ -11,20 +9,11 @@ import LoginModal from '@/components/LoginModal';
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const { items } = useCart();
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
 
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
-      setSearchQuery('');
-    }
-  };
 
   const handleSignOut = async () => {
     try {
@@ -48,31 +37,8 @@ const Header = () => {
               <span className="font-bold text-xl text-gray-900">SiletoExpress</span>
             </Link>
 
-            {/* Search Bar - Hidden on mobile */}
-            <div className="hidden md:flex flex-1 max-w-lg mx-8">
-              <form onSubmit={handleSearch} className="flex w-full">
-                <div className="relative flex-1">
-                  <Input
-                    type="text"
-                    placeholder="Search for medicines..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pr-10"
-                  />
-                  <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                </div>
-                <Button 
-                  type="submit"
-                  className="ml-2"
-                  disabled={!searchQuery.trim()}
-                >
-                  Search
-                </Button>
-              </form>
-            </div>
-
             {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center space-x-6">
+            <nav className="hidden md:flex items-center space-x-6 mx-auto">
               <Link to="/products" className="text-gray-700 hover:text-blue-600 font-medium">
                 Products
               </Link>
@@ -142,75 +108,48 @@ const Header = () => {
             </div>
           </div>
 
-          {/* Mobile Search Bar */}
-          <div className="md:hidden pb-4">
-            <form onSubmit={handleSearch} className="flex">
-              <div className="relative flex-1">
-                <Input
-                  type="text"
-                  placeholder="Search for medicines..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pr-10"
-                />
-                <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+          {/* Mobile Menu */}
+          {isMenuOpen && (
+            <div className="md:hidden bg-white border-t">
+              <div className="px-4 py-4 space-y-4">
+                <Link
+                  to="/products"
+                  className="block text-gray-700 hover:text-blue-600 font-medium"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Products
+                </Link>
+                <Link
+                  to="/why-choose-us"
+                  className="block text-gray-700 hover:text-blue-600 font-medium"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Why Choose Us
+                </Link>
+                {user && (
+                  <>
+                    <Link
+                      to="/dashboard"
+                      className="block text-gray-700 hover:text-blue-600 font-medium"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      Dashboard
+                    </Link>
+                    <Link
+                      to="/my-orders-prescriptions"
+                      className="block text-gray-700 hover:text-blue-600 font-medium"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      My Orders
+                    </Link>
+                  </>
+                )}
               </div>
-              <Button 
-                type="submit"
-                className="ml-2"
-                disabled={!searchQuery.trim()}
-              >
-                Search
-              </Button>
-            </form>
-          </div>
-        </div>
-
-        {/* Mobile Menu */}
-        {isMenuOpen && (
-          <div className="md:hidden bg-white border-t">
-            <div className="px-4 py-4 space-y-4">
-              <Link 
-                to="/products" 
-                className="block text-gray-700 hover:text-blue-600 font-medium"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Products
-              </Link>
-              <Link 
-                to="/why-choose-us" 
-                className="block text-gray-700 hover:text-blue-600 font-medium"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Why Choose Us
-              </Link>
-              {user && (
-                <>
-                  <Link 
-                    to="/dashboard" 
-                    className="block text-gray-700 hover:text-blue-600 font-medium"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    Dashboard
-                  </Link>
-                  <Link 
-                    to="/my-orders-prescriptions" 
-                    className="block text-gray-700 hover:text-blue-600 font-medium"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    My Orders
-                  </Link>
-                </>
-              )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </header>
-
-      <LoginModal 
-        isOpen={isLoginModalOpen} 
-        onClose={() => setIsLoginModalOpen(false)} 
-      />
+      <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
     </>
   );
 };
