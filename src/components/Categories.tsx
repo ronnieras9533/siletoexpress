@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
@@ -71,21 +72,21 @@ const Categories = () => {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
           {categories.map((category) => (
             <Card 
               key={category.name}
               className={`cursor-pointer hover:shadow-lg transition-all duration-300 border-2 ${category.borderColor} ${category.bgColor}`}
               onClick={() => handleCategoryClick(category.name)}
             >
-              <CardContent className="p-4 text-center">
-                <div className={`w-12 h-12 ${category.bgColor} rounded-full flex items-center justify-center mx-auto mb-4`}>
-                  <category.icon className={`h-6 w-6 ${category.color}`} />
+              <CardContent className="p-6 text-center">
+                <div className={`w-16 h-16 ${category.bgColor} rounded-full flex items-center justify-center mx-auto mb-4`}>
+                  <category.icon className={`h-8 w-8 ${category.color}`} />
                 </div>
-                <h3 className="text-base font-semibold text-gray-900 mb-2">
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
                   {category.name}
                 </h3>
-                <p className="text-xs text-gray-600">
+                <p className="text-sm text-gray-600">
                   {category.description}
                 </p>
               </CardContent>
@@ -94,14 +95,14 @@ const Categories = () => {
         </div>
 
         {/* Special Services */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
-            <CardContent className="p-4">
+            <CardContent className="p-6">
               <div className="flex items-center mb-4">
-                <FileText className="h-6 w-6 mr-3" />
-                <h3 className="text-lg font-semibold">Upload Prescription</h3>
+                <FileText className="h-8 w-8 mr-3" />
+                <h3 className="text-xl font-semibold">Upload Prescription</h3>
               </div>
-              <p className="text-blue-100 text-sm mb-4">
+              <p className="text-blue-100 mb-4">
                 Upload your prescription and let our licensed pharmacists verify your medication needs
               </p>
               <Button 
@@ -115,12 +116,12 @@ const Categories = () => {
           </Card>
 
           <Card className="bg-gradient-to-r from-green-600 to-green-700 text-white">
-            <CardContent className="p-4">
+            <CardContent className="p-6">
               <div className="flex items-center mb-4">
-                <Thermometer className="h-6 w-6 mr-3" />
-                <h3 className="text-lg font-semibold">Health Consultation</h3>
+                <Thermometer className="h-8 w-8 mr-3" />
+                <h3 className="text-xl font-semibold">Health Consultation</h3>
               </div>
-              <p className="text-green-100 text-sm mb-4">
+              <p className="text-green-100 mb-4">
                 Get professional health advice from our qualified pharmacists and healthcare experts
               </p>
               <Button 

@@ -1,3 +1,4 @@
+// src/components/AdminOrdersTable.tsx
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
@@ -5,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea'; // Add this import
 import { useToast } from '@/hooks/use-toast';
 import { Eye, MapPin, Phone, Clock, Package, Truck, CheckCircle, FileText, Image } from 'lucide-react';
 import OrderStatusStepper from './OrderStatusStepper';
@@ -63,18 +63,11 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [selectedPrescription, setSelectedPrescription] = useState<any>(null);
-  const [adminNotes, setAdminNotes] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
     fetchOrders();
   }, [orderType, paymentStatusFilter]);
-
-  useEffect(() => {
-    if (selectedPrescription) {
-      setAdminNotes(selectedPrescription.admin_notes || '');
-    }
-  }, [selectedPrescription]);
 
   const fetchOrders = async () => {
     try {
@@ -196,58 +189,6 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
       toast({
         title: "Error",
         description: error?.message || "Failed to update payment status",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleApprovePrescription = async () => {
-    try {
-      const { error } = await supabase
-        .from('prescriptions')
-        .update({ status: 'approved', admin_notes: adminNotes })
-        .eq('id', selectedPrescription.id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Prescription approved",
-      });
-
-      setSelectedPrescription({ ...selectedPrescription, status: 'approved', admin_notes: adminNotes });
-      fetchOrders(); // Refresh orders to reflect changes
-    } catch (error: any) {
-      console.error('Error approving prescription:', error);
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to approve prescription",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleRejectPrescription = async () => {
-    try {
-      const { error } = await supabase
-        .from('prescriptions')
-        .update({ status: 'rejected', admin_notes: adminNotes })
-        .eq('id', selectedPrescription.id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Prescription rejected",
-      });
-
-      setSelectedPrescription({ ...selectedPrescription, status: 'rejected', admin_notes: adminNotes });
-      fetchOrders(); // Refresh orders to reflect changes
-    } catch (error: any) {
-      console.error('Error rejecting prescription:', error);
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to reject prescription",
         variant: "destructive"
       });
     }
@@ -584,70 +525,32 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
         <Dialog open={!!selectedPrescription} onOpenChange={() => setSelectedPrescription(null)}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Prescription Details ID: {selectedPrescription.id.slice(0, 8)}...</DialogTitle>
+              <DialogTitle>Prescription Image</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <img 
+                src={selectedPrescription.image_url} 
+                alt="Prescription"
+                className="w-full max-h-96 object-contain rounded"
+              />
+              <div className="text-sm space-y-2">
                 <div>
                   <span className="font-medium">Status:</span> 
                   <Badge className={`ml-2 ${getStatusColor(selectedPrescription.status)}`}>
                     {selectedPrescription.status.toUpperCase()}
                   </Badge>
                 </div>
-                {selectedPrescription.status === 'pending' && (
-                  <Button variant="outline" asChild>
-                    <a href={selectedPrescription.image_url} download>
-                      Download
-                    </a>
-                  </Button>
+                {selectedPrescription.admin_notes && (
+                  <div>
+                    <span className="font-medium">Admin Notes:</span> 
+                    <p className="text-gray-600 mt-1">{selectedPrescription.admin_notes}</p>
+                  </div>
                 )}
+                <div>
+                  <span className="font-medium">Upload Date:</span> 
+                  <span className="ml-2">{new Date(selectedPrescription.created_at).toLocaleDateString()}</span>
+                </div>
               </div>
-
-              <img 
-                src={selectedPrescription.image_url} 
-                alt="Prescription"
-                className="w-full max-h-96 object-contain rounded"
-              />
-
-              {selectedPrescription.status === 'pending' ? (
-                <div className="space-y-4">
-                  <div>
-                    <label className="font-medium block mb-1">Admin Notes:</label>
-                    <Textarea 
-                      value={adminNotes}
-                      onChange={(e) => setAdminNotes(e.target.value)}
-                      placeholder="Enter notes for the user..."
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button 
-                      className="bg-green-500 hover:bg-green-600"
-                      onClick={handleApprovePrescription}
-                    >
-                      Approve Prescription
-                    </Button>
-                    <Button 
-                      className="bg-red-500 hover:bg-red-600"
-                      onClick={handleRejectPrescription}
-                    >
-                      Reject Prescription
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-sm space-y-2">
-                  {selectedPrescription.admin_notes && (
-                    <div>
-                      <span className="font-medium">Admin Notes:</span> 
-                      <p className="text-gray-600 mt-1">{selectedPrescription.admin_notes}</p>
-                    </div>
-                  )}
-                  <div>
-                    <span className="font-medium">Upload Date:</span> 
-                    <span className="ml-2">{new Date(selectedPrescription.created_at).toLocaleDateString()}</span>
-                  </div>
-                </div>
-              )}
             </div>
           </DialogContent>
         </Dialog>
