@@ -22,32 +22,8 @@ const Hero = () => {
         <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-transparent"></div>
       </div>
 
-      <div className="relative container mx-auto px-4 pt-16 pb-12 md:pt-24 md:pb-20">
+      <div className="relative container mx-auto px-4 pt-12 pb-8 md:pt-20 md:pb-12">
         <div className="max-w-4xl mx-auto">
-          {/* Search Bar */}
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-1 max-w-2xl mx-auto mb-12 shadow-lg">
-            <div className="flex flex-col sm:flex-row gap-2">
-              <div className="relative flex-1">
-                <Input
-                  type="text"
-                  placeholder="Search for medicines..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-14 text-lg pl-4 pr-12 border-0 bg-white/90 text-gray-800"
-                  onKeyPress={(e) => e.key === "Enter" && handleSearch()}
-                />
-                <Search className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500 h-5 w-5" />
-              </div>
-              <Button
-                onClick={handleSearch}
-                disabled={!searchQuery.trim()}
-                className="h-14 px-6 text-lg bg-white text-blue-700 hover:bg-blue-50 flex-shrink-0"
-              >
-                Search
-              </Button>
-            </div>
-          </div>
-
           <div className="text-center">
             {/* Trust Badge */}
             <div className="inline-flex items-center bg-white/10 backdrop-blur-sm rounded-full px-4 py-2 mb-6">
@@ -68,9 +44,35 @@ const Hero = () => {
               Get authentic medicines delivered to your doorstep. From prescription
               drugs to wellness products, we ensure quality healthcare for everyone.
             </p>
+          </div>
+          
+          {/* Compact Search Bar */}
+          <div className="bg-white rounded-full p-1 max-w-lg mx-auto mb-10 shadow-lg">
+            <div className="flex">
+              <div className="relative flex-1">
+                <Input
+                  type="text"
+                  placeholder="Search products..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-12 text-base pl-6 pr-12 border-0 bg-transparent text-gray-800 placeholder-gray-500 focus-visible:ring-0"
+                  onKeyPress={(e) => e.key === "Enter" && handleSearch()}
+                />
+                <Search className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500 h-5 w-5" />
+              </div>
+              <Button
+                onClick={handleSearch}
+                disabled={!searchQuery.trim()}
+                className="h-12 w-24 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex-shrink-0"
+              >
+                Search
+              </Button>
+            </div>
+          </div>
 
+          <div className="text-center">
             {/* CTA Button */}
-            <div className="mb-12">
+            <div className="mb-10">
               <Button
                 onClick={() => navigate("/products")}
                 size="lg"
@@ -81,7 +83,7 @@ const Hero = () => {
             </div>
 
             {/* Trust Indicators - Updated to 2 columns on mobile */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mt-12">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mt-8">
               <div className="flex flex-col items-center text-center p-3">
                 <CheckCircle className="h-8 w-8 md:h-10 md:w-10 text-blue-200 mb-2" />
                 <h3 className="font-semibold text-sm md:text-base mb-1">
