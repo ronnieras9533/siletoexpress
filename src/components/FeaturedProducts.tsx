@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -34,7 +33,9 @@ const FeaturedProducts = () => {
         throw error;
       }
 
-      console.log(`FeaturedProducts: Successfully fetched products: ${data?.length || 0}`);
+      console.log(
+        `FeaturedProducts: Successfully fetched products: ${data?.length || 0}`
+      );
       return data || [];
     },
   });
@@ -47,12 +48,12 @@ const FeaturedProducts = () => {
       quantity: 1,
       image_url: product.image_url,
       prescription_required: product.prescription_required,
-      stock: product.stock
+      stock: product.stock,
     };
 
     addToCart(cartItem);
     toast({
-      title: "Added to cart!",
+      title: 'Added to cart!',
       description: `${product.name} has been added to your cart.`,
     });
   };
@@ -62,7 +63,9 @@ const FeaturedProducts = () => {
       <section className="py-12 bg-white">
         <div className="container mx-auto px-4">
           <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">Featured Products</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+              Featured Products
+            </h2>
             <div className="flex justify-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             </div>
@@ -80,37 +83,50 @@ const FeaturedProducts = () => {
     <section className="py-12 bg-white">
       <div className="container mx-auto px-4">
         <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">Featured Products</h2>
+          <h2 className="text-3xl font-bold text-gray-900 mb-4">
+            Featured Products
+          </h2>
           <p className="text-gray-600 max-w-2xl mx-auto">
-            Discover our most popular healthcare products, carefully selected for quality and effectiveness.
+            Discover our most popular healthcare products, carefully selected for
+            quality and effectiveness.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {products.map((product) => (
-            <Card key={product.id} className="group hover:shadow-lg transition-shadow duration-200">
+            <Card
+              key={product.id}
+              className="group hover:shadow-lg transition-shadow duration-200"
+            >
               <CardContent className="p-4">
                 <div className="aspect-square bg-gray-100 rounded-lg mb-4 overflow-hidden">
                   {product.image_url ? (
-                    <img 
-                      src={product.image_url} 
+                    <img
+                      src={product.image_url}
                       alt={product.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-400">
                       <div className="text-center">
-                        <ShoppingCart size={32} className="mx-auto mb-2 opacity-50" />
+                        <ShoppingCart
+                          size={32}
+                          className="mx-auto mb-2 opacity-50"
+                        />
                         <span className="text-sm">No Image</span>
                       </div>
                     </div>
                   )}
                 </div>
-                
+
                 <div className="space-y-2">
-                  <h3 className="font-semibold text-lg line-clamp-2">{product.name}</h3>
-                  <p className="text-gray-600 text-sm line-clamp-2">{product.description}</p>
-                  
+                  <h3 className="font-semibold text-lg line-clamp-2">
+                    {product.name}
+                  </h3>
+                  <p className="text-gray-600 text-sm line-clamp-2">
+                    {product.description}
+                  </p>
+
                   <div className="flex items-center justify-between">
                     <span className="text-xl font-bold text-blue-600">
                       KES {product.price.toLocaleString()}
@@ -137,7 +153,7 @@ const FeaturedProducts = () => {
                       <ShoppingCart size={14} className="mr-1" />
                       Add to Cart
                     </Button>
-                    
+
                     <Link to={`/product/${product.id}`}>
                       <Button variant="outline" size="sm">
                         View
