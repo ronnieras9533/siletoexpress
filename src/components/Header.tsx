@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import LoginModal from '@/components/LoginModal';
+import NotificationPanel from '@/components/NotificationPanel';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -58,7 +59,7 @@ const Header = () => {
             </nav>
 
             {/* Right Side Icons */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
               {/* Cart */}
               <Link to="/cart" className="relative p-2 text-gray-700 hover:text-blue-600">
                 <ShoppingCart className="h-6 w-6" />
@@ -68,6 +69,9 @@ const Header = () => {
                   </span>
                 )}
               </Link>
+
+              {/* Notification Panel */}
+              {user && <NotificationPanel />}
 
               {/* User Menu */}
               {user ? (
