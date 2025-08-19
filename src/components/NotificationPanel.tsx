@@ -1,17 +1,37 @@
-
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Bell, X, Check, Package, FileText, CreditCard } from 'lucide-react';
+import { Bell, X, Package, FileText, CreditCard, ExternalLink, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useNavigate } from 'react-router-dom';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { formatDistanceToNow } from 'date-fns';
+
+interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  read: boolean;
+  created_at: string;
+  metadata?: any;
+  reference_id?: string;
+}
 
 const NotificationPanel = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const { data: notifications = [], isLoading } = useQuery({
     queryKey: ['notifications', user?.id],
@@ -26,7 +46,7 @@ const NotificationPanel = () => {
         .limit(20);
       
       if (error) throw error;
-      return data;
+      return data as Notification[];
     },
     enabled: !!user,
   });
@@ -42,6 +62,7 @@ const NotificationPanel = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['userNotifications'] });
     },
   });
 
@@ -57,6 +78,7 @@ const NotificationPanel = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['userNotifications'] });
     },
   });
 
@@ -88,6 +110,58 @@ const NotificationPanel = () => {
     }
   };
 
+  const handleNotificationClick = (notification: Notification) => {
+    // Mark as read if unread
+    if (!notification.read) {
+      markAsReadMutation.mutate(notification.id);
+    }
+    
+    // Set selected notification for detail view
+    setSelectedNotification(notification);
+  };
+
+  const handleActionClick = (notification: Notification) => {
+    // Mark as read first
+    if (!notification.read) {
+      markAsReadMutation.mutate(notification.id);
+    }
+    
+    // Navigate based on notification type
+    switch (notification.type) {
+      case 'order_status':
+        if (notification.reference_id) {
+          navigate(`/track-order?order_id=${notification.reference_id}`);
+        }
+        break;
+      case 'prescription_update':
+        navigate('/my-orders-prescriptions?tab=prescriptions');
+        break;
+      case 'payment_required':
+        if (notification.reference_id) {
+          navigate(`/payment/${notification.reference_id}`);
+        }
+        break;
+      default:
+        break;
+    }
+    
+    // Close the panel
+    setIsOpen(false);
+  };
+
+  const getActionButtonText = (type: string) => {
+    switch (type) {
+      case 'order_status':
+        return 'View Order';
+      case 'prescription_update':
+        return 'View Prescriptions';
+      case 'payment_required':
+        return 'Make Payment';
+      default:
+        return 'View Details';
+    }
+  };
+
   if (!user) return null;
 
   return (
@@ -98,10 +172,14 @@ const NotificationPanel = () => {
         size="sm"
         onClick={() => setIsOpen(!isOpen)}
         className="relative"
+        aria-label="Notifications"
       >
         <Bell className="h-5 w-5" />
         {unreadCount > 0 && (
-          <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center bg-red-500 text-white text-xs">
+          <Badge 
+            className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center bg-red-500 text-white text-xs"
+            aria-label={`${unreadCount} unread notifications`}
+          >
             {unreadCount > 9 ? '9+' : unreadCount}
           </Badge>
         )}
@@ -114,10 +192,11 @@ const NotificationPanel = () => {
           <div 
             className="fixed inset-0 z-40" 
             onClick={() => setIsOpen(false)}
+            aria-hidden="true"
           />
           
           {/* Panel */}
-          <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-lg shadow-lg border z-50">
+          <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-lg border z-50">
             <div className="p-4 border-b">
               <div className="flex items-center justify-between">
                 <h3 className="font-medium">Notifications</h3>
@@ -128,14 +207,16 @@ const NotificationPanel = () => {
                       size="sm"
                       onClick={() => markAllAsReadMutation.mutate()}
                       className="text-xs"
+                      disabled={markAllAsReadMutation.isPending}
                     >
-                      Mark all read
+                      {markAllAsReadMutation.isPending ? 'Marking...' : 'Mark all read'}
                     </Button>
                   )}
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => setIsOpen(false)}
+                    aria-label="Close notifications"
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -146,11 +227,15 @@ const NotificationPanel = () => {
             <ScrollArea className="max-h-96">
               {isLoading ? (
                 <div className="p-4 text-center text-gray-500">
-                  Loading notifications...
+                  <div className="animate-pulse flex justify-center">
+                    <div className="h-2 w-24 bg-gray-200 rounded"></div>
+                  </div>
                 </div>
               ) : notifications.length === 0 ? (
-                <div className="p-4 text-center text-gray-500">
-                  No notifications yet
+                <div className="p-8 text-center text-gray-500">
+                  <Bell className="h-10 w-10 mx-auto text-gray-300 mb-2" />
+                  <p>No notifications yet</p>
+                  <p className="text-sm mt-1">We'll notify you when something arrives</p>
                 </div>
               ) : (
                 <div className="divide-y">
@@ -160,11 +245,7 @@ const NotificationPanel = () => {
                       className={`p-4 hover:bg-gray-50 cursor-pointer ${
                         !notification.read ? 'bg-blue-50' : ''
                       }`}
-                      onClick={() => {
-                        if (!notification.read) {
-                          markAsReadMutation.mutate(notification.id);
-                        }
-                      }}
+                      onClick={() => handleNotificationClick(notification)}
                     >
                       <div className="flex items-start gap-3">
                         <div className={`p-2 rounded-full ${getNotificationColor(notification.type)}`}>
@@ -176,15 +257,32 @@ const NotificationPanel = () => {
                               {notification.title}
                             </h4>
                             {!notification.read && (
-                              <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1" />
+                              <div 
+                                className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1"
+                                aria-label="Unread notification"
+                              />
                             )}
                           </div>
-                          <p className="text-sm text-gray-600 mt-1">
+                          <p className="text-sm text-gray-600 mt-1 line-clamp-2">
                             {notification.message}
                           </p>
-                          <p className="text-xs text-gray-400 mt-2">
-                            {new Date(notification.created_at).toLocaleString()}
-                          </p>
+                          <div className="flex items-center justify-between mt-2">
+                            <p className="text-xs text-gray-400 flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                            </p>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-xs"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleActionClick(notification);
+                              }}
+                            >
+                              {getActionButtonText(notification.type)}
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -195,6 +293,50 @@ const NotificationPanel = () => {
           </div>
         </>
       )}
+
+      {/* Notification Detail Dialog */}
+      <Dialog open={!!selectedNotification} onOpenChange={() => setSelectedNotification(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <div className={`p-2 rounded-full ${getNotificationColor(selectedNotification?.type || '')}`}>
+                {selectedNotification && getNotificationIcon(selectedNotification.type)}
+              </div>
+              {selectedNotification?.title}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-gray-700">{selectedNotification?.message}</p>
+            <div className="flex items-center text-sm text-gray-500 gap-1">
+              <Clock className="h-4 w-4" />
+              {selectedNotification && new Date(selectedNotification.created_at).toLocaleString()}
+            </div>
+            {selectedNotification?.metadata && (
+              <div className="bg-gray-50 p-3 rounded-md text-sm">
+                <pre className="whitespace-pre-wrap">
+                  {JSON.stringify(selectedNotification.metadata, null, 2)}
+                </pre>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setSelectedNotification(null)}
+              >
+                Close
+              </Button>
+              {selectedNotification?.reference_id && (
+                <Button
+                  onClick={() => handleActionClick(selectedNotification)}
+                >
+                  {getActionButtonText(selectedNotification.type)}
+                  <ExternalLink className="ml-2 h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
