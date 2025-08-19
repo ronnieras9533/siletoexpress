@@ -104,6 +104,22 @@ const Products = () => {
     });
   };
 
+  // Function to abbreviate long category names
+  const abbreviateCategory = (category: string) => {
+    if (!category) return '';
+    
+    const abbreviations: { [key: string]: string } = {
+      'general medicine': 'General Med',
+      'chronic care': 'Chronic Care',
+      'supplements': 'Supplements',
+      'personal care': 'Personal Care',
+      'first aid': 'First Aid',
+      'health devices': 'Devices'
+    };
+
+    return abbreviations[category.toLowerCase()] || category;
+  };
+
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -209,15 +225,15 @@ const Products = () => {
                       
                       <div className="mt-auto">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="font-bold text-blue-600">
+                          <span className="font-bold text-blue-600 text-sm">
                             KES {product.price.toLocaleString()}
                           </span>
                           <Badge 
                             variant="secondary" 
-                            className="text-xs max-w-[70px] truncate"
+                            className="text-xs max-w-[80px] truncate"
                             title={product.category}
                           >
-                            {product.category}
+                            {abbreviateCategory(product.category)}
                           </Badge>
                         </div>
 
