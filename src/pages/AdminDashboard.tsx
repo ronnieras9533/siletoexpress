@@ -13,7 +13,6 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import AdminOrdersTable from '@/components/AdminOrdersTable';
-import AdminPrescriptionOrdersTable from '@/components/AdminPrescriptionOrdersTable';
 import AdminPrescriptionsTable from '@/components/AdminPrescriptionsTable';
 import AdminUserManagement from '@/components/AdminUserManagement';
 import AdminProductManagement from '@/components/AdminProductManagement';
@@ -184,11 +183,10 @@ const AdminDashboard = () => {
 
         {/* Tabs */}
         <Tabs defaultValue="paid-orders" className="space-y-6">
-          <div className="overflow-x-auto"> {/* Added wrapper for horizontal scrolling */}
-            <TabsList className="flex w-full min-w-max md:grid md:grid-cols-6"> {/* Modified for mobile scrolling */}
+          <div className="overflow-x-auto">
+            <TabsList className="flex w-full min-w-max md:grid md:grid-cols-5">
               <TabsTrigger value="paid-orders" className="whitespace-nowrap px-2 text-xs md:text-sm">Paid Orders</TabsTrigger>
               <TabsTrigger value="pending-payments" className="whitespace-nowrap px-2 text-xs md:text-sm">Pending Payments</TabsTrigger>
-              <TabsTrigger value="prescription-orders" className="whitespace-nowrap px-2 text-xs md:text-sm">Prescription Orders</TabsTrigger>
               <TabsTrigger value="prescriptions" className="whitespace-nowrap px-2 text-xs md:text-sm">Prescriptions</TabsTrigger>
               <TabsTrigger value="users" className="whitespace-nowrap px-2 text-xs md:text-sm">Users</TabsTrigger>
               <TabsTrigger value="products" className="whitespace-nowrap px-2 text-xs md:text-sm">Products</TabsTrigger>
@@ -213,17 +211,6 @@ const AdminDashboard = () => {
               </CardHeader>
               <CardContent>
                 <AdminOrdersTable paymentStatusFilter="pending" />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="prescription-orders">
-            <Card>
-              <CardHeader>
-                <CardTitle>Prescription Orders</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <AdminPrescriptionOrdersTable onStatusUpdate={handleStatusUpdate} />
               </CardContent>
             </Card>
           </TabsContent>
