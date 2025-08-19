@@ -184,14 +184,16 @@ const AdminDashboard = () => {
 
         {/* Tabs */}
         <Tabs defaultValue="paid-orders" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="paid-orders">Paid Orders</TabsTrigger>
-            <TabsTrigger value="pending-payments">Pending Payments</TabsTrigger>
-            <TabsTrigger value="prescription-orders">Prescription Orders</TabsTrigger>
-            <TabsTrigger value="prescriptions">Prescriptions</TabsTrigger>
-            <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="products">Products</TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto"> {/* Added wrapper for horizontal scrolling */}
+            <TabsList className="flex w-full min-w-max md:grid md:grid-cols-6"> {/* Modified for mobile scrolling */}
+              <TabsTrigger value="paid-orders" className="whitespace-nowrap px-2 text-xs md:text-sm">Paid Orders</TabsTrigger>
+              <TabsTrigger value="pending-payments" className="whitespace-nowrap px-2 text-xs md:text-sm">Pending Payments</TabsTrigger>
+              <TabsTrigger value="prescription-orders" className="whitespace-nowrap px-2 text-xs md:text-sm">Prescription Orders</TabsTrigger>
+              <TabsTrigger value="prescriptions" className="whitespace-nowrap px-2 text-xs md:text-sm">Prescriptions</TabsTrigger>
+              <TabsTrigger value="users" className="whitespace-nowrap px-2 text-xs md:text-sm">Users</TabsTrigger>
+              <TabsTrigger value="products" className="whitespace-nowrap px-2 text-xs md:text-sm">Products</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="paid-orders">
             <Card>
