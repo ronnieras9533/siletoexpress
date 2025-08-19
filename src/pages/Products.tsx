@@ -212,7 +212,11 @@ const Products = () => {
                           <span className="font-bold text-blue-600">
                             KES {product.price.toLocaleString()}
                           </span>
-                          <Badge variant="secondary" className="text-xs truncate max-w-[70px]">
+                          <Badge 
+                            variant="secondary" 
+                            className="text-xs max-w-[70px] truncate"
+                            title={product.category}
+                          >
                             {product.category}
                           </Badge>
                         </div>
