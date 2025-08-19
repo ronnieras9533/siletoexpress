@@ -60,7 +60,7 @@ const NotificationPanel = () => {
         .limit(20);
       
       if (error) throw error;
-      return data as Notification[];
+      return data;
     },
     enabled: !!user,
   });
@@ -176,6 +176,10 @@ const NotificationPanel = () => {
     ).join(' ');
   };
 
+  const viewPrescription = (imageUrl: string) => {
+    window.open(imageUrl, '_blank');
+  };
+
   const handleNotificationClick = (notification: Notification) => {
     // Mark as read if unread
     if (!notification.read) {
@@ -202,7 +206,13 @@ const NotificationPanel = () => {
         }
         break;
       case 'prescription_update':
-        navigate('/my-orders-prescriptions?tab=prescriptions');
+        // For prescription updates, open the prescription image directly
+        if (notification.metadata?.image_url) {
+          viewPrescription(notification.metadata.image_url);
+        } else {
+          // Fallback to the prescriptions list
+          navigate('/my-orders-prescriptions?tab=prescriptions');
+        }
         break;
       case 'payment_required':
         if (notification.reference_id) {
@@ -222,7 +232,7 @@ const NotificationPanel = () => {
       case 'order_status':
         return 'View Order';
       case 'prescription_update':
-        return 'View Prescriptions';
+        return 'View Prescription'; // Changed from "View Prescriptions"
       case 'payment_required':
         return 'Make Payment';
       default:
@@ -431,7 +441,18 @@ const NotificationPanel = () => {
                 >
                   Close
                 </Button>
-                {selectedNotification.reference_id && (
+                {selectedNotification.type === 'prescription_update' && selectedNotification.metadata?.image_url && (
+                  <Button
+                    onClick={() => {
+                      viewPrescription(selectedNotification.metadata.image_url);
+                      setSelectedNotification(null);
+                    }}
+                  >
+                    View Prescription
+                    <ExternalLink className="ml-2 h-4 w-4" />
+                  </Button>
+                )}
+                {selectedNotification.reference_id && selectedNotification.type !== 'prescription_update' && (
                   <Button
                     onClick={() => {
                       handleActionClick(selectedNotification);
