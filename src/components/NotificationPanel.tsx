@@ -2,7 +2,21 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Bell, X, Package, FileText, CreditCard, ExternalLink, Clock } from 'lucide-react';
+import { 
+  Bell, 
+  X, 
+  Package, 
+  FileText, 
+  CreditCard, 
+  ExternalLink, 
+  Clock,
+  CheckCircle,
+  Truck,
+  CheckCheck,
+  XCircle,
+  Clock4,
+  PackageCheck
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -84,7 +98,30 @@ const NotificationPanel = () => {
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  const getNotificationIcon = (type: string) => {
+  const getNotificationIcon = (type: string, status?: string) => {
+    // Handle order status icons specifically
+    if (type === 'order_status' && status) {
+      switch (status.toLowerCase()) {
+        case 'confirmed':
+          return <CheckCircle className="h-4 w-4" />;
+        case 'processing':
+          return <Package className="h-4 w-4" />;
+        case 'shipped':
+          return <Truck className="h-4 w-4" />;
+        case 'out_for_delivery':
+          return <PackageCheck className="h-4 w-4" />;
+        case 'delivered':
+          return <CheckCheck className="h-4 w-4" />;
+        case 'cancelled':
+          return <XCircle className="h-4 w-4" />;
+        case 'pending':
+          return <Clock4 className="h-4 w-4" />;
+        default:
+          return <Package className="h-4 w-4" />;
+      }
+    }
+    
+    // Handle other notification types
     switch (type) {
       case 'order_status':
         return <Package className="h-4 w-4" />;
@@ -97,7 +134,30 @@ const NotificationPanel = () => {
     }
   };
 
-  const getNotificationColor = (type: string) => {
+  const getNotificationColor = (type: string, status?: string) => {
+    // Handle order status colors specifically
+    if (type === 'order_status' && status) {
+      switch (status.toLowerCase()) {
+        case 'confirmed':
+          return 'text-green-600 bg-green-50';
+        case 'processing':
+          return 'text-blue-600 bg-blue-50';
+        case 'shipped':
+          return 'text-indigo-600 bg-indigo-50';
+        case 'out_for_delivery':
+          return 'text-teal-600 bg-teal-50';
+        case 'delivered':
+          return 'text-purple-600 bg-purple-50';
+        case 'cancelled':
+          return 'text-red-600 bg-red-50';
+        case 'pending':
+          return 'text-yellow-600 bg-yellow-50';
+        default:
+          return 'text-gray-600 bg-gray-50';
+      }
+    }
+    
+    // Handle other notification types
     switch (type) {
       case 'order_status':
         return 'text-blue-600 bg-blue-50';
@@ -108,6 +168,12 @@ const NotificationPanel = () => {
       default:
         return 'text-gray-600 bg-gray-50';
     }
+  };
+
+  const getStatusText = (status: string) => {
+    return status.split('_').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ');
   };
 
   const handleNotificationClick = (notification: Notification) => {
@@ -131,6 +197,8 @@ const NotificationPanel = () => {
       case 'order_status':
         if (notification.reference_id) {
           navigate(`/track-order?order_id=${notification.reference_id}`);
+        } else {
+          navigate('/my-orders-prescriptions');
         }
         break;
       case 'prescription_update':
@@ -239,54 +307,68 @@ const NotificationPanel = () => {
                 </div>
               ) : (
                 <div className="divide-y">
-                  {notifications.map((notification) => (
-                    <div
-                      key={notification.id}
-                      className={`p-4 hover:bg-gray-50 cursor-pointer ${
-                        !notification.read ? 'bg-blue-50' : ''
-                      }`}
-                      onClick={() => handleNotificationClick(notification)}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className={`p-2 rounded-full ${getNotificationColor(notification.type)}`}>
-                          {getNotificationIcon(notification.type)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between">
-                            <h4 className="font-medium text-sm text-gray-900">
-                              {notification.title}
-                            </h4>
-                            {!notification.read && (
-                              <div 
-                                className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1"
-                                aria-label="Unread notification"
-                              />
-                            )}
+                  {notifications.map((notification) => {
+                    // Extract status from metadata for order_status notifications
+                    const status = notification.type === 'order_status' && notification.metadata?.status 
+                      ? notification.metadata.status 
+                      : null;
+                      
+                    return (
+                      <div
+                        key={notification.id}
+                        className={`p-4 hover:bg-gray-50 cursor-pointer ${
+                          !notification.read ? 'bg-blue-50' : ''
+                        }`}
+                        onClick={() => handleNotificationClick(notification)}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`p-2 rounded-full ${getNotificationColor(notification.type, status)}`}>
+                            {getNotificationIcon(notification.type, status)}
                           </div>
-                          <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                            {notification.message}
-                          </p>
-                          <div className="flex items-center justify-between mt-2">
-                            <p className="text-xs text-gray-400 flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between">
+                              <h4 className="font-medium text-sm text-gray-900">
+                                {notification.title}
+                              </h4>
+                              {!notification.read && (
+                                <div 
+                                  className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1"
+                                  aria-label="Unread notification"
+                                />
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                              {notification.message}
                             </p>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 text-xs"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleActionClick(notification);
-                              }}
-                            >
-                              {getActionButtonText(notification.type)}
-                            </Button>
+                            {status && (
+                              <div className="mt-2">
+                                <Badge variant="outline" className={getNotificationColor(notification.type, status)}>
+                                  {getStatusText(status)}
+                                </Badge>
+                              </div>
+                            )}
+                            <div className="flex items-center justify-between mt-2">
+                              <p className="text-xs text-gray-400 flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                              </p>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleActionClick(notification);
+                                }}
+                              >
+                                {getActionButtonText(notification.type)}
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </ScrollArea>
@@ -299,42 +381,70 @@ const NotificationPanel = () => {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <div className={`p-2 rounded-full ${getNotificationColor(selectedNotification?.type || '')}`}>
-                {selectedNotification && getNotificationIcon(selectedNotification.type)}
-              </div>
-              {selectedNotification?.title}
+              {selectedNotification && (
+                <>
+                  <div className={`p-2 rounded-full ${getNotificationColor(
+                    selectedNotification.type, 
+                    selectedNotification.metadata?.status
+                  )}`}>
+                    {getNotificationIcon(
+                      selectedNotification.type, 
+                      selectedNotification.metadata?.status
+                    )}
+                  </div>
+                  {selectedNotification.title}
+                </>
+              )}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-gray-700">{selectedNotification?.message}</p>
-            <div className="flex items-center text-sm text-gray-500 gap-1">
-              <Clock className="h-4 w-4" />
-              {selectedNotification && new Date(selectedNotification.created_at).toLocaleString()}
-            </div>
-            {selectedNotification?.metadata && (
-              <div className="bg-gray-50 p-3 rounded-md text-sm">
-                <pre className="whitespace-pre-wrap">
-                  {JSON.stringify(selectedNotification.metadata, null, 2)}
-                </pre>
-              </div>
-            )}
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setSelectedNotification(null)}
-              >
-                Close
-              </Button>
-              {selectedNotification?.reference_id && (
-                <Button
-                  onClick={() => handleActionClick(selectedNotification)}
-                >
-                  {getActionButtonText(selectedNotification.type)}
-                  <ExternalLink className="ml-2 h-4 w-4" />
-                </Button>
+          {selectedNotification && (
+            <div className="space-y-4">
+              <p className="text-gray-700">{selectedNotification.message}</p>
+              
+              {selectedNotification.metadata?.status && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Status:</span>
+                  <Badge className={getNotificationColor(selectedNotification.type, selectedNotification.metadata.status)}>
+                    {getStatusText(selectedNotification.metadata.status)}
+                  </Badge>
+                </div>
               )}
+              
+              <div className="flex items-center text-sm text-gray-500 gap-1">
+                <Clock className="h-4 w-4" />
+                {new Date(selectedNotification.created_at).toLocaleString()}
+              </div>
+              
+              {selectedNotification.metadata && Object.keys(selectedNotification.metadata).length > 0 && (
+                <div className="bg-gray-50 p-3 rounded-md text-sm">
+                  <h4 className="font-medium mb-2">Details:</h4>
+                  <pre className="whitespace-pre-wrap">
+                    {JSON.stringify(selectedNotification.metadata, null, 2)}
+                  </pre>
+                </div>
+              )}
+              
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedNotification(null)}
+                >
+                  Close
+                </Button>
+                {selectedNotification.reference_id && (
+                  <Button
+                    onClick={() => {
+                      handleActionClick(selectedNotification);
+                      setSelectedNotification(null);
+                    }}
+                  >
+                    {getActionButtonText(selectedNotification.type)}
+                    <ExternalLink className="ml-2 h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
