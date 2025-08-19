@@ -232,12 +232,43 @@ const NotificationPanel = () => {
       case 'order_status':
         return 'View Order';
       case 'prescription_update':
-        return 'View Prescription'; // Changed from "View Prescriptions"
+        return 'View Prescription';
       case 'payment_required':
         return 'Make Payment';
       default:
         return 'View Details';
     }
+  };
+
+  // Format metadata for user-friendly display
+  const formatMetadata = (metadata: any) => {
+    if (!metadata) return null;
+    
+    return Object.entries(metadata).map(([key, value]) => {
+      // Format key for display (convert snake_case to Title Case)
+      const formattedKey = key
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+      
+      // Format value for display
+      let formattedValue = value;
+      if (typeof value === 'string' && value.includes('_')) {
+        formattedValue = value
+          .split('_')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+      } else if (key === 'order_id' && typeof value === 'string') {
+        formattedValue = value.slice(0, 8); // Shorten order ID for display
+      }
+      
+      return (
+        <div key={key} className="flex justify-between py-1">
+          <span className="font-medium text-gray-600">{formattedKey}:</span>
+          <span className="text-gray-800">{formattedValue}</span>
+        </div>
+      );
+    });
   };
 
   if (!user) return null;
@@ -428,9 +459,9 @@ const NotificationPanel = () => {
               {selectedNotification.metadata && Object.keys(selectedNotification.metadata).length > 0 && (
                 <div className="bg-gray-50 p-3 rounded-md text-sm">
                   <h4 className="font-medium mb-2">Details:</h4>
-                  <pre className="whitespace-pre-wrap">
-                    {JSON.stringify(selectedNotification.metadata, null, 2)}
-                  </pre>
+                  <div className="space-y-1">
+                    {formatMetadata(selectedNotification.metadata)}
+                  </div>
                 </div>
               )}
               
