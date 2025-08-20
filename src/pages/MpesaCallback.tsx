@@ -57,6 +57,19 @@ const MpesaCallback = () => {
           if (payment.status === 'completed') {
             setStatus('success');
             setPaymentData(payment);
+            
+            // Update order status to paid
+            if (payment.order_id) {
+              const { error: updateError } = await supabase
+                .from('orders')
+                .update({ payment_status: 'paid' })
+                .eq('id', payment.order_id);
+              
+              if (updateError) {
+                console.error('Error updating order status:', updateError);
+              }
+            }
+            
             toast({
               title: "Payment Successful!",
               description: `Payment of KES ${payment.amount} completed successfully.`,
