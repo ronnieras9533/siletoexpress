@@ -1,13 +1,12 @@
-
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, Loader2, XCircle, Home, ShoppingBag } from 'lucide-react';
-// Flutterwave service removed - replaced with Pesapal
 import { useToast } from '@/components/ui/use-toast';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import { supabase } from '@/integrations/supabase/client';
 
 const PaymentSuccess = () => {
   const location = useLocation();
@@ -31,9 +30,27 @@ const PaymentSuccess = () => {
     const verifyPayment = async () => {
       try {
         if (status === 'successful') {
-          // Legacy flutterwave verification - redirecting to Pesapal flow
-          navigate('/pesapal-callback');
-          return;
+          // Update order status in database
+          if (orderId) {
+            const { error } = await supabase
+              .from('orders')
+              .update({ payment_status: 'paid' })
+              .eq('id', orderId);
+            
+            if (error) {
+              console.error('Error updating order status:', error);
+              setPaymentStatus('failed');
+            } else {
+              setPaymentStatus('success');
+              setTransactionData({
+                tx_ref: txRef,
+                orderId: orderId,
+                status: 'successful'
+              });
+            }
+          } else {
+            setPaymentStatus('failed');
+          }
         } else {
           setPaymentStatus('failed');
         }
@@ -103,8 +120,7 @@ const PaymentSuccess = () => {
                   <h3 className="font-medium text-green-800 mb-2">Transaction Details</h3>
                   <div className="space-y-1 text-sm text-green-700">
                     <p>Transaction ID: <span className="font-mono">{transactionData.tx_ref}</span></p>
-                    <p>Amount: {transactionData.currency} {transactionData.amount?.toLocaleString()}</p>
-                    <p>Payment Method: Card Payment</p>
+                    <p>Order ID: <span className="font-mono">{transactionData.orderId}</span></p>
                     <p>Status: Successful</p>
                   </div>
                 </div>
