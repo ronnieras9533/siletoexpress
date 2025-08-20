@@ -28,6 +28,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { formatDistanceToNow } from 'date-fns';
+import PrescriptionViewer from './PrescriptionViewer';
 
 interface Notification {
   id: string;
@@ -40,9 +41,18 @@ interface Notification {
   reference_id?: string;
 }
 
+interface Prescription {
+  id: string;
+  image_url: string;
+  status: string;
+  created_at: string;
+  admin_notes?: string;
+}
+
 const NotificationPanel = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+  const [prescriptionToView, setPrescriptionToView] = useState<Prescription | null>(null);
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -176,8 +186,16 @@ const NotificationPanel = () => {
     ).join(' ');
   };
 
-  const viewPrescription = (imageUrl: string) => {
-    window.open(imageUrl, '_blank');
+  const viewPrescription = (notification: Notification) => {
+    // Create a prescription object from notification data
+    const prescription: Prescription = {
+      id: notification.reference_id || '',
+      image_url: notification.metadata?.image_url || '',
+      status: notification.metadata?.status || 'pending',
+      created_at: notification.created_at,
+      admin_notes: notification.metadata?.admin_notes
+    };
+    setPrescriptionToView(prescription);
   };
 
   const handleNotificationClick = (notification: Notification) => {
@@ -206,13 +224,8 @@ const NotificationPanel = () => {
         }
         break;
       case 'prescription_update':
-        // For prescription updates, open the prescription image directly
-        if (notification.metadata?.image_url) {
-          viewPrescription(notification.metadata.image_url);
-        } else {
-          // Fallback to the prescriptions list
-          navigate('/my-orders-prescriptions?tab=prescriptions');
-        }
+        // For prescription updates, open the prescription viewer
+        viewPrescription(notification);
         break;
       case 'payment_required':
         if (notification.reference_id) {
@@ -475,11 +488,11 @@ const NotificationPanel = () => {
                 {selectedNotification.type === 'prescription_update' && selectedNotification.metadata?.image_url && (
                   <Button
                     onClick={() => {
-                      viewPrescription(selectedNotification.metadata.image_url);
+                      viewPrescription(selectedNotification);
                       setSelectedNotification(null);
                     }}
                   >
-                    View Prescription
+                    View Prescription Details
                     <ExternalLink className="ml-2 h-4 w-4" />
                   </Button>
                 )}
@@ -499,6 +512,13 @@ const NotificationPanel = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Prescription Viewer Dialog */}
+      <PrescriptionViewer
+        prescription={prescriptionToView}
+        isOpen={!!prescriptionToView}
+        onClose={() => setPrescriptionToView(null)}
+      />
     </div>
   );
 };
