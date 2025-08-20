@@ -35,12 +35,15 @@ const MpesaPaymentButton: React.FC<MpesaPaymentButtonProps> = ({
 
       // 1️⃣ Create order first if beforePay exists
       let finalPaymentData = { ...paymentData };
+      let createdOrderId = '';
+      
       if (beforePay) {
         const orderInfo = await beforePay();
         if (!orderInfo?.orderId) {
           throw new Error('Order creation failed.');
         }
         finalPaymentData.orderId = orderInfo.orderId;
+        createdOrderId = orderInfo.orderId;
       }
 
       if (!finalPaymentData.phoneNumber || !finalPaymentData.amount || !finalPaymentData.orderId) {
@@ -74,8 +77,14 @@ const MpesaPaymentButton: React.FC<MpesaPaymentButtonProps> = ({
             title: "Payment Successful!",
             description: `Payment of KES ${finalPaymentData.amount.toLocaleString()} completed successfully.`,
           });
+          
+          // Pass the orderId to the success callback
+          onSuccess({
+            ...confirmationResult,
+            orderId: createdOrderId || finalPaymentData.orderId
+          });
+          
           navigate(`/mpesa-callback?checkout_request_id=${response.checkoutRequestID}&payment_id=${confirmationResult.payment?.id}`);
-          onSuccess(confirmationResult);
         } else if (confirmationResult.timeout) {
           toast({
             title: "Payment Verification Timeout",
