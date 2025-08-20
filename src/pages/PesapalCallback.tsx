@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useCart } from '@/contexts/CartContext';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import { supabase } from '@/integrations/supabase/client';
 
 const PesapalCallback: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -38,6 +38,27 @@ const PesapalCallback: React.FC = () => {
           // Payment was processed successfully
           setStatus('success');
           
+          // Update order status in database
+          if (paymentInfo?.orderId) {
+            try {
+              const { error } = await supabase
+                .from('orders')
+                .update({ 
+                  payment_status: 'paid',
+                  transaction_id: orderTrackingId
+                })
+                .eq('id', paymentInfo.orderId);
+              
+              if (error) {
+                console.error('Error updating order status:', error);
+              } else {
+                console.log('Order status updated successfully');
+              }
+            } catch (error) {
+              console.error('Failed to update order status:', error);
+            }
+          }
+          
           // Clear cart and stored payment info
           clearCart();
           localStorage.removeItem('pesapal_payment');
@@ -51,10 +72,10 @@ const PesapalCallback: React.FC = () => {
           setTimeout(() => {
             navigate('/order-success', {
               state: {
-                orderId: paymentData?.orderId || merchantReference,
+                orderId: paymentInfo?.orderId || merchantReference,
                 paymentMethod: 'pesapal',
-                amount: paymentData?.amount || 0,
-                currency: paymentData?.currency || 'KES',
+                amount: paymentInfo?.amount || 0,
+                currency: paymentInfo?.currency || 'KES',
                 orderTrackingId: orderTrackingId
               }
             });
@@ -91,7 +112,7 @@ const PesapalCallback: React.FC = () => {
     };
 
     handleCallback();
-  }, [searchParams, navigate, toast, clearCart, paymentData?.orderId, paymentData?.amount, paymentData?.currency]);
+  }, [searchParams, navigate, toast, clearCart]);
 
   const handleRetry = () => {
     navigate('/checkout');
