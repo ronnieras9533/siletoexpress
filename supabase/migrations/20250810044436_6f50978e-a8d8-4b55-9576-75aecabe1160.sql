@@ -1,4 +1,3 @@
-
 -- Create a function to handle order status notifications
 CREATE OR REPLACE FUNCTION notify_order_status_change()
 RETURNS TRIGGER AS $$
@@ -47,8 +46,8 @@ CREATE TRIGGER order_status_notification_trigger
 CREATE OR REPLACE FUNCTION handle_payment_completion()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- When payment status changes to completed, update order status to paid
-  IF NEW.status = 'completed' AND (OLD.status IS NULL OR OLD.status != 'completed') THEN
+  -- When payment status changes to success, update order status to paid
+  IF NEW.status = 'success' AND (OLD.status IS NULL OR OLD.status != 'success') THEN -- Changed from 'completed' to 'success'
     UPDATE orders 
     SET status = 'paid',
         payment_initiated = true
