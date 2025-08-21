@@ -70,7 +70,7 @@ serve(async (req) => {
             total_amount: payment.amount,
             phone_number: orderData.phone_number,
             delivery_address: orderData.delivery_address,
-            status: 'confirmed', // Changed from 'approved' to 'confirmed'
+            status: 'confirmed',
             payment_method: 'mpesa',
             currency: 'KES',
             mpesa_receipt_number: mpesaReceiptNumber
@@ -119,7 +119,7 @@ serve(async (req) => {
           const { error: updatePaymentError } = await supabaseClient
             .from('payments')
             .update({
-              status: 'success', // Changed from 'completed' to 'success'
+              status: 'success', // This is correct - matches the constraint
               order_id: order.id,
               metadata: {
                 ...payment.metadata,
@@ -144,7 +144,7 @@ serve(async (req) => {
         const { error: updatePaymentError } = await supabaseClient
           .from('payments')
           .update({
-            status: 'failed',
+            status: 'failed', // This is correct - matches the constraint
             metadata: {
               ...payment.metadata,
               callback: callbackData,
