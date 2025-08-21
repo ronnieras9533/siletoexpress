@@ -115,11 +115,11 @@ serve(async (req) => {
             }
           }
 
-          // Update payment with order reference
+          // Update payment with order reference - FIXED: Changed 'completed' to 'success'
           const { error: updatePaymentError } = await supabaseClient
             .from('payments')
             .update({
-              status: 'completed',
+              status: 'success', // Changed from 'completed' to 'success'
               order_id: order.id,
               metadata: {
                 ...payment.metadata,
