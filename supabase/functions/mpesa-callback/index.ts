@@ -70,7 +70,7 @@ serve(async (req) => {
             total_amount: payment.amount,
             phone_number: orderData.phone_number,
             delivery_address: orderData.delivery_address,
-            status: 'approved', // Directly set to approved since payment is successful
+            status: 'confirmed', // Changed from 'approved' to 'confirmed'
             payment_method: 'mpesa',
             currency: 'KES',
             mpesa_receipt_number: mpesaReceiptNumber
@@ -115,7 +115,7 @@ serve(async (req) => {
             }
           }
 
-          // Update payment with order reference - FIXED: Changed 'completed' to 'success'
+          // Update payment with order reference
           const { error: updatePaymentError } = await supabaseClient
             .from('payments')
             .update({
