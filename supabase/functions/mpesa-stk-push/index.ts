@@ -131,23 +131,31 @@ serve(async (req) => {
         }
       }
 
+      // If we couldn't get a user ID, create a payment record without a user ID
+      // This handles cases where the payment is initiated without authentication
+      const paymentData: any = {
+        amount: amount,
+        currency: 'KES',
+        method: 'mpesa',
+        gateway: 'mpesa',
+        status: 'pending',
+        transaction_id: stkResult.CheckoutRequestID,
+        metadata: {
+          ...stkResult,
+          phone_number: formattedPhone,
+          order_reference: orderId,
+          account_reference: accountReference
+        }
+      };
+
+      // Only add user_id if we have a valid UUID
+      if (userId) {
+        paymentData.user_id = userId;
+      }
+
       const { error: paymentError } = await supabaseClient
         .from('payments')
-        .insert({
-          user_id: userId,
-          amount: amount,
-          currency: 'KES',
-          method: 'mpesa',
-          gateway: 'mpesa',
-          status: 'pending', // This is the correct status value
-          transaction_id: stkResult.CheckoutRequestID,
-          metadata: {
-            ...stkResult,
-            phone_number: formattedPhone,
-            order_reference: orderId,
-            account_reference: accountReference
-          }
-        });
+        .insert(paymentData);
 
       if (paymentError) {
         console.error('Error storing payment record:', paymentError);
