@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface MPESAPaymentData {
@@ -101,8 +100,8 @@ class MPESAService {
           }
 
           if (payment) {
-            if (payment.status === 'completed') {
-              console.log('Payment confirmed as completed:', payment);
+            if (payment.status === 'success') { // Changed from 'completed' to 'success'
+              console.log('Payment confirmed as success:', payment);
               resolve({ success: true, payment });
               return;
             } else if (payment.status === 'failed') {
