@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -140,7 +139,7 @@ serve(async (req) => {
           currency: 'KES',
           method: 'mpesa',
           gateway: 'mpesa',
-          status: 'pending',
+          status: 'pending', // This is the correct status value
           transaction_id: stkResult.CheckoutRequestID,
           metadata: {
             ...stkResult,
@@ -152,6 +151,10 @@ serve(async (req) => {
 
       if (paymentError) {
         console.error('Error storing payment record:', paymentError);
+        // Check if it's a constraint violation
+        if (paymentError.code === '23514') {
+          console.error('Constraint violation details:', paymentError.details);
+        }
       } else {
         console.log('Payment record stored successfully');
       }
