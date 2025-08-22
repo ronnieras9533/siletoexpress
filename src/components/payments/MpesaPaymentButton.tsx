@@ -84,7 +84,8 @@ const MpesaPaymentButton: React.FC<MpesaPaymentButtonProps> = ({
             orderId: createdOrderId || finalPaymentData.orderId
           });
           
-          navigate(`/mpesa-callback?checkout_request_id=${response.checkoutRequestID}&payment_id=${confirmationResult.payment?.id}`);
+          // Navigate to M-Pesa success page
+          navigate(`/mpesa-payment-success?checkout_request_id=${response.checkoutRequestID}&order_id=${createdOrderId || finalPaymentData.orderId}`);
         } else if (confirmationResult.timeout) {
           toast({
             title: "Payment Verification Timeout",
