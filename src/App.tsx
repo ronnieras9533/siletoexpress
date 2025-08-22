@@ -26,6 +26,7 @@ import TermsOfService from '@/pages/TermsOfService';
 import WhyChooseUs from '@/pages/WhyChooseUs';
 import Dashboard from '@/pages/Dashboard';
 import MyOrdersAndPrescriptions from '@/pages/MyOrdersAndPrescriptions';
+import MpesaPaymentSuccess from './pages/MpesaPaymentSuccess';
 
 function AppContent() {
   const navigate = useNavigate();
@@ -64,6 +65,7 @@ function AppContent() {
         <Route path="/my-orders-prescriptions" element={<MyOrdersAndPrescriptions />} />
         <Route path="/my-orders" element={<MyOrdersAndPrescriptions />} />
         <Route path="*" element={<NotFound />} />
+        <Route path="/mpesa-payment-success" element={<MpesaPaymentSuccess />} />
       </Routes>
     </>
   );
