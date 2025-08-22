@@ -66,6 +66,7 @@ function AppContent() {
         <Route path="/my-orders" element={<MyOrdersAndPrescriptions />} />
         <Route path="*" element={<NotFound />} />
         <Route path="/mpesa-payment-success" element={<MpesaPaymentSuccess />} />
+        <Route path="/payment/complete" element={<PaymentCompletePrompt />} />
       </Routes>
     </>
   );
