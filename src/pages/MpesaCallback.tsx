@@ -54,7 +54,7 @@ const MpesaCallback = () => {
             return;
           }
 
-          if (payment.status === 'completed') {
+          if (payment.status === 'success') {
             setStatus('success');
             setPaymentData(payment);
             
