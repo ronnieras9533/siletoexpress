@@ -100,13 +100,17 @@ class MPESAService {
           }
 
           if (payment) {
-            if (payment.status === 'success') { // Changed from 'completed' to 'success'
+            if (payment.status === 'success') {
               console.log('Payment confirmed as success:', payment);
               resolve({ success: true, payment });
               return;
             } else if (payment.status === 'failed') {
               console.log('Payment confirmed as failed:', payment);
               resolve({ success: false, payment, error: 'Payment failed' });
+              return;
+            } else if (payment.status === 'cancelled') {
+              console.log('Payment was cancelled:', payment);
+              resolve({ success: false, payment, error: 'Payment was cancelled' });
               return;
             }
           }
