@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea'; // Add this import
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, MapPin, Phone, Clock, Package, Truck, CheckCircle, FileText, Image } from 'lucide-react';
 import OrderStatusStepper from './OrderStatusStepper';
@@ -54,7 +54,7 @@ interface Order {
 
 interface AdminOrdersTableProps {
   orderType?: 'regular' | 'all';
-  paymentStatusFilter?: 'paid' | 'pending';
+  paymentStatusFilter?: 'paid' | 'unpaid';
   onStatusUpdate?: (orderId: string, newStatus: string) => void;
 }
 
@@ -216,7 +216,7 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
       });
 
       setSelectedPrescription({ ...selectedPrescription, status: 'approved', admin_notes: adminNotes });
-      fetchOrders(); // Refresh orders to reflect changes
+      fetchOrders();
     } catch (error: any) {
       console.error('Error approving prescription:', error);
       toast({
@@ -242,7 +242,7 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
       });
 
       setSelectedPrescription({ ...selectedPrescription, status: 'rejected', admin_notes: adminNotes });
-      fetchOrders(); // Refresh orders to reflect changes
+      fetchOrders();
     } catch (error: any) {
       console.error('Error rejecting prescription:', error);
       toast({
@@ -479,181 +479,4 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
                                             <Button
                                               size="sm"
                                               variant="outline"
-                                              onClick={() => setSelectedPrescription(prescription)}
-                                              className="mt-2"
-                                            >
-                                              <Image className="h-3 w-3 mr-1" />
-                                              View Prescription
-                                            </Button>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            )}
-
-                            {/* Order Status Update */}
-                            <Card>
-                              <CardHeader>
-                                <CardTitle className="text-lg">Update Order Status</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <div className="flex items-center gap-4">
-                                  <Select
-                                    value={selectedOrder.status}
-                                    onValueChange={(value) => handleStatusUpdate(selectedOrder.id, value)}
-                                  >
-                                    <SelectTrigger className="w-48">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="pending">Pending</SelectItem>
-                                      <SelectItem value="confirmed">Confirmed</SelectItem>
-                                      <SelectItem value="processing">Processing</SelectItem>
-                                      <SelectItem value="shipped">Shipped</SelectItem>
-                                      <SelectItem value="out_for_delivery">Out for Delivery</SelectItem>
-                                      <SelectItem value="delivered">Delivered</SelectItem>
-                                      <SelectItem value="cancelled">Cancelled</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                  <p className="text-sm text-gray-600">
-                                    Current status: <span className="font-medium">{formatStatus(selectedOrder.status)}</span>
-                                  </p>
-                                </div>
-                              </CardContent>
-                            </Card>
-
-                            {/* Payment Status Update */}
-                            <Card>
-                              <CardHeader>
-                                <CardTitle className="text-lg">Update Payment Status</CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                <div className="flex items-center gap-4">
-                                  <Select
-                                    value={selectedOrder.payment_status}
-                                    onValueChange={(value) => handlePaymentStatusUpdate(selectedOrder.id, value)}
-                                  >
-                                    <SelectTrigger className="w-48">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="pending">Pending</SelectItem>
-                                      <SelectItem value="paid">Paid</SelectItem>
-                                      <SelectItem value="failed">Failed</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                  <p className="text-sm text-gray-600">
-                                    Current payment status: <span className="font-medium">{formatStatus(selectedOrder.payment_status)}</span>
-                                  </p>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          </div>
-                        )}
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-600">Total Amount</p>
-                    <p className="font-medium">{order.currency || 'KES'} {order.total_amount.toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">Items</p>
-                    <p className="font-medium">{order.order_items.length} item(s)</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600">County</p>
-                    <p className="font-medium">{order.county || 'Not specified'}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* Prescription Image Modal */}
-      {selectedPrescription && (
-        <Dialog open={!!selectedPrescription} onOpenChange={() => setSelectedPrescription(null)}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Prescription Details ID: {selectedPrescription.id.slice(0, 8)}...</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="font-medium">Status:</span> 
-                  <Badge className={`ml-2 ${getStatusColor(selectedPrescription.status)}`}>
-                    {selectedPrescription.status.toUpperCase()}
-                  </Badge>
-                </div>
-                {selectedPrescription.status === 'pending' && (
-                  <Button variant="outline" asChild>
-                    <a href={selectedPrescription.image_url} download>
-                      Download
-                    </a>
-                  </Button>
-                )}
-              </div>
-
-              <img 
-                src={selectedPrescription.image_url} 
-                alt="Prescription"
-                className="w-full max-h-96 object-contain rounded"
-              />
-
-              {selectedPrescription.status === 'pending' ? (
-                <div className="space-y-4">
-                  <div>
-                    <label className="font-medium block mb-1">Admin Notes:</label>
-                    <Textarea 
-                      value={adminNotes}
-                      onChange={(e) => setAdminNotes(e.target.value)}
-                      placeholder="Enter notes for the user..."
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button 
-                      className="bg-green-500 hover:bg-green-600"
-                      onClick={handleApprovePrescription}
-                    >
-                      Approve Prescription
-                    </Button>
-                    <Button 
-                      className="bg-red-500 hover:bg-red-600"
-                      onClick={handleRejectPrescription}
-                    >
-                      Reject Prescription
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-sm space-y-2">
-                  {selectedPrescription.admin_notes && (
-                    <div>
-                      <span className="font-medium">Admin Notes:</span> 
-                      <p className="text-gray-600 mt-1">{selectedPrescription.admin_notes}</p>
-                    </div>
-                  )}
-                  <div>
-                    <span className="font-medium">Upload Date:</span> 
-                    <span className="ml-2">{new Date(selectedPrescription.created_at).toLocaleDateString()}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
-    </div>
-  );
-};
-
-export default AdminOrdersTable;
+                                              onClick={() => set
