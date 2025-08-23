@@ -27,6 +27,7 @@ import WhyChooseUs from '@/pages/WhyChooseUs';
 import Dashboard from '@/pages/Dashboard';
 import MyOrdersAndPrescriptions from '@/pages/MyOrdersAndPrescriptions';
 import MpesaPaymentSuccess from './pages/MpesaPaymentSuccess';
+import PaymentCompletePrompt from './pages/PaymentCompletePrompt'; // Add this import
 
 function AppContent() {
   const navigate = useNavigate();
