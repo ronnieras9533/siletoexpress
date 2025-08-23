@@ -1,3 +1,4 @@
+// File: src/hooks/use-toast.ts
 import * as React from "react"
 
 import type {
@@ -5,7 +6,7 @@ import type {
   ToastProps,
 } from "@/components/ui/toast"
 
-const TOAST_LIMIT = 1
+const TOAST_LIMIT = 5
 const TOAST_REMOVE_DELAY = 1000000
 
 type ToasterToast = ToastProps & {
@@ -87,7 +88,7 @@ export const reducer = (state: State, action: Action): State => {
         ),
       }
 
-    case "DISMISS_TOAST": {
+    case "DISMISS_TOAST":
       const { toastId } = action
 
       // ! Side effects ! - This could be extracted into a dismissToast() action,
@@ -111,7 +112,7 @@ export const reducer = (state: State, action: Action): State => {
             : t
         ),
       }
-    }
+
     case "REMOVE_TOAST":
       if (action.toastId === undefined) {
         return {
