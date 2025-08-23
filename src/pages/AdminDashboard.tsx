@@ -186,7 +186,7 @@ const AdminDashboard = () => {
           <div className="overflow-x-auto">
             <TabsList className="flex w-full min-w-max md:grid md:grid-cols-5">
               <TabsTrigger value="paid-orders" className="whitespace-nowrap px-2 text-xs md:text-sm">Paid Orders</TabsTrigger>
-              <TabsTrigger value="pending-payments" className="whitespace-nowrap px-2 text-xs md:text-sm">Pending Payments</TabsTrigger>
+              <TabsTrigger value="unpaid-payments" className="whitespace-nowrap px-2 text-xs md:text-sm">Unpaid Payments</TabsTrigger>
               <TabsTrigger value="prescriptions" className="whitespace-nowrap px-2 text-xs md:text-sm">Prescriptions</TabsTrigger>
               <TabsTrigger value="users" className="whitespace-nowrap px-2 text-xs md:text-sm">Users</TabsTrigger>
               <TabsTrigger value="products" className="whitespace-nowrap px-2 text-xs md:text-sm">Products</TabsTrigger>
@@ -204,13 +204,13 @@ const AdminDashboard = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="pending-payments">
+          <TabsContent value="unpaid-payments">
             <Card>
               <CardHeader>
-                <CardTitle>Pending Payments</CardTitle>
+                <CardTitle>Unpaid Payments</CardTitle>
               </CardHeader>
               <CardContent>
-                <AdminOrdersTable paymentStatusFilter="pending" />
+                <AdminOrdersTable paymentStatusFilter="unpaid" />
               </CardContent>
             </Card>
           </TabsContent>
