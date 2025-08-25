@@ -24,7 +24,7 @@ interface Order {
   delivery_fee: number | null;
   payment_method: string | null;
   currency: string | null;
-  requires_prescription: boolean | null;
+  prescription: boolean | null; // Changed from requires_prescription to prescription
   profiles: {
     full_name: string;
     email: string;
@@ -104,7 +104,7 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
         .order('created_at', { ascending: false });
 
       if (orderType === 'regular') {
-        query = query.or('requires_prescription.is.null,requires_prescription.eq.false');
+        query = query.or('prescription.is.null,prescription.eq.false'); // Changed from requires_prescription to prescription
       }
 
       if (paymentStatusFilter) {
@@ -294,8 +294,8 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({ orderType = 'all', 
 
   return (
     <div className="space-y-4">
-      {/* ... your orders table and cards code remains unchanged ... */}
-
+      {/* Orders table content would go here */}
+      
       {/* Prescription Image Modal */}
       {selectedPrescription && (
         <Dialog open={!!selectedPrescription} onOpenChange={() => setSelectedPrescription(null)}>
