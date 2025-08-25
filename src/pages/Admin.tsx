@@ -79,7 +79,7 @@ const Admin = () => {
       // Get orders stats
       const { data: orders, error: ordersError } = await supabase
         .from('orders')
-        .select('id, status, requires_prescription');
+        .select('id, status, requires_prescription, payment_status');
 
       if (ordersError) throw ordersError;
 
@@ -301,11 +301,11 @@ const Admin = () => {
           </Card>
         </div>
 
-        {/* Main Content Tabs - Updated with new tabs */}
+        {/* Main Content Tabs - Updated with paid/unpaid orders */}
         <Tabs defaultValue="regular-orders" className="space-y-4 lg:space-y-6">
           <div className="w-full">
             <div className="overflow-x-auto pb-2">
-              <TabsList className="flex h-auto w-max min-w-full lg:w-full lg:grid lg:grid-cols-5 p-1">
+              <TabsList className="flex h-auto w-max min-w-full lg:w-full lg:grid lg:grid-cols-6 p-1">
                 <TabsTrigger 
                   value="regular-orders" 
                   className="text-xs lg:text-sm px-2 lg:px-4 py-2 whitespace-nowrap flex-shrink-0 min-w-[100px] lg:min-w-0"
@@ -319,10 +319,16 @@ const Admin = () => {
                   Rx Orders
                 </TabsTrigger>
                 <TabsTrigger 
-                  value="prescriptions" 
+                  value="paid-orders" 
                   className="text-xs lg:text-sm px-2 lg:px-4 py-2 whitespace-nowrap flex-shrink-0 min-w-[100px] lg:min-w-0"
                 >
-                  Prescriptions
+                  Paid Orders
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="unpaid-orders" 
+                  className="text-xs lg:text-sm px-2 lg:px-4 py-2 whitespace-nowrap flex-shrink-0 min-w-[100px] lg:min-w-0"
+                >
+                  Unpaid Orders
                 </TabsTrigger>
                 <TabsTrigger 
                   value="users" 
@@ -367,13 +373,24 @@ const Admin = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="prescriptions" className="space-y-4 lg:space-y-6">
+          <TabsContent value="paid-orders" className="space-y-4 lg:space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg lg:text-xl">General Prescriptions (Homepage Uploads)</CardTitle>
+                <CardTitle className="text-lg lg:text-xl">Paid Orders</CardTitle>
               </CardHeader>
               <CardContent>
-                <AdminPrescriptionsTable />
+                <AdminOrdersTable paymentStatusFilter="paid" />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="unpaid-orders" className="space-y-4 lg:space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg lg:text-xl">Unpaid Orders</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AdminOrdersTable paymentStatusFilter="unpaid" />
               </CardContent>
             </Card>
           </TabsContent>
