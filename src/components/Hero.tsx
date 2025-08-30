@@ -17,34 +17,32 @@ const Hero = () => {
   };
 
   return (
-    <div className="relative bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 text-white overflow-hidden">
-      {/* Background Pattern */}
-      <div className="absolute inset-0 bg-black bg-opacity-10">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-transparent"></div>
-      </div>
+    <div className="relative text-white overflow-hidden bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 animate-gradient-x">
+      {/* Subtle overlay to keep text readable */}
+      <div className="absolute inset-0 bg-black/20"></div>
 
       <div className="relative container mx-auto px-4 pt-8 pb-6 sm:pt-12 sm:pb-8">
         <div className="max-w-4xl mx-auto">
           <div className="text-center">
-            {/* Trust Badge - Responsive size */}
+            {/* Trust Badge */}
             <div className="inline-flex items-center bg-white/10 backdrop-blur-sm rounded-full px-4 py-1.5 mb-4 sm:mb-5 text-sm sm:text-xs">
               <Shield className="h-4 w-4 mr-1.5 sm:h-3 sm:w-3 sm:mr-1" />
               <span>Licensed by Pharmacy & Poisons Board</span>
             </div>
 
-            {/* Main Headline - Responsive size */}
+            {/* Main Headline */}
             <h1 className="text-3xl sm:text-2xl md:text-3xl font-bold leading-tight mb-4 sm:mb-3">
               Your Trusted Online <br className="hidden sm:block" />
               <span className="text-blue-200">Pharmacy in Kenya</span>
             </h1>
 
-            {/* Subtitle - Responsive size */}
+            {/* Subtitle */}
             <p className="text-base sm:text-sm md:text-base text-blue-100 mb-6 sm:mb-4 max-w-2xl mx-auto leading-snug">
               Get authentic medicines delivered to your doorstep.
             </p>
           </div>
-          
-          {/* Responsive Search Bar */}
+
+          {/* Search Bar */}
           <div className="bg-white rounded-full p-1 max-w-md mx-auto mb-6 sm:mb-4 shadow-lg sm:shadow">
             <div className="flex">
               <div className="relative flex-1">
@@ -69,7 +67,7 @@ const Hero = () => {
           </div>
 
           <div className="text-center">
-            {/* CTA Button - Responsive size */}
+            {/* CTA Button */}
             <div className="mb-6 sm:mb-4">
               <Button
                 onClick={() => navigate("/products")}
@@ -79,7 +77,7 @@ const Hero = () => {
               </Button>
             </div>
 
-            {/* Trust Indicators - Responsive size */}
+            {/* Trust Indicators */}
             <div className="grid grid-cols-4 gap-3 sm:gap-2 mt-6 sm:mt-4">
               <div className="flex flex-col items-center text-center">
                 <CheckCircle className="h-5 w-5 sm:h-4 sm:w-4 text-blue-200 mb-1.5 sm:mb-1" />
