@@ -29,7 +29,7 @@ const PesapalCallback: React.FC = () => {
               .update({ 
                 payment_status: 'paid',
                 transaction_id: orderTrackingId
-              })
+              } as any)
               .eq('id', paymentInfo.orderId);
           }
 

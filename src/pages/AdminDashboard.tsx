@@ -73,7 +73,7 @@ const AdminDashboard = () => {
       const currentDate = new Date();
       const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
       const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString();
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('orders')
         .select('total_amount')
         .gte('created_at', firstDayOfMonth)
@@ -95,7 +95,7 @@ const AdminDashboard = () => {
     try {
       const { error } = await supabase
         .from('orders')
-        .update({ status: newStatus })
+        .update({ status: newStatus } as any)
         .eq('id', orderId);
       if (error) throw error;
     } catch (error) {

@@ -53,7 +53,10 @@ const MpesaPaymentButton: React.FC<MpesaPaymentButtonProps> = ({
       }
 
       // 2️⃣ Initiate STK Push
-      const response = await mpesaService.initiateSTKPush(finalPaymentData);
+      const response = await mpesaService.initiateSTKPush({
+        ...finalPaymentData,
+        orderId: finalPaymentData.orderId || ''
+      });
 
       if (response.success && response.checkoutRequestID) {
         setLoading(false);

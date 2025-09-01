@@ -106,9 +106,9 @@ const Admin = () => {
 
       // Calculate stats
       const totalOrders = orders?.length || 0;
-      const pendingOrders = orders?.filter(order => order.status === 'pending').length || 0;
-      const regularOrders = orders?.filter(order => !order.requires_prescription).length || 0;
-      const prescriptionOrders = orders?.filter(order => order.requires_prescription).length || 0;
+      const pendingOrders = orders?.filter((order: any) => order.status === 'pending').length || 0;
+      const regularOrders = orders?.filter((order: any) => !order.requires_prescription).length || 0;
+      const prescriptionOrders = orders?.filter((order: any) => order.requires_prescription).length || 0;
       const pendingPrescriptions = prescriptions?.filter(p => p.status === 'pending' && p.order_id).length || 0;
       const generalPrescriptions = prescriptions?.filter(p => !p.order_id).length || 0;
 

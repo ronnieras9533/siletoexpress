@@ -164,7 +164,7 @@ const Checkout = () => {
     if (order) {
       await supabase
         .from('orders')
-        .update({ payment_status: 'paid' })
+        .update({ payment_status: 'paid' } as any)
         .eq('id', order.id);
     }
     toast({
@@ -350,11 +350,6 @@ const Checkout = () => {
                       onSuccess={(receiptNumber) => handlePaymentSuccess(receiptNumber)}
                       onError={handlePaymentError}
                       paymentType="card"
-                      beforePay={async () => {
-                        const order = await createOrder();
-                        if (!order) throw new Error('Order could not be created.');
-                        return order;
-                      }}
                     />
                   )}
                 </div>

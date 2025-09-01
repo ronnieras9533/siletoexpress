@@ -278,7 +278,7 @@ const NotificationPanel = () => {
       return (
         <div key={key} className="flex justify-between py-1">
           <span className="font-medium text-gray-600">{formattedKey}:</span>
-          <span className="text-gray-800">{formattedValue}</span>
+          <span className="text-gray-800">{String(formattedValue)}</span>
         </div>
       );
     });
@@ -362,9 +362,9 @@ const NotificationPanel = () => {
               ) : (
                 <div className="divide-y">
                   {notifications.map((notification) => {
-                    // Extract status from metadata for order_status notifications
-                    const status = notification.type === 'order_status' && notification.metadata?.status 
-                      ? notification.metadata.status 
+                    // Extract status from metadata for order_status notifications  
+                    const status = notification.type === 'order_status' && (notification as any).metadata?.status 
+                      ? (notification as any).metadata.status 
                       : null;
                       
                     return (
