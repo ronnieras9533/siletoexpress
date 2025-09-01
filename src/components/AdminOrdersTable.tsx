@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, Clock, Package, Truck, CheckCircle, FileText } from 'lucide-react';
 import OrderStatusStepper from './OrderStatusStepper';
+import PrescriptionViewer from './PrescriptionViewer';
 
 interface AdminOrdersTableProps {
   orderType?: 'regular' | 'all';
@@ -42,11 +44,29 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({
     try {
       console.log('Fetching orders with filters:', { orderType, paymentStatusFilter });
       
-      // Cast to any to avoid TypeScript deep instantiation error
-      const query: any = supabase.from('orders').select('*').order('created_at', { ascending: false });
+      // Fetch orders with prescriptions and order items
+      let query = supabase
+        .from('orders')
+        .select(`
+          *,
+          prescriptions (
+            id,
+            image_url,
+            status,
+            admin_notes,
+            created_at
+          ),
+          order_items (
+            id,
+            quantity,
+            price,
+            products (name, brand)
+          )
+        `)
+        .order('created_at', { ascending: false });
       
       if (paymentStatusFilter) {
-        query.eq('payment_status', paymentStatusFilter);
+        query = query.eq('payment_status', paymentStatusFilter);
       }
       
       const { data: ordersData, error } = await query;
@@ -146,53 +166,30 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({
     }
   };
 
-  const handleApprovePrescription = async () => {
+  const handlePrescriptionAction = async (prescriptionId: string, action: 'approve' | 'reject', notes?: string) => {
     try {
       const { error } = await supabase
         .from('prescriptions')
-        .update({ status: 'approved', admin_notes: adminNotes })
-        .eq('id', selectedPrescription.id);
+        .update({
+          status: action === 'approve' ? 'approved' : 'rejected',
+          admin_notes: notes || ''
+        })
+        .eq('id', prescriptionId);
 
       if (error) throw error;
 
       toast({
         title: "Success",
-        description: "Prescription approved",
+        description: `Prescription ${action === 'approve' ? 'approved' : 'rejected'} successfully`,
       });
 
-      setSelectedPrescription({ ...selectedPrescription, status: 'approved', admin_notes: adminNotes });
       fetchOrders();
+      setSelectedPrescription(null);
     } catch (error: any) {
-      console.error('Error approving prescription:', error);
+      console.error('Error updating prescription:', error);
       toast({
         title: "Error",
-        description: error?.message || "Failed to approve prescription",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleRejectPrescription = async () => {
-    try {
-      const { error } = await supabase
-        .from('prescriptions')
-        .update({ status: 'rejected', admin_notes: adminNotes })
-        .eq('id', selectedPrescription.id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Prescription rejected",
-      });
-
-      setSelectedPrescription({ ...selectedPrescription, status: 'rejected', admin_notes: adminNotes });
-      fetchOrders();
-    } catch (error: any) {
-      console.error('Error rejecting prescription:', error);
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to reject prescription",
+        description: error?.message || "Failed to update prescription",
         variant: "destructive"
       });
     }
@@ -207,6 +204,8 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({
       case 'out_for_delivery': return 'bg-orange-100 text-orange-800';
       case 'delivered': return 'bg-green-100 text-green-800';
       case 'cancelled': return 'bg-red-100 text-red-800';
+      case 'approved': return 'bg-green-100 text-green-800';
+      case 'rejected': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -262,6 +261,12 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({
                   <Badge variant={order.payment_status === 'paid' ? 'default' : 'destructive'}>
                     {order.payment_status}
                   </Badge>
+                  {order.requires_prescription && (
+                    <Badge variant="outline" className="bg-purple-50 text-purple-700">
+                      <FileText className="h-3 w-3 mr-1" />
+                      Prescription Required
+                    </Badge>
+                  )}
                 </div>
               </div>
 
@@ -283,6 +288,65 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({
                   <p className="text-sm">{new Date(order.created_at).toLocaleDateString()}</p>
                 </div>
               </div>
+
+              {/* Order Items */}
+              {order.order_items && order.order_items.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-sm font-medium mb-2">Items:</p>
+                  <div className="space-y-1">
+                    {order.order_items.map((item: any, index: number) => (
+                      <div key={index} className="flex justify-between text-sm bg-gray-50 p-2 rounded">
+                        <span>{item.products?.name} ({item.products?.brand})</span>
+                        <span>Qty: {item.quantity} - {order.currency || 'KES'} {item.price}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Prescriptions Section */}
+              {order.prescriptions && order.prescriptions.length > 0 && (
+                <div className="mb-4 border-t pt-4">
+                  <p className="text-sm font-medium mb-2">Prescriptions ({order.prescriptions.length}):</p>
+                  <div className="space-y-2">
+                    {order.prescriptions.map((prescription: any) => (
+                      <div key={prescription.id} className="flex items-center justify-between bg-gray-50 p-3 rounded">
+                        <div className="flex items-center gap-3">
+                          <img 
+                            src={prescription.image_url} 
+                            alt="Prescription thumbnail"
+                            className="w-12 h-12 object-cover rounded border"
+                          />
+                          <div>
+                            <p className="text-sm font-medium">Prescription #{prescription.id.slice(0, 8)}</p>
+                            <div className="flex items-center gap-2">
+                              <Badge className={getStatusColor(prescription.status)}>
+                                {prescription.status.toUpperCase()}
+                              </Badge>
+                              <span className="text-xs text-gray-500">
+                                {new Date(prescription.created_at).toLocaleDateString()}
+                              </span>
+                            </div>
+                            {prescription.admin_notes && (
+                              <p className="text-xs text-gray-600 mt-1">
+                                Notes: {prescription.admin_notes}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setSelectedPrescription(prescription)}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          View
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-center gap-2 mb-4">
                 <Select onValueChange={(value) => handleStatusUpdate(order.id, value)}>
@@ -319,38 +383,6 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({
                   View Details
                 </Button>
               </div>
-
-              {order.order_items && order.order_items.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium mb-2">Items:</p>
-                  <div className="space-y-1">
-                    {order.order_items.map((item: any, index: number) => (
-                      <p key={index} className="text-sm text-gray-600">
-                        {item.products?.name} - Qty: {item.quantity} - {order.currency || 'KES'} {item.price}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {order.prescriptions && order.prescriptions.length > 0 && (
-                <div className="mt-4">
-                  <p className="text-sm font-medium mb-2">Prescriptions:</p>
-                  <div className="flex gap-2">
-                    {order.prescriptions.map((prescription: any) => (
-                      <Button
-                        key={prescription.id}
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedPrescription(prescription)}
-                      >
-                        <FileText className="h-4 w-4 mr-2" />
-                        View Prescription ({prescription.status})
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </Card>
           ))}
         </div>
@@ -398,81 +430,13 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({
         </Dialog>
       )}
       
-      {/* Prescription Image Modal */}
-      {selectedPrescription && (
-        <Dialog open={!!selectedPrescription} onOpenChange={() => setSelectedPrescription(null)}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>
-                Prescription Details ID: {selectedPrescription.id.slice(0, 8)}...
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="font-medium">Status:</span> 
-                  <Badge className={`ml-2 ${getStatusColor(selectedPrescription.status)}`}>
-                    {selectedPrescription.status.toUpperCase()}
-                  </Badge>
-                </div>
-                {selectedPrescription.status === 'pending' && (
-                  <Button variant="outline" asChild>
-                    <a href={selectedPrescription.image_url} download>
-                      Download
-                    </a>
-                  </Button>
-                )}
-              </div>
-
-              <img 
-                src={selectedPrescription.image_url} 
-                alt="Prescription"
-                className="w-full max-h-96 object-contain rounded"
-              />
-
-              {selectedPrescription.status === 'pending' ? (
-                <div className="space-y-4">
-                  <div>
-                    <label className="font-medium block mb-1">Admin Notes:</label>
-                    <Textarea 
-                      value={adminNotes}
-                      onChange={(e) => setAdminNotes(e.target.value)}
-                      placeholder="Enter notes for the user..."
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button 
-                      className="bg-green-500 hover:bg-green-600"
-                      onClick={handleApprovePrescription}
-                    >
-                      Approve Prescription
-                    </Button>
-                    <Button 
-                      className="bg-red-500 hover:bg-red-600"
-                      onClick={handleRejectPrescription}
-                    >
-                      Reject Prescription
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-sm space-y-2">
-                  {selectedPrescription.admin_notes && (
-                    <div>
-                      <span className="font-medium">Admin Notes:</span> 
-                      <p className="text-gray-600 mt-1">{selectedPrescription.admin_notes}</p>
-                    </div>
-                  )}
-                  <div>
-                    <span className="font-medium">Upload Date:</span> 
-                    <span className="ml-2">{new Date(selectedPrescription.created_at).toLocaleDateString()}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Prescription Viewer Modal */}
+      <PrescriptionViewer
+        prescription={selectedPrescription}
+        isOpen={!!selectedPrescription}
+        onClose={() => setSelectedPrescription(null)}
+        onStatusUpdate={handlePrescriptionAction}
+      />
     </div>
   );
 };
