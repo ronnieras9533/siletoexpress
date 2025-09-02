@@ -1,12 +1,11 @@
-
 import React, { useState, useEffect } from 'react';
+// @ts-ignore
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, Clock, Package, Truck, CheckCircle, FileText } from 'lucide-react';
 import OrderStatusStepper from './OrderStatusStepper';
@@ -27,79 +26,111 @@ const AdminOrdersTable: React.FC<AdminOrdersTableProps> = ({
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [selectedPrescription, setSelectedPrescription] = useState<any>(null);
-  const [adminNotes, setAdminNotes] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
     fetchOrders();
   }, [orderType, paymentStatusFilter]);
 
-  useEffect(() => {
-    if (selectedPrescription) {
-      setAdminNotes(selectedPrescription.admin_notes || '');
-    }
-  }, [selectedPrescription]);
-
   const fetchOrders = async () => {
     try {
+      setLoading(true);
       console.log('Fetching orders with filters:', { orderType, paymentStatusFilter });
       
-      // Fetch orders with prescriptions and order items
-      let query = supabase
-        .from('orders')
-        .select(`
-          *,
-          prescriptions (
-            id,
-            image_url,
-            status,
-            admin_notes,
-            created_at
-          ),
-          order_items (
-            id,
-            quantity,
-            price,
-            products (name, brand)
-          )
-        `)
-        .order('created_at', { ascending: false });
+      // Cast to any to avoid TypeScript type instantiation issues
+      const client: any = supabase;
+      
+      // Use direct query without chaining to avoid type issues
+      let ordersData;
+      let error;
       
       if (paymentStatusFilter) {
-        query = query.eq('payment_status', paymentStatusFilter);
+        const result = await client
+          .from('orders')
+          .select('*')
+          .eq('payment_status', paymentStatusFilter)
+          .order('created_at', { ascending: false });
+        ordersData = result.data;
+        error = result.error;
+      } else {
+        const result = await client
+          .from('orders')
+          .select('*')
+          .order('created_at', { ascending: false });
+        ordersData = result.data;
+        error = result.error;
       }
-      
-      const { data: ordersData, error } = await query;
 
       if (error) {
-        console.error('Supabase error:', error);
+        console.error('Error fetching orders:', error);
         throw error;
       }
 
-      console.log('Orders data received:', ordersData);
-
-      if (ordersData && ordersData.length > 0) {
-        const userIds = ordersData.map(order => order.user_id);
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, full_name, email')
-          .in('id', userIds);
-
-        if (profilesError) {
-          console.error('Error fetching profiles:', profilesError);
-        }
-
-        const ordersWithProfiles = ordersData.map(order => ({
-          ...order,
-          profiles: profilesData?.find(profile => profile.id === order.user_id) || null
-        }));
-
-        setOrders(ordersWithProfiles);
-        console.log('Final orders with profiles:', ordersWithProfiles);
-      } else {
+      if (!ordersData || ordersData.length === 0) {
         setOrders([]);
-        console.log('No orders found');
+        return;
       }
+
+      // Fetch related data separately to avoid complex type issues
+      const orderIds = ordersData.map((order: any) => order.id);
+      const userIds = ordersData.map((order: any) => order.user_id);
+
+      // Fetch profiles
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', userIds);
+
+      // Fetch prescriptions
+      const { data: prescriptionsData } = await supabase
+        .from('prescriptions')
+        .select('id, order_id, image_url, status, admin_notes, created_at, user_id')
+        .in('order_id', orderIds);
+
+      // Fetch order items with products
+      const { data: orderItemsData } = await supabase
+        .from('order_items')
+        .select(`
+          id,
+          order_id,
+          quantity,
+          price,
+          product_id
+        `)
+        .in('order_id', orderIds);
+
+      // Fetch products for order items
+      const productIds = orderItemsData?.map((item: any) => item.product_id) || [];
+      const { data: productsData } = await supabase
+        .from('products')
+        .select('id, name, brand')
+        .in('id', productIds);
+
+      // Combine all data
+      const ordersWithData = ordersData.map((order: any) => {
+        const orderProfile = profilesData?.find((p: any) => p.id === order.user_id);
+        const orderPrescriptions = prescriptionsData?.filter((p: any) => p.order_id === order.id) || [];
+        const orderItems = orderItemsData?.filter((item: any) => item.order_id === order.id) || [];
+        
+        const itemsWithProducts = orderItems.map((item: any) => {
+          const product = productsData?.find((p: any) => p.id === item.product_id);
+          return {
+            ...item,
+            products: product
+          };
+        });
+
+        return {
+          ...order,
+          profiles: orderProfile,
+          prescriptions: orderPrescriptions,
+          order_items: itemsWithProducts
+        };
+      });
+
+      setOrders(ordersWithData);
+      console.log('Orders fetched successfully:', ordersWithData);
+
     } catch (error: any) {
       console.error('Error fetching orders:', error);
       toast({
