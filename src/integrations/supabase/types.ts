@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "12.2.3 (519615d)"
@@ -88,9 +88,11 @@ export type Database = {
           created_at: string
           id: string
           message: string
+          metadata: Json | null
           order_id: string | null
           prescription_id: string | null
           read: boolean
+          reference_id: string | null
           title: string
           type: Database["public"]["Enums"]["notification_type"]
           user_id: string
@@ -99,9 +101,11 @@ export type Database = {
           created_at?: string
           id?: string
           message: string
+          metadata?: Json | null
           order_id?: string | null
           prescription_id?: string | null
           read?: boolean
+          reference_id?: string | null
           title: string
           type?: Database["public"]["Enums"]["notification_type"]
           user_id: string
@@ -110,9 +114,11 @@ export type Database = {
           created_at?: string
           id?: string
           message?: string
+          metadata?: Json | null
           order_id?: string | null
           prescription_id?: string | null
           read?: boolean
+          reference_id?: string | null
           title?: string
           type?: Database["public"]["Enums"]["notification_type"]
           user_id?: string
@@ -217,6 +223,7 @@ export type Database = {
       orders: {
         Row: {
           amount: number | null
+          confirmed_at: string | null
           county: string | null
           created_at: string
           currency: string | null
@@ -230,16 +237,21 @@ export type Database = {
           mpesa_receipt_number: string | null
           payment_initiated: boolean | null
           payment_method: string | null
+          payment_provider: string | null
+          payment_received_at: string | null
+          payment_status: string
           phone: string | null
           phone_number: string | null
           prescription_approved: boolean | null
           requires_prescription: boolean | null
           status: Database["public"]["Enums"]["order_status"]
           total_amount: number
+          transaction_id: string | null
           user_id: string
         }
         Insert: {
           amount?: number | null
+          confirmed_at?: string | null
           county?: string | null
           created_at?: string
           currency?: string | null
@@ -253,16 +265,21 @@ export type Database = {
           mpesa_receipt_number?: string | null
           payment_initiated?: boolean | null
           payment_method?: string | null
+          payment_provider?: string | null
+          payment_received_at?: string | null
+          payment_status?: string
           phone?: string | null
           phone_number?: string | null
           prescription_approved?: boolean | null
           requires_prescription?: boolean | null
           status?: Database["public"]["Enums"]["order_status"]
           total_amount: number
+          transaction_id?: string | null
           user_id: string
         }
         Update: {
           amount?: number | null
+          confirmed_at?: string | null
           county?: string | null
           created_at?: string
           currency?: string | null
@@ -276,12 +293,16 @@ export type Database = {
           mpesa_receipt_number?: string | null
           payment_initiated?: boolean | null
           payment_method?: string | null
+          payment_provider?: string | null
+          payment_received_at?: string | null
+          payment_status?: string
           phone?: string | null
           phone_number?: string | null
           prescription_approved?: boolean | null
           requires_prescription?: boolean | null
           status?: Database["public"]["Enums"]["order_status"]
           total_amount?: number
+          transaction_id?: string | null
           user_id?: string
         }
         Relationships: []
@@ -504,12 +525,12 @@ export type Database = {
       }
       http_delete: {
         Args:
+          | { content: string; content_type: string; uri: string }
           | { uri: string }
-          | { uri: string; content: string; content_type: string }
         Returns: Database["public"]["CompositeTypes"]["http_response"]
       }
       http_get: {
-        Args: { uri: string } | { uri: string; data: Json }
+        Args: { data: Json; uri: string } | { uri: string }
         Returns: Database["public"]["CompositeTypes"]["http_response"]
       }
       http_head: {
@@ -528,17 +549,17 @@ export type Database = {
         }[]
       }
       http_patch: {
-        Args: { uri: string; content: string; content_type: string }
+        Args: { content: string; content_type: string; uri: string }
         Returns: Database["public"]["CompositeTypes"]["http_response"]
       }
       http_post: {
         Args:
-          | { uri: string; content: string; content_type: string }
-          | { uri: string; data: Json }
+          | { content: string; content_type: string; uri: string }
+          | { data: Json; uri: string }
         Returns: Database["public"]["CompositeTypes"]["http_response"]
       }
       http_put: {
-        Args: { uri: string; content: string; content_type: string }
+        Args: { content: string; content_type: string; uri: string }
         Returns: Database["public"]["CompositeTypes"]["http_response"]
       }
       http_reset_curlopt: {
@@ -568,7 +589,19 @@ export type Database = {
         | "prescription_update"
         | "payment_required"
         | "general"
+        | "payment_update"
       order_status:
+        | "pending"
+        | "approved"
+        | "delivered"
+        | "cancelled"
+        | "confirmed"
+        | "processing"
+        | "shipped"
+        | "out_for_delivery"
+        | "paid"
+        | "payment_received"
+      order_status_new:
         | "pending"
         | "approved"
         | "delivered"
@@ -727,8 +760,21 @@ export const Constants = {
         "prescription_update",
         "payment_required",
         "general",
+        "payment_update",
       ],
       order_status: [
+        "pending",
+        "approved",
+        "delivered",
+        "cancelled",
+        "confirmed",
+        "processing",
+        "shipped",
+        "out_for_delivery",
+        "paid",
+        "payment_received",
+      ],
+      order_status_new: [
         "pending",
         "approved",
         "delivered",
