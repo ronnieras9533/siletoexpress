@@ -12,7 +12,7 @@ import { Loader2, MapPin, Clock, User } from 'lucide-react';
 interface OrderTracking {
   id: string;
   order_id: string;
-  status: 'pending' | 'approved' | 'confirmed' | 'processing' | 'shipped' | 'out_for_delivery' | 'delivered' | 'cancelled';
+  status: 'pending' | 'approved' | 'confirmed' | 'processing' | 'shipped' | 'out_for_delivery' | 'delivered' | 'cancelled' | 'paid' | 'payment_received';
   location: string | null;
   note: string | null;
   created_at: string;
@@ -27,14 +27,16 @@ const AdminOrderTracking: React.FC<AdminOrderTrackingProps> = ({ orderId }) => {
   const [tracking, setTracking] = useState<OrderTracking[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [newStatus, setNewStatus] = useState<'pending' | 'approved' | 'confirmed' | 'processing' | 'shipped' | 'out_for_delivery' | 'delivered' | 'cancelled'>('pending');
+  const [newStatus, setNewStatus] = useState<'pending' | 'approved' | 'confirmed' | 'processing' | 'shipped' | 'out_for_delivery' | 'delivered' | 'cancelled' | 'paid' | 'payment_received'>('pending');
   const [location, setLocation] = useState('');
   const [note, setNote] = useState('');
   const { toast } = useToast();
 
-  const statusOptions: Array<{value: 'pending' | 'approved' | 'confirmed' | 'processing' | 'shipped' | 'out_for_delivery' | 'delivered' | 'cancelled', label: string}> = [
+  const statusOptions: Array<{value: 'pending' | 'approved' | 'confirmed' | 'processing' | 'shipped' | 'out_for_delivery' | 'delivered' | 'cancelled' | 'paid' | 'payment_received', label: string}> = [
     { value: 'pending', label: 'Pending' },
     { value: 'approved', label: 'Approved' },
+    { value: 'paid', label: 'Paid' },
+    { value: 'payment_received', label: 'Payment Received' },
     { value: 'confirmed', label: 'Confirmed' },
     { value: 'processing', label: 'Processing' },
     { value: 'shipped', label: 'Shipped' },
@@ -125,6 +127,8 @@ const AdminOrderTracking: React.FC<AdminOrderTrackingProps> = ({ orderId }) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
       case 'approved': return 'bg-green-100 text-green-800';
+      case 'paid': return 'bg-emerald-100 text-emerald-800';
+      case 'payment_received': return 'bg-teal-100 text-teal-800';
       case 'confirmed': return 'bg-blue-100 text-blue-800';
       case 'processing': return 'bg-purple-100 text-purple-800';
       case 'shipped': return 'bg-indigo-100 text-indigo-800';
@@ -155,7 +159,7 @@ const AdminOrderTracking: React.FC<AdminOrderTrackingProps> = ({ orderId }) => {
           <form onSubmit={handleAddTracking} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-2">Status</label>
-              <Select value={newStatus} onValueChange={(value: 'pending' | 'approved' | 'confirmed' | 'processing' | 'shipped' | 'out_for_delivery' | 'delivered' | 'cancelled') => setNewStatus(value)}>
+              <Select value={newStatus} onValueChange={(value: 'pending' | 'approved' | 'confirmed' | 'processing' | 'shipped' | 'out_for_delivery' | 'delivered' | 'cancelled' | 'paid' | 'payment_received') => setNewStatus(value)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
