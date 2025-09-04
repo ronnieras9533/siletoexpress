@@ -71,13 +71,26 @@ const AdminDashboard = () => {
     queryKey: ['monthlyRevenue'],
     queryFn: async () => {
       const currentDate = new Date();
-      const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
-      const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString();
+      
+      // Calculate revenue from 28th of previous month to 28th of current month
+      let startDate: Date;
+      let endDate: Date;
+      
+      if (currentDate.getDate() >= 28) {
+        // If today is 28th or later, calculate from 28th of this month to 28th of next month
+        startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 28);
+        endDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 28);
+      } else {
+        // If today is before 28th, calculate from 28th of previous month to 28th of this month
+        startDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 28);
+        endDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 28);
+      }
+      
       const { data, error } = await (supabase as any)
         .from('orders')
         .select('total_amount')
-        .gte('created_at', firstDayOfMonth)
-        .lte('created_at', lastDayOfMonth)
+        .gte('created_at', startDate.toISOString())
+        .lt('created_at', endDate.toISOString())
         .eq('payment_status', 'paid');
       if (error) throw error;
       return data?.reduce((sum, order) => sum + order.total_amount, 0) || 0;
@@ -168,14 +181,14 @@ const AdminDashboard = () => {
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
-                Monthly Revenue
+                Monthly Revenue (28th-28th)
               </CardTitle>
               <TrendingUp className="h-8 w-8 text-gray-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">KES {Number(monthlyRevenue).toLocaleString()}</div>
               <p className="text-xs text-gray-500">
-                {isLoadingRevenue ? 'Loading...' : errorRevenue ? 'Error' : 'Revenue this month'}
+                {isLoadingRevenue ? 'Loading...' : errorRevenue ? 'Error' : 'Revenue from 28th to 28th'}
               </p>
             </CardContent>
           </Card>

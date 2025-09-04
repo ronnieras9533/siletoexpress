@@ -394,6 +394,25 @@ const NotificationPanel = () => {
                             <p className="text-sm text-gray-600 mt-1 line-clamp-2">
                               {notification.message}
                             </p>
+                            {/* Display product details if available */}
+                            {notification.metadata && typeof notification.metadata === 'object' && 
+                             'items_detailed' in notification.metadata && 
+                             Array.isArray((notification.metadata as any).items_detailed) && 
+                             (notification.metadata as any).items_detailed.length > 0 && (
+                              <div className="mt-2 space-y-1">
+                                <p className="text-xs font-medium text-gray-700">Items:</p>
+                                {(notification.metadata as any).items_detailed.slice(0, 2).map((item: any, index: number) => (
+                                  <div key={index} className="text-xs text-gray-600 bg-gray-50 p-2 rounded">
+                                    <div className="font-medium">{item.product_name}</div>
+                                    {item.product_brand && <div className="text-gray-500">Brand: {item.product_brand}</div>}
+                                    <div>Qty: {item.quantity} × KES {Number(item.unit_price).toLocaleString()}</div>
+                                  </div>
+                                ))}
+                                {(notification.metadata as any).items_detailed.length > 2 && (
+                                  <p className="text-xs text-gray-500">+{(notification.metadata as any).items_detailed.length - 2} more items</p>
+                                )}
+                              </div>
+                            )}
                             {status && (
                               <div className="mt-2">
                                 <Badge variant="outline" className={getNotificationColor(notification.type, status)}>
@@ -469,11 +488,54 @@ const NotificationPanel = () => {
                 {new Date(selectedNotification.created_at).toLocaleString()}
               </div>
               
-              {selectedNotification.metadata && Object.keys(selectedNotification.metadata).length > 0 && (
+              {/* Display detailed product information */}
+              {selectedNotification.metadata && typeof selectedNotification.metadata === 'object' && 
+               'items_detailed' in selectedNotification.metadata && 
+               Array.isArray((selectedNotification.metadata as any).items_detailed) && 
+               (selectedNotification.metadata as any).items_detailed.length > 0 && (
                 <div className="bg-gray-50 p-3 rounded-md text-sm">
-                  <h4 className="font-medium mb-2">Details:</h4>
+                  <h4 className="font-medium mb-3">Order Items:</h4>
+                  <div className="space-y-3">
+                    {(selectedNotification.metadata as any).items_detailed.map((item: any, index: number) => (
+                      <div key={index} className="border-l-2 border-blue-200 pl-3">
+                        <div className="font-medium text-gray-900">{item.product_name}</div>
+                        {item.product_description && (
+                          <div className="text-gray-600 text-xs mt-1">{item.product_description}</div>
+                        )}
+                        <div className="flex flex-wrap gap-2 mt-1 text-xs">
+                          {item.product_brand && (
+                            <span className="bg-blue-100 text-blue-800 px-1 rounded">Brand: {item.product_brand}</span>
+                          )}
+                          {item.product_category && (
+                            <span className="bg-green-100 text-green-800 px-1 rounded">{item.product_category}</span>
+                          )}
+                          {item.prescription_required && (
+                            <span className="bg-orange-100 text-orange-800 px-1 rounded">Prescription Required</span>
+                          )}
+                        </div>
+                        <div className="flex justify-between items-center mt-2 text-sm">
+                          <span>Quantity: {item.quantity}</span>
+                          <span>Unit Price: KES {Number(item.unit_price).toLocaleString()}</span>
+                          <span className="font-medium">Total: KES {Number(item.total_price).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {(selectedNotification.metadata as any).total_amount && (
+                    <div className="mt-3 pt-3 border-t text-sm font-medium">
+                      Order Total: KES {Number((selectedNotification.metadata as any).total_amount).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {selectedNotification.metadata && Object.keys(selectedNotification.metadata).filter(key => key !== 'items_detailed').length > 0 && (
+                <div className="bg-gray-50 p-3 rounded-md text-sm">
+                  <h4 className="font-medium mb-2">Additional Details:</h4>
                   <div className="space-y-1">
-                    {formatMetadata(selectedNotification.metadata)}
+                    {formatMetadata(Object.fromEntries(
+                      Object.entries(selectedNotification.metadata).filter(([key]) => key !== 'items_detailed')
+                    ))}
                   </div>
                 </div>
               )}
