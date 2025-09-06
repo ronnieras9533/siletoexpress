@@ -2,7 +2,7 @@ const BASE_URL = "https://pay.pesapal.com/v3/api";
 const CONSUMER_KEY = Deno.env.get("PESAPAL_CONSUMER_KEY")!;
 const CONSUMER_SECRET = Deno.env.get("PESAPAL_CONSUMER_SECRET")!;
 const CALLBACK_URL = Deno.env.get("PESAPAL_CALLBACK_URL")!;
-const REDIRECT_URL = "https://siletoexpress.netlify.app/pesapal-callback";
+const REDIRECT_URL = "https://sileto-pharmaceuticals.netlify.app/pesapal-callback";
 
 export async function getAccessToken() {
   try {

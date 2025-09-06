@@ -5,7 +5,7 @@ import Footer from '@/components/Footer';
 
 const PrivacyPolicy = () => {
   useEffect(() => {
-    document.title = "Privacy Policy - SiletoExpress";
+    document.title = "Privacy Policy - Sileto Pharmaceuticals";
     window.scrollTo(0, 0);
   }, []);
 
@@ -22,7 +22,7 @@ const PrivacyPolicy = () => {
               <h2 className="text-2xl font-semibold text-gray-800 mb-4">Data Protection & Privacy</h2>
               
               <p className="text-gray-600 leading-7 mb-4">
-                At SiletoExpress, we respect and protect your privacy. We collect only essential personal data 
+                At Sileto Pharmaceuticals, we respect and protect your privacy. We collect only essential personal data 
                 (e.g., name, contact, prescription info) for order fulfillment, legal compliance, and improving 
                 your experience.
               </p>
@@ -36,8 +36,8 @@ const PrivacyPolicy = () => {
               <p className="text-gray-600 leading-7 mb-4">
                 We never share or sell personal data to third parties. Users may request to access or delete 
                 their data by contacting us at{' '}
-                <a href="mailto:support@siletoexpress.com" className="text-blue-600 hover:underline">
-                  support@siletoexpress.com
+                <a href="mailto:support@sileto-pharmaceuticals.com" className="text-blue-600 hover:underline">
+                  support@sileto-pharmaceuticals.com
                 </a>.
               </p>
 

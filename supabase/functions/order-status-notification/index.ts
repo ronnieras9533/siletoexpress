@@ -54,24 +54,24 @@ const getNotificationConfig = (
     case 'confirmed':
       return {
         email: {
-          subject: `Order #${orderId} Confirmed - SiletoExpress`,
+          subject: `Order #${orderId} Confirmed - Sileto Pharmaceuticals`,
           // You can add templateId: 4 if you have a Brevo template
           htmlContent: generateEmailHTML('confirmed', baseParams)
         },
         sms: {
-          message: `Hello ${name}, your SiletoExpress order #${orderId} has been confirmed. Total: KES ${totalAmount?.toLocaleString() || '0'}. Expected delivery in 2-3 days. Thank you!`
+          message: `Hello ${name}, your Sileto Pharmaceuticals order #${orderId} has been confirmed. Total: KES ${totalAmount?.toLocaleString() || '0'}. Expected delivery in 2-3 days. Thank you!`
         }
       };
 
     case 'delivered':
       return {
         email: {
-          subject: `Order #${orderId} Delivered - SiletoExpress`,
+          subject: `Order #${orderId} Delivered - Sileto Pharmaceuticals`,
           // You can add templateId: 5 if you have a Brevo template
           htmlContent: generateEmailHTML('delivered', baseParams)
         },
         sms: {
-          message: `Hello ${name}, your SiletoExpress order #${orderId} has been delivered successfully. Total: KES ${totalAmount?.toLocaleString() || '0'}. Thank you for choosing us!`
+          message: `Hello ${name}, your Sileto Pharmaceuticals order #${orderId} has been delivered successfully. Total: KES ${totalAmount?.toLocaleString() || '0'}. Thank you for choosing us!`
         }
       };
 
@@ -87,7 +87,7 @@ const generateEmailHTML = (status: string, params: any): string => {
   const baseContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="text-align: center; margin-bottom: 30px;">
-        <h1 style="color: #2563eb; margin: 0;">SiletoExpress</h1>
+        <h1 style="color: #2563eb; margin: 0;">Sileto Pharmaceuticals</h1>
         <p style="color: #666; margin: 5px 0;">Your trusted pharmacy delivery service</p>
       </div>
       
@@ -125,7 +125,7 @@ const generateEmailHTML = (status: string, params: any): string => {
         <div style="background: #dcfce7; border: 1px solid #86efac; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
           <p style="margin: 0; color: #166534;">
             <strong>Order Delivered Successfully!</strong><br>
-            Thank you for choosing SiletoExpress. We hope you're satisfied with your order.
+            Thank you for choosing Sileto Pharmaceuticals. We hope you're satisfied with your order.
           </p>
         </div>
       `;
@@ -135,7 +135,7 @@ const generateEmailHTML = (status: string, params: any): string => {
   return baseContent + statusMessage + `
       <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
         <p style="color: #6b7280; font-size: 14px; margin: 0;">
-          Thank you for choosing SiletoExpress!<br>
+          Thank you for choosing Sileto Pharmaceuticals!<br>
           For support, contact us at +254 718 925 368
         </p>
       </div>
@@ -165,8 +165,8 @@ const sendBrevoEmail = async (
 ): Promise<void> => {
   const emailPayload: any = {
     sender: {
-      name: 'SiletoExpress',
-      email: 'orders@siletoexpress.com'
+      name: 'Sileto Pharmaceuticals',
+      email: 'orders@sileto-pharmaceuticals.com'
     },
     to: [{ email, name }],
     subject: config.subject
@@ -218,7 +218,7 @@ const sendBrevoSMS = async (
       'api-key': brevoApiKey,
     },
     body: JSON.stringify({
-      sender: 'SiletoExpress',
+      sender: 'Sileto Pharmaceuticals',
       recipient: formattedPhone,
       content: message.substring(0, 160) // SMS length limit
     }),

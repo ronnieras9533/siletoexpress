@@ -157,15 +157,15 @@ async function sendBrevoEmail(data: NotificationData) {
   }
 
   const subject = data.status === "confirmed"
-    ? `Order #${data.order_id} Confirmed - SiletoExpress`
-    : `Order #${data.order_id} Delivered - SiletoExpress`;
+    ? `Order #${data.order_id} Confirmed - Sileto Pharmaceuticals`
+    : `Order #${data.order_id} Delivered - Sileto Pharmaceuticals`;
 
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #2563eb;">Hello ${data.name},</h2>
       <p>Your order <strong>#${data.order_id}</strong> has been <strong>${data.status}</strong>.</p>
       ${data.total_amount ? `<p><strong>Total Amount:</strong> KES ${data.total_amount.toLocaleString()}</p>` : ''}
-      <p>Thank you for choosing SiletoExpress!</p>
+      <p>Thank you for choosing Sileto Pharmaceuticals!</p>
       <hr style="margin: 20px 0;">
       <p style="color: #666; font-size: 12px;">
         This is an automated message. Please do not reply to this email.
@@ -175,8 +175,8 @@ async function sendBrevoEmail(data: NotificationData) {
 
   const emailPayload = {
     sender: {
-      name: Deno.env.get("SENDER_NAME") || "SiletoExpress",
-      email: Deno.env.get("SENDER_EMAIL") || "noreply@siletoexpress.com"
+      name: Deno.env.get("SENDER_NAME") || "Sileto Pharmaceuticals",
+      email: Deno.env.get("SENDER_EMAIL") || "noreply@sileto-pharmaceuticals.com"
     },
     to: [{ email: data.email, name: data.name }],
     subject: subject,
@@ -215,7 +215,7 @@ async function sendSMS(data: { phone: string; order_id: string; status: string }
     return;
   }
 
-  const message = `Hello! Your SiletoExpress order #${data.order_id} has been ${data.status}. Thank you for choosing us!`;
+  const message = `Hello! Your Sileto Pharmaceuticals order #${data.order_id} has been ${data.status}. Thank you for choosing us!`;
 
   console.log("📱 Sending SMS to:", data.phone);
 
@@ -223,7 +223,7 @@ async function sendSMS(data: { phone: string; order_id: string; status: string }
     username: username,
     to: data.phone.startsWith('+') ? data.phone : `+254${data.phone.replace(/^0/, '')}`,
     message: message,
-    from: "SiletoExpress"
+    from: "Sileto Pharmaceuticals"
   });
 
   const response = await fetch("https://api.sandbox.africastalking.com/version1/messaging", {

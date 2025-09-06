@@ -106,7 +106,7 @@ const OrderSuccess = () => {
                   <h3 className="font-medium mb-2">Need help?</h3>
                   <p className="text-sm text-gray-600">
                     Contact us at <span className="font-medium">+254 718 925 368</span> or email{' '}
-                    <span className="font-medium">support@siletoexpress.com</span>
+                    <span className="font-medium">support@sileto-pharmaceuticals.com</span>
                   </p>
                 </div>
               </div>

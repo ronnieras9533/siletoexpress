@@ -112,7 +112,7 @@ serve(async (req) => {
           currency_code: currency === 'KES' ? 'USD' : currency, // Convert KES to USD for PayPal
           value: currency === 'KES' ? (amount / 100).toFixed(2) : amount.toFixed(2) // Rough conversion for demo
         },
-        description: `SiletoExpress Order - ${amount} ${currency}`
+        description: `Sileto Pharmaceuticals Order - ${amount} ${currency}`
       }],
       application_context: {
         return_url: `${req.headers.get('origin')}/payment-success`,

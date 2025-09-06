@@ -141,7 +141,7 @@ const PesapalPaymentButton: React.FC<PesapalPaymentButtonProps> = ({
         currency: currency,
         email: customerInfo.email.toLowerCase(),
         phone: formattedPhone,
-        description: `SiletoExpress Order - ${items.length} items - ${amount} ${currency}`,
+        description: `Sileto Pharmaceuticals Order - ${items.length} items - ${amount} ${currency}`,
         callback_url: `${window.location.origin}/payment-success`,
         notification_id: '', // Will be set by the edge function
         cartItems: cartItems,

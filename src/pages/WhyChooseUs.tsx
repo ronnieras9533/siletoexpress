@@ -45,7 +45,7 @@ const WhyChooseUs = () => {
       
       <div className="container mx-auto px-4 py-16">
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Why Choose SiletoExpress?</h1>
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">Why Choose Sileto Pharmaceuticals?</h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
             Your health is our priority. We're committed to providing safe, authentic medicines 
             with exceptional service across Kenya.
@@ -77,7 +77,7 @@ const WhyChooseUs = () => {
           <div className="text-center">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Our Commitment</h2>
             <p className="text-lg text-gray-600 max-w-4xl mx-auto mb-8">
-              At SiletoExpress, we understand that access to quality healthcare and medicines 
+              At Sileto Pharmaceuticals, we understand that access to quality healthcare and medicines 
               is fundamental. That's why we've built a platform that prioritizes safety, 
               authenticity, and convenience. Our team of qualified pharmacists ensures every 
               order meets the highest standards of pharmaceutical care.

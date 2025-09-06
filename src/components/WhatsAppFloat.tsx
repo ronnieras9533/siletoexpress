@@ -10,7 +10,7 @@ interface WhatsAppFloatProps {
 
 const WhatsAppFloat: React.FC<WhatsAppFloatProps> = ({ 
   phoneNumber = "254718925368", // Default Sukhiba WhatsApp number - replace with yours
-  defaultMessage = "Hi SiletoExpress, I'd like to order medicine or talk to a pharmacist." 
+  defaultMessage = "Hi Sileto Pharmaceuticals, I'd like to order medicine or talk to a pharmacist." 
 }) => {
   const [isHovered, setIsHovered] = useState(false);
 

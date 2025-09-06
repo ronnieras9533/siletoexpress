@@ -188,7 +188,7 @@ const Admin = () => {
       <div className="container mx-auto px-4 py-4 lg:py-8">
         <div className="mb-6 lg:mb-8">
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">Admin Panel</h1>
-          <p className="text-gray-600">Manage your SiletoExpress platform</p>
+          <p className="text-gray-600">Manage your Sileto Pharmaceuticals platform</p>
         </div>
 
         {/* Stats Cards */}

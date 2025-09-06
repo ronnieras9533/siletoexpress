@@ -10,7 +10,7 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Company Info */}
           <div className="space-y-4">
-            <h3 className="text-xl font-bold">SiletoExpress</h3>
+            <h3 className="text-xl font-bold">Sileto Pharmaceuticals</h3>
             <p className="text-gray-300 text-sm">
               Your trusted online pharmacy delivering quality healthcare products 
               across Kenya with fast, reliable service.
@@ -32,7 +32,7 @@ const Footer = () => {
           <div className="space-y-4">
             <h4 className="text-lg font-semibold">Contact Us</h4>
             <div className="space-y-2 text-sm text-gray-300">
-              <p>Email: info@siletoexpress.com</p>
+              <p>Email: info@sileto-pharmaceuticals.com</p>
               <p>Working Hours: Every Day 8AM - 9PM</p>
             </div>
           </div>
@@ -51,7 +51,7 @@ const Footer = () => {
                 <Facebook size={24} />
               </a>
               <a
-                href="https://www.instagram.com/siletoexpress/"
+                href="https://www.instagram.com/sileto-pharmaceuticals/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-300 hover:text-white transition-colors"
@@ -60,7 +60,7 @@ const Footer = () => {
                 <Instagram size={24} />
               </a>
               <a
-                href="https://x.com/siletoexpress"
+                href="https://x.com/sileto-pharmaceuticals"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-300 hover:text-white transition-colors"
@@ -69,7 +69,7 @@ const Footer = () => {
                 <Twitter size={24} />
               </a>
               <a
-                href="https://www.tiktok.com/@siletoexpress"
+                href="https://www.tiktok.com/@sileto-pharmaceuticals"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-300 hover:text-white transition-colors"
@@ -88,7 +88,7 @@ const Footer = () => {
 
         <div className="border-t border-gray-800 mt-8 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center text-sm text-gray-400">
-            <p>&copy; 2025 SiletoExpress. All rights reserved.</p>
+            <p>&copy; 2025 Sileto Pharmaceuticals. All rights reserved.</p>
             <div className="flex space-x-6 mt-4 md:mt-0">
               <Link to="/privacy-policy" className="hover:text-white transition-colors">Privacy Policy</Link>
               <Link to="/terms-of-service" className="hover:text-white transition-colors">Terms of Service</Link>

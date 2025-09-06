@@ -330,7 +330,7 @@ const Checkout = () => {
                         phoneNumber: phoneNumber,
                         orderId: '',
                         accountReference: `Order-${Date.now()}`,
-                        transactionDesc: 'SiletoExpress Order Payment'
+                        transactionDesc: 'Sileto Pharmaceuticals Order Payment'
                       }}
                       onSuccess={(receiptNumber) => handlePaymentSuccess(receiptNumber)}
                       onError={handlePaymentError}

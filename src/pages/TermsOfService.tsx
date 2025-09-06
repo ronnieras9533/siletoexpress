@@ -5,7 +5,7 @@ import Footer from '@/components/Footer';
 
 const TermsOfService = () => {
   useEffect(() => {
-    document.title = "Terms of Service - SiletoExpress";
+    document.title = "Terms of Service - Sileto Pharmaceuticals";
     window.scrollTo(0, 0);
   }, []);
 
@@ -22,7 +22,7 @@ const TermsOfService = () => {
               <h2 className="text-2xl font-semibold text-gray-800 mb-4">Agreement to Terms</h2>
               
               <p className="text-gray-600 leading-7 mb-4">
-                By using SiletoExpress, you agree to comply with Kenyan laws and PPB regulations. 
+                By using Sileto Pharmaceuticals, you agree to comply with Kenyan laws and PPB regulations. 
                 Prescription drugs require a valid prescription. Orders may be reviewed or declined 
                 if prescription requirements are not met.
               </p>
@@ -62,7 +62,7 @@ const TermsOfService = () => {
 
               <h3 className="text-xl font-semibold text-gray-800 mt-6 mb-3">Liability and Disclaimer</h3>
               <p className="text-gray-600 leading-7">
-                SiletoExpress provides pharmaceutical products and health information for informational 
+                Sileto Pharmaceuticals provides pharmaceutical products and health information for informational 
                 purposes. We are not liable for any adverse effects from product misuse or failure to 
                 follow medical advice. Consult healthcare professionals for medical guidance.
               </p>
@@ -70,8 +70,8 @@ const TermsOfService = () => {
               <h3 className="text-xl font-semibold text-gray-800 mt-6 mb-3">Contact Information</h3>
               <p className="text-gray-600 leading-7">
                 For questions about these terms or our services, contact us at{' '}
-                <a href="mailto:info@siletoexpress.com" className="text-blue-600 hover:underline">
-                  info@siletoexpress.com
+                <a href="mailto:info@sileto-pharmaceuticals.com" className="text-blue-600 hover:underline">
+                  info@sileto-pharmaceuticals.com
                 </a>{' '}
                 or through our customer support channels.
               </p>

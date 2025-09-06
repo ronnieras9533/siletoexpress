@@ -14,7 +14,7 @@ const Index = () => {
 
   // Set page title and scroll to top
   useEffect(() => {
-    document.title = "SiletoExpress - Your Trusted Online Pharmacy";
+    document.title = "Sileto Pharmaceuticals - Your Trusted Online Pharmacy";
     window.scrollTo(0, 0);
   }, []);
 

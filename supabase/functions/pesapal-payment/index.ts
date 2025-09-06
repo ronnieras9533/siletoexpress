@@ -182,13 +182,13 @@ serve(async (req) => {
       description: sanitizedDescription,
       callback_url: callback_url || `${origin}/pesapal-callback`,
       notification_id: ipnId,
-      branch: "SiletoExpress",
+      branch: "Sileto Pharmaceuticals",
       billing_address: {
         email_address: sanitizedEmail,
         phone_number: sanitizedPhone,
         country_code: "KE",
         first_name: "Customer",
-        last_name: "SiletoExpress"
+        last_name: "Sileto Pharmaceuticals"
       }
     }
 

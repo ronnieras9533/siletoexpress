@@ -182,7 +182,7 @@ const PayPalPaymentButton: React.FC<PayPalPaymentButtonProps> = ({
                 currency_code: currency,
                 value: amount.toFixed(2)
               },
-              description: `SiletoExpress Order #${orderData.order_id}`,
+              description: `Sileto Pharmaceuticals Order #${orderData.order_id}`,
               custom_id: orderData.order_id
             }],
             application_context: {
